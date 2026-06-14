@@ -35,6 +35,9 @@ import {
   LAWN_MOWER_READY_X,
   LAWN_MOWER_SPEED_COLS_PER_SEC,
   LAWN_MOWER_TRIGGER_X,
+  MAGNET_SHROOM_RANGE_COLS,
+  MAGNET_SHROOM_RANGE_LANES,
+  MAGNETIC_ZOMBIE_TYPES,
   POGO_WITHOUT_STICK_SPEED_COLS_PER_SEC,
   POTATO_MINE_ARM_MS,
   SKY_SUN_INTERVAL_MS,
@@ -1168,6 +1171,36 @@ export const useGameStore = create<GameStore>()((set, get) => ({
         zombies = result.zombies;
         score += result.scoreDelta;
         totalZombiesKilled += result.killedCount;
+        plants[plantId] = { ...plant, lastAttackAtMs: newGameTimeMs };
+        continue;
+      }
+
+      if (plant.plantType === "MAGNET_SHROOM") {
+        if (plant.isSleeping) continue;
+        const def = getPlantDef("MAGNET_SHROOM");
+        if (def.attackCooldownMs === null || newGameTimeMs - plant.lastAttackAtMs < def.attackCooldownMs) {
+          continue;
+        }
+        // Find nearest zombie with magnetic armor within range
+        let magnetTarget: RuntimeZombie | null = null;
+        let magnetTargetId: string | null = null;
+        for (const [zId, zombie] of Object.entries(zombies)) {
+          if (zombie.isUnderground || zombie.isAerial) continue;
+          if (!MAGNETIC_ZOMBIE_TYPES.has(zombie.zombieType)) continue;
+          if (zombie.armorHealth <= 0) continue;
+          if (Math.abs(zombie.lane - plant.row) > MAGNET_SHROOM_RANGE_LANES) continue;
+          if (Math.abs(zombie.x - plant.col) > MAGNET_SHROOM_RANGE_COLS) continue;
+          if (magnetTarget === null || zombie.x < magnetTarget.x) {
+            magnetTarget = zombie;
+            magnetTargetId = zId;
+          }
+        }
+        if (!magnetTarget || !magnetTargetId) continue;
+
+        zombies = {
+          ...zombies,
+          [magnetTargetId]: { ...magnetTarget, armorHealth: 0 },
+        };
         plants[plantId] = { ...plant, lastAttackAtMs: newGameTimeMs };
         continue;
       }
