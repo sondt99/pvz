@@ -68,6 +68,7 @@ export interface RuntimeGridCell {
   plantInstanceId: string | null;
   lilyPadInstanceId: string | null;
   flowerPotInstanceId: string | null;
+  pumpkinInstanceId: string | null;
   graveId: string | null;
   craterExpiresAtMs: number | null;
 }

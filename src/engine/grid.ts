@@ -43,6 +43,7 @@ export function generateGrid(env: EnvironmentConfig): RuntimeGridCell[][] {
         plantInstanceId: null,
         lilyPadInstanceId: null,
         flowerPotInstanceId: null,
+        pumpkinInstanceId: null,
         graveId: graveByCell.get(`${row}:${col}`) ?? null,
         craterExpiresAtMs: null,
       });
@@ -95,12 +96,20 @@ export function canPlantHere(
     requiresFlowerPot: boolean;
     isLilyPad?: boolean;
     isFlowerPot?: boolean;
+    isPumpkin?: boolean;
   }
 ): boolean {
   const cell = getCell(grid, row, col);
   if (!cell) return false;
   if (cell.graveId !== null) return false;
   if (cell.craterExpiresAtMs !== null) return false;
+
+  if (opts.isPumpkin) {
+    if (cell.pumpkinInstanceId !== null) return false;
+    if (cell.isWater) return cell.lilyPadInstanceId !== null;
+    if (cell.isSlope) return cell.flowerPotInstanceId !== null;
+    return true;
+  }
 
   if (cell.isWater) {
     if (opts.isFlowerPot) return false;
@@ -168,6 +177,16 @@ export function setFlowerPotOnCell(
 ): void {
   const cell = getCell(grid, row, col);
   if (cell) cell.flowerPotInstanceId = instanceId;
+}
+
+export function setPumpkinOnCell(
+  grid: RuntimeGridCell[][],
+  row: number,
+  col: number,
+  instanceId: string | null
+): void {
+  const cell = getCell(grid, row, col);
+  if (cell) cell.pumpkinInstanceId = instanceId;
 }
 
 /**

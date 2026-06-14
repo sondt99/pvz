@@ -7,7 +7,15 @@ import type {
   RuntimeZombie,
   SeedPacketSlot,
 } from "../engine/types";
-import { generateGrid, getCell, canPlantHere, setFlowerPotOnCell, setLilyPadOnCell, setPlantOnCell } from "../engine/grid";
+import {
+  generateGrid,
+  getCell,
+  canPlantHere,
+  setFlowerPotOnCell,
+  setLilyPadOnCell,
+  setPlantOnCell,
+  setPumpkinOnCell,
+} from "../engine/grid";
 import { getInitialSun, tickSkySun, spendSun, collectSun, createSkySunDrop, advanceSunDrop, isSunDropExpired } from "../engine/sun";
 import { getPlantDef } from "../engine/entities/plant-defs";
 import { getZombieDef } from "../engine/entities/zombie-defs";
@@ -70,6 +78,10 @@ function isFlowerPotPlant(plantType: string): boolean {
   return plantType === "FLOWER_POT";
 }
 
+function isPumpkinPlant(plantType: string): boolean {
+  return plantType === "PUMPKIN";
+}
+
 function getZombieEatPriority(plantType: string): number {
   if (isLilyPadPlant(plantType) || isFlowerPotPlant(plantType)) return 0;
   if (plantType === "PUMPKIN") return 2;
@@ -108,6 +120,10 @@ function setPlantInCorrectSlot(
   }
   if (isFlowerPotPlant(plantType)) {
     setFlowerPotOnCell(grid, row, col, instanceId);
+    return;
+  }
+  if (isPumpkinPlant(plantType)) {
+    setPumpkinOnCell(grid, row, col, instanceId);
     return;
   }
   setPlantOnCell(grid, row, col, instanceId);
@@ -544,6 +560,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
       requiresFlowerPot: cell.isSlope && !isFlowerPotPlant(plantType),
       isLilyPad: isLilyPadPlant(plantType),
       isFlowerPot: isFlowerPotPlant(plantType),
+      isPumpkin: isPumpkinPlant(plantType),
     })) return false;
 
     loadout = rechargeSeed();

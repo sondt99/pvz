@@ -75,6 +75,7 @@ const EXTENDED_LOADOUT: SeedPacketSlot[] = [
   { plantType: "SEA_SHROOM", plantId: "sea-shroom", sunCost: 0, cooldownRemainingMs: 0, cooldownTotalMs: 7000, isSelected: false, slotIndex: 13 },
   { plantType: "ICE_SHROOM", plantId: "ice-shroom", sunCost: 75, cooldownRemainingMs: 0, cooldownTotalMs: 50000, isSelected: false, slotIndex: 14 },
   { plantType: "DOOM_SHROOM", plantId: "doom-shroom", sunCost: 125, cooldownRemainingMs: 0, cooldownTotalMs: 50000, isSelected: false, slotIndex: 15 },
+  { plantType: "PUMPKIN", plantId: "pumpkin", sunCost: 125, cooldownRemainingMs: 0, cooldownTotalMs: 30000, isSelected: false, slotIndex: 16 },
 ];
 
 function makeZombie(overrides: Partial<RuntimeZombie> = {}): RuntimeZombie {
@@ -320,6 +321,72 @@ describe("placePlant", () => {
 
     expect(useGameStore.getState().zombies.z1.eatTargetId).toBe(peashooter!.instanceId);
     expect(useGameStore.getState().zombies.z1.eatTargetId).not.toBe(lilyPad!.instanceId);
+  });
+
+  it("stacks Pumpkin armor over an existing plant without replacing the plant slot", () => {
+    useGameStore.getState().initGame(DAY_ENV, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({ currentSun: 500 });
+
+    expect(useGameStore.getState().placePlant("PEASHOOTER", 0, 0)).toBe(true);
+    const peashooterId = useGameStore.getState().grid[0][0].plantInstanceId;
+    expect(peashooterId).not.toBeNull();
+
+    expect(useGameStore.getState().placePlant("PUMPKIN", 0, 0)).toBe(true);
+    const cell = useGameStore.getState().grid[0][0];
+    expect(cell.plantInstanceId).toBe(peashooterId);
+    expect(cell.pumpkinInstanceId).not.toBeNull();
+    expect(Object.values(useGameStore.getState().plants).map((plant) => plant.plantType)).toEqual(
+      expect.arrayContaining(["PEASHOOTER", "PUMPKIN"])
+    );
+
+    useGameStore.setState((state) => ({
+      loadout: state.loadout.map((slot) =>
+        slot.plantType === "PUMPKIN" ? { ...slot, cooldownRemainingMs: 0 } : slot
+      ),
+    }));
+    expect(useGameStore.getState().placePlant("PUMPKIN", 0, 0)).toBe(false);
+  });
+
+  it("makes zombies eat Pumpkin before the protected plant", () => {
+    useGameStore.getState().initGame(DAY_ENV, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({ currentSun: 500 });
+
+    expect(useGameStore.getState().placePlant("PEASHOOTER", 0, 3)).toBe(true);
+    expect(useGameStore.getState().placePlant("PUMPKIN", 0, 3)).toBe(true);
+
+    const peashooter = Object.values(useGameStore.getState().plants).find(
+      (plant) => plant.plantType === "PEASHOOTER"
+    );
+    const pumpkin = Object.values(useGameStore.getState().plants).find(
+      (plant) => plant.plantType === "PUMPKIN"
+    );
+    expect(peashooter).toBeDefined();
+    expect(pumpkin).toBeDefined();
+
+    useGameStore.setState({
+      zombies: {
+        z1: makeZombie({ instanceId: "z1", lane: 0, x: 3.2 }),
+      },
+    });
+    useGameStore.getState().tick(0);
+
+    expect(useGameStore.getState().zombies.z1.eatTargetId).toBe(pumpkin!.instanceId);
+    expect(useGameStore.getState().zombies.z1.eatTargetId).not.toBe(peashooter!.instanceId);
+
+    useGameStore.setState((state) => ({
+      plants: {
+        ...state.plants,
+        [pumpkin!.instanceId]: { ...state.plants[pumpkin!.instanceId], health: 1 },
+      },
+    }));
+    useGameStore.getState().tick(100);
+
+    expect(useGameStore.getState().plants[pumpkin!.instanceId]).toBeUndefined();
+    expect(useGameStore.getState().plants[peashooter!.instanceId]).toBeDefined();
+    expect(useGameStore.getState().grid[0][3].pumpkinInstanceId).toBeNull();
+    expect(useGameStore.getState().grid[0][3].plantInstanceId).toBe(peashooter!.instanceId);
   });
 
   it("rejects planting on visible Night graves", () => {

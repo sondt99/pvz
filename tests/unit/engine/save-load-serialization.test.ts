@@ -252,4 +252,118 @@ describe("save/load serialization", () => {
       armorHealth: 640,
     });
   });
+
+  it("round-trips Pumpkin as an armor layer over a protected plant", () => {
+    const environment: EnvironmentConfig = {
+      type: "DAY",
+      gridRows: 5,
+      gridCols: 9,
+      waterLaneIndices: [],
+      gravesEnabled: false,
+      fogEnabled: false,
+      slopeEnabled: false,
+      conveyorBelt: false,
+      skyDropSun: true,
+    };
+    const grid = generateGrid(environment);
+    const peashooter = {
+      instanceId: "plant-peashooter-1",
+      plantType: "PEASHOOTER",
+      row: 0,
+      col: 0,
+      health: 300,
+      maxHealth: 300,
+      lastAttackAtMs: 0,
+      lastSunAtMs: 0,
+      isSleeping: false,
+      isCharging: false,
+      chargeEndsAtMs: 0,
+      armedAtMs: null,
+    };
+    const pumpkin = {
+      instanceId: "plant-pumpkin-1",
+      plantType: "PUMPKIN",
+      row: 0,
+      col: 0,
+      health: 3500,
+      maxHealth: 4000,
+      lastAttackAtMs: 0,
+      lastSunAtMs: 0,
+      isSleeping: false,
+      isCharging: false,
+      chargeEndsAtMs: 0,
+      armedAtMs: null,
+    };
+    grid[0][0].plantInstanceId = peashooter.instanceId;
+    grid[0][0].pumpkinInstanceId = pumpkin.instanceId;
+
+    const state: GameEngineState = {
+      status: "paused",
+      environment,
+      grid,
+      plants: {
+        [peashooter.instanceId]: peashooter,
+        [pumpkin.instanceId]: pumpkin,
+      },
+      zombies: {},
+      projectiles: {},
+      sunDrops: {},
+      lawnMowers: {},
+      currentSun: 50,
+      cumulativeSun: 0,
+      gameTimeMs: 5_000,
+      waveNumber: 1,
+      nextWaveAtMs: 20_000,
+      score: 0,
+      totalZombiesKilled: 0,
+      loadout: [],
+      selectedSlot: null,
+      nextSkyDropAtMs: 15_000,
+      zombieSpawnQueue: [],
+    };
+
+    const serialized = serializeGameState(state);
+    expect(serialized.gridState[0][0].entities.map((entity) => entity.layer)).toEqual([
+      "GROUND",
+      "ARMOR",
+    ]);
+
+    const restored = deserializeGameState(
+      {
+        gameTimeMs: serialized.gameTimeMs,
+        environmentState: serialized.environmentState,
+        graveState: serialized.graveState,
+        gridState: serialized.gridState,
+        zombieState: serialized.zombieState,
+        projectileState: serialized.projectileState,
+        sunDropState: serialized.sunDropState,
+        lawnMowerState: serialized.lawnMowerState,
+        spawnQueueState: serialized.spawnQueueState,
+        seedCooldowns: serialized.seedCooldowns,
+        loadoutSnapshot: serialized.loadoutSnapshot,
+        currentSun: serialized.currentSun,
+        cumulativeSun: serialized.cumulativeSun,
+        score: serialized.score,
+        waveNumber: serialized.waveNumber,
+        nextWaveTimerMs: serialized.nextWaveTimerMs,
+        totalZombiesKilled: serialized.totalZombiesKilled,
+        environmentType: environment.type,
+        gridRows: environment.gridRows,
+        gridCols: environment.gridCols,
+        waterLaneIndices: environment.waterLaneIndices,
+        gravesEnabled: environment.gravesEnabled,
+        fogEnabled: environment.fogEnabled,
+        slopeEnabled: environment.slopeEnabled,
+        conveyorBelt: environment.conveyorBelt,
+      },
+      0
+    );
+
+    expect(restored.grid?.[0][0].plantInstanceId).toBe(peashooter.instanceId);
+    expect(restored.grid?.[0][0].pumpkinInstanceId).toBe(pumpkin.instanceId);
+    expect(restored.plants?.[pumpkin.instanceId]).toMatchObject({
+      plantType: "PUMPKIN",
+      health: 3500,
+    });
+  });
 });
