@@ -113,6 +113,7 @@ export function deserializeGameState(
       gridCell.isFog = cellState.isFog;
       gridCell.isSlope = cellState.isSlope;
       gridCell.graveId = cellState.graveId;
+      gridCell.craterExpiresAtMs = cellState.craterExpiresAtMs ?? null;
     }
   }
 
@@ -310,7 +311,12 @@ function isSerializedGridCellEnvironment(v: unknown): boolean {
     typeof cell.isWater === "boolean" &&
     typeof cell.isFog === "boolean" &&
     typeof cell.isSlope === "boolean" &&
-    (typeof cell.graveId === "string" || cell.graveId === null)
+    (typeof cell.graveId === "string" || cell.graveId === null) &&
+    (
+      typeof cell.craterExpiresAtMs === "number" ||
+      cell.craterExpiresAtMs === null ||
+      cell.craterExpiresAtMs === undefined
+    )
   );
 }
 

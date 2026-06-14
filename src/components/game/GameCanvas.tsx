@@ -289,8 +289,36 @@ function drawBoard(
     ctx.stroke();
   }
 
+  drawCraters(ctx, grid);
+
   if (envType === "NIGHT") {
     drawGraves(ctx, grid);
+  }
+}
+
+function drawCraters(ctx: CanvasRenderingContext2D, grid: RuntimeGridCell[][]): void {
+  for (const cell of grid.flat()) {
+    if (cell.craterExpiresAtMs === null) continue;
+
+    const cx = tileX(cell.col) + CELL_W / 2;
+    const cy = tileY(cell.row) + CELL_H * 0.56;
+
+    ctx.fillStyle = "rgba(18, 13, 9, 0.55)";
+    ctx.beginPath();
+    ctx.ellipse(cx, cy + 5, 31, 18, -0.08, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = "rgba(246, 221, 161, 0.26)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(cx - 18, cy);
+    ctx.lineTo(cx - 7, cy - 7);
+    ctx.lineTo(cx + 2, cy - 2);
+    ctx.moveTo(cx + 6, cy + 1);
+    ctx.lineTo(cx + 20, cy - 8);
+    ctx.moveTo(cx - 4, cy + 9);
+    ctx.lineTo(cx + 10, cy + 16);
+    ctx.stroke();
   }
 }
 

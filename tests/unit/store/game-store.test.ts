@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { useGameStore } from "@/store/game-store";
 import type { EnvironmentConfig, RuntimeZombie, SeedPacketSlot } from "@/engine/types";
-import { POTATO_MINE_ARM_MS, WAVE_INTERVAL_MS, ZOMBIE_SPAWN_X } from "@/engine/constants";
+import { DOOM_SHROOM_CRATER_MS, POTATO_MINE_ARM_MS, WAVE_INTERVAL_MS, ZOMBIE_SPAWN_X } from "@/engine/constants";
 import { getZombieDef } from "@/engine/entities/zombie-defs";
 
 const DAY_ENV: EnvironmentConfig = {
@@ -73,6 +73,8 @@ const EXTENDED_LOADOUT: SeedPacketSlot[] = [
   { plantType: "CHOMPER", plantId: "chomper", sunCost: 150, cooldownRemainingMs: 0, cooldownTotalMs: 7000, isSelected: false, slotIndex: 11 },
   { plantType: "SPIKEWEED", plantId: "spikeweed", sunCost: 100, cooldownRemainingMs: 0, cooldownTotalMs: 7000, isSelected: false, slotIndex: 12 },
   { plantType: "SEA_SHROOM", plantId: "sea-shroom", sunCost: 0, cooldownRemainingMs: 0, cooldownTotalMs: 7000, isSelected: false, slotIndex: 13 },
+  { plantType: "ICE_SHROOM", plantId: "ice-shroom", sunCost: 75, cooldownRemainingMs: 0, cooldownTotalMs: 50000, isSelected: false, slotIndex: 14 },
+  { plantType: "DOOM_SHROOM", plantId: "doom-shroom", sunCost: 125, cooldownRemainingMs: 0, cooldownTotalMs: 50000, isSelected: false, slotIndex: 15 },
 ];
 
 function makeZombie(overrides: Partial<RuntimeZombie> = {}): RuntimeZombie {
@@ -410,6 +412,72 @@ describe("placePlant", () => {
     expect(useGameStore.getState().placePlant("PUFF_SHROOM", 0, 0)).toBe(true);
     const mushroom = Object.values(useGameStore.getState().plants)[0];
     expect(mushroom.isSleeping).toBe(false);
+  });
+
+  it("plants instant mushrooms asleep in day-like environments until Coffee Bean triggers them", () => {
+    useGameStore.getState().initGame(DAY_ENV, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({
+      currentSun: 500,
+      zombies: {
+        z1: makeZombie({ instanceId: "z1", lane: 0, x: 4 }),
+      },
+    });
+
+    expect(useGameStore.getState().placePlant("ICE_SHROOM", 0, 0)).toBe(true);
+
+    const sleepingIce = Object.values(useGameStore.getState().plants)[0];
+    expect(sleepingIce.plantType).toBe("ICE_SHROOM");
+    expect(sleepingIce.isSleeping).toBe(true);
+    expect(useGameStore.getState().zombies.z1.isFrozen).toBe(false);
+
+    expect(useGameStore.getState().placePlant("COFFEE_BEAN", 0, 0)).toBe(true);
+    expect(Object.keys(useGameStore.getState().plants)).toHaveLength(0);
+    expect(useGameStore.getState().grid[0][0].plantInstanceId).toBeNull();
+    expect(useGameStore.getState().zombies.z1.isFrozen).toBe(true);
+    expect(useGameStore.getState().currentSun).toBe(350);
+  });
+
+  it("fires instant mushrooms immediately in Fog because it is night-style", () => {
+    useGameStore.getState().initGame(FOG_ENV, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({
+      currentSun: 500,
+      zombies: {
+        z1: makeZombie({ instanceId: "z1", lane: 0, x: 4 }),
+      },
+    });
+
+    expect(useGameStore.getState().placePlant("ICE_SHROOM", 0, 0)).toBe(true);
+    expect(Object.keys(useGameStore.getState().plants)).toHaveLength(0);
+    expect(useGameStore.getState().grid[0][0].plantInstanceId).toBeNull();
+    expect(useGameStore.getState().zombies.z1.isFrozen).toBe(true);
+  });
+
+  it("uses Doom-shroom immediately at night and leaves a temporary crater", () => {
+    const nightEnv: EnvironmentConfig = { ...DAY_ENV, type: "NIGHT", skyDropSun: false };
+    useGameStore.getState().initGame(nightEnv, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({
+      currentSun: 500,
+      zombies: {
+        z1: makeZombie({ instanceId: "z1", lane: 2, x: 3 }),
+        z2: makeZombie({ instanceId: "z2", lane: 4, x: 6.4 }),
+        z3: makeZombie({ instanceId: "z3", lane: 0, x: 7 }),
+      },
+    });
+
+    expect(useGameStore.getState().placePlant("DOOM_SHROOM", 2, 3)).toBe(true);
+
+    expect(Object.keys(useGameStore.getState().plants)).toHaveLength(0);
+    expect(Object.keys(useGameStore.getState().zombies)).toEqual(["z3"]);
+    expect(useGameStore.getState().score).toBe(200);
+    expect(useGameStore.getState().totalZombiesKilled).toBe(2);
+    expect(useGameStore.getState().grid[2][3].craterExpiresAtMs).toBe(DOOM_SHROOM_CRATER_MS);
+
+    const sunAfterDoom = useGameStore.getState().currentSun;
+    expect(useGameStore.getState().placePlant("PEASHOOTER", 2, 3)).toBe(false);
+    expect(useGameStore.getState().currentSun).toBe(sunAfterDoom);
   });
 
   it("clears a 5x7 fog area around Plantern", () => {

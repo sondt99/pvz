@@ -20,6 +20,7 @@ describe("save/load serialization", () => {
     const grid = generateGrid(environment);
     grid[1][6].isFog = false;
     grid[1][6].graveId = "grave-restored";
+    grid[1][6].craterExpiresAtMs = 190_000;
 
     const state: GameEngineState = {
       status: "paused",
@@ -152,6 +153,7 @@ describe("save/load serialization", () => {
     expect(restored.grid?.[1][6]).toMatchObject({
       isFog: false,
       graveId: "grave-restored",
+      craterExpiresAtMs: 190_000,
     });
   });
 
