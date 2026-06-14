@@ -136,4 +136,98 @@ describe("save/load serialization", () => {
       graveId: "grave-restored",
     });
   });
+
+  it("preserves partially damaged zombie armor separately from base health", () => {
+    const environment: EnvironmentConfig = {
+      type: "DAY",
+      gridRows: 5,
+      gridCols: 9,
+      waterLaneIndices: [],
+      gravesEnabled: false,
+      fogEnabled: false,
+      slopeEnabled: false,
+      conveyorBelt: false,
+      skyDropSun: true,
+    };
+    const state: GameEngineState = {
+      status: "paused",
+      environment,
+      grid: generateGrid(environment),
+      plants: {},
+      zombies: {
+        "zombie-buckethead-1": {
+          instanceId: "zombie-buckethead-1",
+          zombieType: "BUCKETHEAD",
+          lane: 2,
+          x: 6.75,
+          health: 200,
+          maxHealth: 200,
+          armorHealth: 640,
+          speedColsPerSec: 1 / 4.7,
+          eatDamagePerSec: 100,
+          isEating: false,
+          eatTargetId: null,
+          statusEffects: [],
+          isUnderground: false,
+          isAerial: false,
+          isFrozen: false,
+        },
+      },
+      projectiles: {},
+      sunDrops: {},
+      currentSun: 50,
+      cumulativeSun: 0,
+      gameTimeMs: 5_000,
+      waveNumber: 1,
+      nextWaveAtMs: 20_000,
+      score: 0,
+      totalZombiesKilled: 0,
+      loadout: [],
+      selectedSlot: null,
+      nextSkyDropAtMs: 15_000,
+      zombieSpawnQueue: [],
+    };
+
+    const serialized = serializeGameState(state);
+    const zombie = serialized.zombieState[0];
+
+    expect(zombie.health).toBe(200);
+    expect(zombie.extraState?.armorHealth).toBe(640);
+
+    const restored = deserializeGameState(
+      {
+        gameTimeMs: serialized.gameTimeMs,
+        environmentState: serialized.environmentState,
+        graveState: serialized.graveState,
+        gridState: serialized.gridState,
+        zombieState: serialized.zombieState,
+        projectileState: serialized.projectileState,
+        sunDropState: serialized.sunDropState,
+        spawnQueueState: serialized.spawnQueueState,
+        seedCooldowns: serialized.seedCooldowns,
+        loadoutSnapshot: serialized.loadoutSnapshot,
+        currentSun: serialized.currentSun,
+        cumulativeSun: serialized.cumulativeSun,
+        score: serialized.score,
+        waveNumber: serialized.waveNumber,
+        nextWaveTimerMs: serialized.nextWaveTimerMs,
+        totalZombiesKilled: serialized.totalZombiesKilled,
+        environmentType: environment.type,
+        gridRows: environment.gridRows,
+        gridCols: environment.gridCols,
+        waterLaneIndices: environment.waterLaneIndices,
+        gravesEnabled: environment.gravesEnabled,
+        fogEnabled: environment.fogEnabled,
+        slopeEnabled: environment.slopeEnabled,
+        conveyorBelt: environment.conveyorBelt,
+      },
+      0
+    );
+
+    expect(restored.zombies?.["zombie-buckethead-1"]).toMatchObject({
+      zombieType: "BUCKETHEAD",
+      health: 200,
+      armorHealth: 640,
+    });
+  });
 });
