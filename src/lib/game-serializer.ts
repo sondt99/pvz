@@ -5,6 +5,7 @@
 
 import type {
   GameEngineState,
+  RuntimeLawnMower,
   RuntimeProjectile,
   RuntimeSunDrop,
   RuntimeZombie,
@@ -41,7 +42,7 @@ export interface SerializedGameState {
   zombieState: ZombieInstance[];
   projectileState: RuntimeProjectile[];
   sunDropState: RuntimeSunDrop[];
-  lawnMowerState: unknown[];
+  lawnMowerState: RuntimeLawnMower[];
   spawnQueueState: SerializedSpawnQueue;
   seedCooldowns: SeedCooldowns;
   loadoutSnapshot: string[];
@@ -66,7 +67,7 @@ export function serializeGameState(state: GameEngineState): SerializedGameState 
     zombieState: serializeZombies(state),
     projectileState: serializeProjectiles(state),
     sunDropState: serializeSunDrops(state),
-    lawnMowerState: [],
+    lawnMowerState: serializeLawnMowers(state),
     spawnQueueState: serializeSpawnQueue(state),
     seedCooldowns: serializeSeedCooldowns(state),
     loadoutSnapshot: state.loadout.map((slot) => slot.plantType),
@@ -194,6 +195,10 @@ function serializeProjectiles(state: GameEngineState): RuntimeProjectile[] {
 
 function serializeSunDrops(state: GameEngineState): RuntimeSunDrop[] {
   return Object.values(state.sunDrops).map((drop) => ({ ...drop }));
+}
+
+function serializeLawnMowers(state: GameEngineState): RuntimeLawnMower[] {
+  return Object.values(state.lawnMowers).map((mower) => ({ ...mower }));
 }
 
 function serializeSpawnQueue(state: GameEngineState): SerializedSpawnQueue {

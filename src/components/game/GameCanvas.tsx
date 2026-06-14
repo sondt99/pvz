@@ -5,6 +5,7 @@ import { FOG_START_COL, TILE_H, TILE_W } from "@/engine/constants";
 import { useGameStore } from "@/store/game-store";
 import type {
   EnvironmentType,
+  RuntimeLawnMower,
   RuntimePlant,
   RuntimeProjectile,
   RuntimeGridCell,
@@ -313,6 +314,45 @@ function drawGraves(ctx: CanvasRenderingContext2D, grid: RuntimeGridCell[][]): v
     ctx.moveTo(cx, baseY - 27);
     ctx.lineTo(cx, baseY - 6);
     ctx.stroke();
+  }
+}
+
+function drawLawnMower(ctx: CanvasRenderingContext2D, mower: RuntimeLawnMower): void {
+  if (mower.state === "spent") return;
+
+  const cx = HOUSE_W + mower.x * CELL_W + CELL_W / 2;
+  const cy = tileY(mower.lane) + CELL_H * 0.72;
+  const bodyColor = mower.state === "active" ? "#d93225" : "#b62f26";
+
+  ctx.fillStyle = "rgba(0,0,0,0.22)";
+  ctx.beginPath();
+  ctx.ellipse(cx, cy + 16, 32, 9, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = bodyColor;
+  ctx.beginPath();
+  ctx.roundRect(cx - 28, cy - 18, 54, 24, 7);
+  ctx.fill();
+
+  ctx.fillStyle = "#8d2018";
+  ctx.fillRect(cx - 18, cy - 31, 25, 16);
+  ctx.strokeStyle = "#323232";
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  ctx.moveTo(cx - 22, cy - 25);
+  ctx.lineTo(cx - 38, cy - 43);
+  ctx.stroke();
+
+  ctx.fillStyle = "#1f1f1f";
+  for (const wheelX of [cx - 18, cx + 17]) {
+    ctx.beginPath();
+    ctx.arc(wheelX, cy + 7, 10, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#c9c9c9";
+    ctx.beginPath();
+    ctx.arc(wheelX, cy + 7, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#1f1f1f";
   }
 }
 
@@ -700,10 +740,14 @@ export function GameCanvas({ onCellClick }: GameCanvasProps) {
       if (!ctx) return;
 
       const state = useGameStore.getState();
-      const { environment: env, plants, zombies, projectiles, sunDrops } = state;
+      const { environment: env, plants, zombies, projectiles, sunDrops, lawnMowers } = state;
 
       drawSceneBackdrop(ctx, env.type, env.gridRows, env.gridCols);
       drawBoard(ctx, env.type, env.gridRows, env.gridCols, env.waterLaneIndices, state.grid);
+
+      for (const mower of Object.values(lawnMowers)) {
+        drawLawnMower(ctx, mower);
+      }
 
       for (const plant of Object.values(plants)) {
         drawPlant(ctx, plant);

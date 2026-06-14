@@ -42,6 +42,7 @@ export async function GET(
         zombieState: session.zombieState,
         projectileState: session.projectileState,
         sunDropState: session.sunDropState,
+        lawnMowerState: session.lawnMowerState,
         spawnQueueState: session.spawnQueueState,
         seedCooldowns: session.seedCooldowns,
         loadoutSnapshot: session.loadoutSnapshot,
