@@ -231,6 +231,8 @@ export function deserializeGameState(
       pogoStickActive: typeof extra.pogoStickActive === "boolean" ? extra.pogoStickActive : undefined,
       hasThrownImp: typeof extra.hasThrownImp === "boolean" ? extra.hasThrownImp : undefined,
       smashUntilMs: typeof extra.smashUntilMs === "number" ? extra.smashUntilMs : undefined,
+      bungeeGrabAtMs: typeof extra.bungeeGrabAtMs === "number" ? extra.bungeeGrabAtMs : undefined,
+      catapultLastFireAtMs: typeof extra.catapultLastFireAtMs === "number" ? extra.catapultLastFireAtMs : undefined,
     };
 
     zombies[z.instanceId] = zombie;

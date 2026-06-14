@@ -133,6 +133,8 @@ export interface RuntimeZombie {
   pogoStickActive?: boolean;
   hasThrownImp?: boolean;
   smashUntilMs?: number;
+  bungeeGrabAtMs?: number; // Bungee: timestamp when the grab fires
+  catapultLastFireAtMs?: number; // Catapult: timestamp of last basketball shot
 }
 
 export interface RuntimeProjectile {

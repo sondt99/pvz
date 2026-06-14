@@ -35,10 +35,16 @@ import {
   LAWN_MOWER_READY_X,
   LAWN_MOWER_SPEED_COLS_PER_SEC,
   LAWN_MOWER_TRIGGER_X,
+  BUNGEE_GRAB_DELAY_MS,
+  CATAPULT_BASKETBALL_DAMAGE,
+  CATAPULT_FIRE_INTERVAL_MS,
+  CATAPULT_FIRE_RANGE_COLS,
   MAGNET_SHROOM_RANGE_COLS,
   MAGNET_SHROOM_RANGE_LANES,
   MAGNETIC_ZOMBIE_TYPES,
   POGO_WITHOUT_STICK_SPEED_COLS_PER_SEC,
+  UMBRELLA_LEAF_RADIUS_COLS,
+  UMBRELLA_LEAF_RADIUS_LANES,
   POTATO_MINE_ARM_MS,
   SKY_SUN_INTERVAL_MS,
   SKY_SUN_FALL_SPEED_PER_MS,
@@ -158,7 +164,8 @@ function createRuntimeZombie(
   zombieType: string,
   lane: number,
   x: number,
-  env: EnvironmentConfig
+  env: EnvironmentConfig,
+  gameTimeMs = 0
 ): RuntimeZombie {
   const def = getZombieDef(zombieType);
   return {
@@ -182,6 +189,8 @@ function createRuntimeZombie(
     direction: "left",
     pogoStickActive: zombieType === "POGO" ? true : undefined,
     hasThrownImp: zombieType === "GARGANTUAR" ? false : undefined,
+    bungeeGrabAtMs: zombieType === "BUNGEE" ? gameTimeMs + BUNGEE_GRAB_DELAY_MS : undefined,
+    catapultLastFireAtMs: zombieType === "CATAPULT" ? gameTimeMs : undefined,
   };
 }
 
@@ -289,6 +298,22 @@ function isGargantuarSmashing(zombie: RuntimeZombie, gameTimeMs: number): boolea
     typeof zombie.smashUntilMs === "number" &&
     gameTimeMs < zombie.smashUntilMs
   );
+}
+
+/** True if any Umbrella Leaf plant covers the target (col, lane) within its protection radius. */
+function isProtectedByUmbrellaLeaf(
+  col: number,
+  lane: number,
+  plants: Record<string, RuntimePlant>
+): boolean {
+  for (const plant of Object.values(plants)) {
+    if (plant.plantType !== "UMBRELLA_LEAF") continue;
+    if (Math.abs(plant.col - col) <= UMBRELLA_LEAF_RADIUS_COLS &&
+        Math.abs(plant.row - lane) <= UMBRELLA_LEAF_RADIUS_LANES) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function startGargantuarSmash(zombie: RuntimeZombie, gameTimeMs: number): RuntimeZombie {
@@ -990,7 +1015,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
     let zombies: Record<string, RuntimeZombie> = { ...state.zombies };
     for (const entry of toSpawn) {
       const lane = resolveAquaticSpawnLane(entry.zombieType, entry.lane, env);
-      const zombie = createRuntimeZombie(entry.zombieType, lane, entry.x ?? ZOMBIE_SPAWN_X, env);
+      const zombie = createRuntimeZombie(entry.zombieType, lane, entry.x ?? ZOMBIE_SPAWN_X, env, newGameTimeMs);
       zombies[zombie.instanceId] = zombie;
     }
 
@@ -1328,6 +1353,62 @@ export const useGameStore = create<GameStore>()((set, get) => ({
               eater.zombieType === "SNORKEL" ? { ...eater, isSubmerged: false } : eater,
               foundEatTarget.instanceId
             );
+          }
+        }
+      }
+
+      // 8d-bungee. Bungee zombie grab: steals plant at its position after delay.
+      if (z.zombieType === "BUNGEE" && typeof z.bungeeGrabAtMs === "number" && newGameTimeMs >= z.bungeeGrabAtMs) {
+        const bungeeCol = Math.round(z.x);
+        const bungeeLane = z.lane;
+        const protected_ = isProtectedByUmbrellaLeaf(bungeeCol, bungeeLane, plants);
+
+        if (!protected_) {
+          // Find any plant in the bungee's target cell (prefer ground layer)
+          const targetPlant = Object.values(plants).find(
+            (p) => p.row === bungeeLane && p.col === bungeeCol
+          );
+          if (targetPlant) {
+            if (!gridChanged) {
+              newGrid = cloneGrid(state.grid);
+              gridChanged = true;
+            }
+            setPlantInCorrectSlot(newGrid, targetPlant.row, targetPlant.col, targetPlant.plantType, null);
+            const { [targetPlant.instanceId]: _grabbed, ...remainingPlants } = plants;
+            plants = remainingPlants;
+          }
+        }
+        // Bungee retreats regardless (protected or grabbed, it leaves)
+        const { [zombieId]: _bungee, ...remainingZombies } = zombies;
+        zombies = remainingZombies;
+        continue;
+      }
+
+      // 8d-catapult. Catapult zombie: periodically fires a basketball at the nearest plant ahead.
+      if (z.zombieType === "CATAPULT" && !z.isEating && !z.isFrozen) {
+        const timeSinceLastFire = newGameTimeMs - (z.catapultLastFireAtMs ?? 0);
+        if (timeSinceLastFire >= CATAPULT_FIRE_INTERVAL_MS) {
+          // Find nearest plant ahead in the same lane within range
+          const catapultTarget = Object.values(plants).find(
+            (p) => p.row === z.lane && p.col > z.x - 0.5 && p.col <= z.x + CATAPULT_FIRE_RANGE_COLS
+          );
+          if (catapultTarget) {
+            const protected_ = isProtectedByUmbrellaLeaf(catapultTarget.col, catapultTarget.row, plants);
+            if (!protected_) {
+              const damaged = { ...catapultTarget, health: catapultTarget.health - CATAPULT_BASKETBALL_DAMAGE };
+              if (damaged.health <= 0) {
+                if (!gridChanged) {
+                  newGrid = cloneGrid(state.grid);
+                  gridChanged = true;
+                }
+                setPlantInCorrectSlot(newGrid, damaged.row, damaged.col, damaged.plantType, null);
+                const { [catapultTarget.instanceId]: _dead, ...remainingPlants } = plants;
+                plants = remainingPlants;
+              } else {
+                plants[catapultTarget.instanceId] = damaged;
+              }
+            }
+            z = { ...z, catapultLastFireAtMs: newGameTimeMs };
           }
         }
       }

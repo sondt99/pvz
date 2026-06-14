@@ -260,6 +260,8 @@ function serializeZombies(state: GameEngineState): ZombieInstance[] {
       pogoStickActive: zombie.pogoStickActive,
       hasThrownImp: zombie.hasThrownImp,
       smashUntilMs: zombie.smashUntilMs,
+      bungeeGrabAtMs: zombie.bungeeGrabAtMs,
+      catapultLastFireAtMs: zombie.catapultLastFireAtMs,
       speedColsPerSec: zombie.speedColsPerSec,
       eatDamagePerSec: zombie.eatDamagePerSec,
     },
