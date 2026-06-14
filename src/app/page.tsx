@@ -38,9 +38,9 @@ type WorldNum = keyof typeof WORLD_META;
 // ---------------------------------------------------------------------------
 function Stars({ count }: { count: number }) {
   return (
-    <span style={{ fontSize: "0.6rem", lineHeight: 1 }}>
+    <span style={{ fontSize: "0.85rem", lineHeight: 1 }}>
       {"★★★".split("").map((s, i) => (
-        <span key={i} style={{ color: i < count ? "#fbbf24" : "#1f2937" }}>{s}</span>
+        <span key={i} style={{ color: i < count ? "#fbbf24" : "#374151" }}>{s}</span>
       ))}
     </span>
   );
@@ -163,7 +163,7 @@ function WorldSection({ worldNum, levels }: { worldNum: WorldNum; levels: LevelE
             <h2 style={{ fontSize: "1.05rem", fontWeight: 700, color: meta.accent, margin: 0, lineHeight: 1.2 }}>
               World {worldNum}: {meta.label}
             </h2>
-            <p style={{ fontSize: "0.72rem", color: "#4b5563", margin: 0 }}>{meta.desc}</p>
+            <p style={{ fontSize: "0.72rem", color: "#6b7280", margin: 0 }}>{meta.desc}</p>
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
@@ -319,13 +319,14 @@ export default function HomePage() {
             href="/game"
             style={{
               background: "transparent",
-              color: "#6b7280",
+              color: "#9ca3af",
               padding: "0.65rem 1.25rem",
               borderRadius: "0.5rem",
               textDecoration: "none",
               fontSize: "0.85rem",
               fontWeight: 600,
-              border: "1px solid #1f2937",
+              border: "1px solid #374151",
+              transition: "background 0.15s",
             }}
           >
             🎮 Free Play
@@ -334,8 +335,19 @@ export default function HomePage() {
       </header>
 
       {/* ---- World grid ---- */}
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       {loading ? (
-        <div style={{ color: "#374151", fontSize: "0.9rem", marginTop: "4rem" }}>Loading…</div>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "1rem", marginTop: "4rem" }}>
+          <div style={{
+            width: 40,
+            height: 40,
+            border: "3px solid #1f2937",
+            borderTop: "3px solid #22c55e",
+            borderRadius: "50%",
+            animation: "spin 0.8s linear infinite",
+          }} />
+          <span style={{ color: "#4b5563", fontSize: "0.85rem" }}>Loading levels…</span>
+        </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "1rem", width: "100%", maxWidth: 860 }}>
           {([1, 2, 3, 4, 5] as WorldNum[]).map(w => (
@@ -345,7 +357,7 @@ export default function HomePage() {
       )}
 
       {/* ---- Footer ---- */}
-      <footer style={{ marginTop: "2.5rem", color: "#1f2937", fontSize: "0.7rem", textAlign: "center" }}>
+      <footer style={{ marginTop: "2.5rem", color: "#6b7280", fontSize: "0.7rem", textAlign: "center" }}>
         Built with Next.js · Neon Postgres · Zustand · 38 plants · 32 zombies · 5 worlds
       </footer>
     </main>

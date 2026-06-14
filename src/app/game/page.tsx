@@ -79,6 +79,18 @@ const ENVIRONMENTS: Record<EnvironmentType, EnvironmentConfig> = {
 
 const ENVIRONMENT_ORDER: EnvironmentType[] = ["DAY", "NIGHT", "POOL", "FOG", "ROOF"];
 
+const ENVIRONMENT_LABELS: Record<EnvironmentType, { icon: string; label: string }> = {
+  DAY:   { icon: "☀️",  label: "Day" },
+  NIGHT: { icon: "🌙",  label: "Night" },
+  POOL:  { icon: "🌊",  label: "Pool" },
+  FOG:   { icon: "🌫️", label: "Fog" },
+  ROOF:  { icon: "🏠",  label: "Roof" },
+};
+
+function toTitleCase(s: string): string {
+  return s.replace(/_/g, " ").replace(/\w\S*/g, w => w[0].toUpperCase() + w.slice(1).toLowerCase());
+}
+
 const PLANT_COSTS: Record<string, number> = {
   PEASHOOTER: 100,
   SUNFLOWER: 50,
@@ -407,8 +419,6 @@ export default function GamePage() {
   const isGameOver = status === "game-over";
   const isVictory = status === "victory";
   const showOverlay = isGameOver || isVictory;
-  const selectedPlant =
-    selectedSlot !== null ? loadout[selectedSlot]?.plantType.replace(/_/g, " ") : activeEnvironment;
 
   return (
     <main
@@ -471,26 +481,45 @@ export default function GamePage() {
                     boxShadow: selected ? "0 0 16px rgba(255, 220, 74, 0.2)" : "none",
                   }}
                 >
-                  {envType}
+                  {ENVIRONMENT_LABELS[envType].icon} {ENVIRONMENT_LABELS[envType].label}
                 </button>
               );
             })}
           </div>
         )}
 
-        <div
-          style={{
-            width: "min(100%, 1080px)",
-            minHeight: 20,
-            display: "flex",
-            justifyContent: selectedSlot !== null && !showOverlay ? "center" : "flex-end",
-            color: "#f5dd7a",
-            fontSize: 12,
-            fontWeight: 800,
-          }}
-        >
-          <span>{selectedPlant}</span>
-        </div>
+        {activeLevelNumber !== null && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              color: "#86efac",
+              fontSize: 13,
+              fontWeight: 700,
+            }}
+          >
+            <Link href="/" style={{ color: "#4b5563", textDecoration: "none", fontSize: 12 }}>← Levels</Link>
+            <span style={{ color: "#2a5a0a" }}>|</span>
+            <span>Level {activeLevelNumber}</span>
+          </div>
+        )}
+
+        {selectedSlot !== null && !showOverlay && (
+          <div
+            style={{
+              width: "min(100%, 1080px)",
+              minHeight: 20,
+              display: "flex",
+              justifyContent: "center",
+              color: "#f5dd7a",
+              fontSize: 12,
+              fontWeight: 800,
+            }}
+          >
+            <span>🌱 {toTitleCase(loadout[selectedSlot]?.plantType ?? "")}</span>
+          </div>
+        )}
 
         <div
           style={{
@@ -513,6 +542,8 @@ export default function GamePage() {
                 justifyContent: "center",
                 gap: 24,
                 pointerEvents: "auto",
+                background: "rgba(0,0,0,0.75)",
+                backdropFilter: "blur(3px)",
               }}
             >
               <h1
@@ -529,7 +560,7 @@ export default function GamePage() {
 
               {isVictory && rewardPlantId && (
                 <p style={{ color: "#adffa0", fontSize: 18, margin: 0 }}>
-                  Unlocked: {rewardPlantId.replace(/_/g, " ")}
+                  Unlocked: {toTitleCase(rewardPlantId)}
                 </p>
               )}
 
