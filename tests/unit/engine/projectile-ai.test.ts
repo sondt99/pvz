@@ -124,8 +124,18 @@ describe("findLobbedHits", () => {
     expect(findLobbedHits(proj, zombies)).toHaveLength(0);
   });
 
-  it("finds zombies in AoE when projectile lands", () => {
-    const proj = makeLob({ x: 7, targetCol: 7, targetLane: 2 });
+  it("hits only one zombie for non-splash lobbed projectiles like Cabbage", () => {
+    const proj = makeLob({ projectileType: "CABBAGE", x: 7, targetCol: 7, targetLane: 2 });
+    const zombies = {
+      z1: makeZombie("z1", { lane: 2, x: 7 }),
+      z2: makeZombie("z2", { lane: 2, x: 7.4 }),
+      z3: makeZombie("z3", { lane: 1, x: 7 }),
+    };
+    expect(findLobbedHits(proj, zombies)).toEqual(["z1"]);
+  });
+
+  it("finds nearby zombies in AoE for Melon splash when projectile lands", () => {
+    const proj = makeLob({ projectileType: "MELON", x: 7, targetCol: 7, targetLane: 2 });
     const zombies = {
       z1: makeZombie("z1", { lane: 2, x: 7.5 }),
       z2: makeZombie("z2", { lane: 1, x: 7 }),
