@@ -7,7 +7,12 @@ export function updateStraightProjectile(
   proj: RuntimeProjectile,
   deltaMs: number
 ): RuntimeProjectile {
-  return { ...proj, x: proj.x + proj.velX * (deltaMs / 1000) };
+  const deltaS = deltaMs / 1000;
+  return {
+    ...proj,
+    x: proj.x + proj.velX * deltaS,
+    lane: proj.lane + (proj.velLane ?? 0) * deltaS,
+  };
 }
 
 export function updateLobbedProjectile(
@@ -24,9 +29,13 @@ export function updateLobbedProjectile(
   };
 }
 
-export function isOffscreen(proj: RuntimeProjectile, gridCols: number): boolean {
+export function isOffscreen(proj: RuntimeProjectile, gridCols: number, gridRows?: number): boolean {
   if (proj.trajectory !== "straight") return false;
-  return proj.x < -1 || proj.x > gridCols + 1;
+  return (
+    proj.x < -1 ||
+    proj.x > gridCols + 1 ||
+    (gridRows !== undefined && (proj.lane < -1 || proj.lane > gridRows))
+  );
 }
 
 export function hasLobbedLanded(proj: RuntimeProjectile): boolean {
@@ -67,23 +76,30 @@ export function createStraightProjectile(
     maxTravelDistanceCols?: number;
     direction?: "forward" | "backward";
     xOffset?: number;
+    laneOffset?: number;
+    velX?: number;
+    velLane?: number;
   } = {}
 ): RuntimeProjectile {
   const direction = opts.direction ?? "forward";
-  const speed = direction === "backward" ? -STRAIGHT_SPEED_COLS_PER_SEC : STRAIGHT_SPEED_COLS_PER_SEC;
+  const speed = opts.velX ?? (
+    direction === "backward" ? -STRAIGHT_SPEED_COLS_PER_SEC : STRAIGHT_SPEED_COLS_PER_SEC
+  );
   const xOffset = opts.xOffset ?? (direction === "backward" ? -0.25 : 0.8);
 
   return {
     instanceId,
     projectileType,
-    lane,
+    lane: lane + (opts.laneOffset ?? 0),
     x: sourceCol + xOffset,
     y: 0,
     velX: speed,
+    ...(opts.velLane !== undefined ? { velLane: opts.velLane } : {}),
     velY: 0,
     damage,
     trajectory: "straight",
     sourceCol,
+    sourceLane: lane,
     slowFactor: opts.slowFactor,
     isFire: opts.isFire,
     piercing: opts.piercing,

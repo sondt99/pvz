@@ -132,6 +132,7 @@ export interface RuntimeProjectile {
   x: number;
   y: number; // vertical offset (0 = ground)
   velX: number; // cols/s
+  velLane?: number; // rows/s, used by diagonal/vertical straight projectiles
   velY: number; // cols/s, lobbed only
   damage: number;
   trajectory: TrajectoryType;
@@ -142,6 +143,7 @@ export interface RuntimeProjectile {
   maxTravelDistanceCols?: number;
   statusEffectOnHit?: RuntimeProjectileStatusEffect;
   sourceCol: number;
+  sourceLane?: number;
   targetCol?: number;
   targetLane?: number;
 }
