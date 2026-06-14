@@ -120,6 +120,7 @@ export async function GET(request: Request): Promise<NextResponse> {
         waveNumber: true,
         lastSavedAt: true,
         levelNumber: true,
+        environmentType: true,
       },
       orderBy: { lastSavedAt: "desc" },
     });
@@ -132,6 +133,7 @@ export async function GET(request: Request): Promise<NextResponse> {
         waveNumber: s.waveNumber,
         lastSavedAt: s.lastSavedAt.toISOString(),
         levelNumber: s.levelNumber,
+        environmentType: s.environmentType,
       }))
     );
   } catch (err) {
