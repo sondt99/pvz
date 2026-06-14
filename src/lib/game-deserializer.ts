@@ -167,6 +167,7 @@ export function deserializeGameState(
           isCharging: typeof extra.isCharging === "boolean" ? extra.isCharging : false,
           chargeEndsAtMs: typeof extra.chargeEndsAtMs === "number" ? extra.chargeEndsAtMs : 0,
           armedAtMs: typeof extra.armedAtMs === "number" ? extra.armedAtMs : null,
+          blocksAerial: def.blocksAerial,
         };
 
         plants[entity.instanceId] = plant;

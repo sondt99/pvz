@@ -375,6 +375,7 @@ describe("save/load serialization", () => {
       isCharging: false,
       chargeEndsAtMs: 0,
       armedAtMs: null,
+      blocksAerial: false,
     };
     const pumpkin = {
       instanceId: "plant-pumpkin-1",
@@ -389,6 +390,7 @@ describe("save/load serialization", () => {
       isCharging: false,
       chargeEndsAtMs: 0,
       armedAtMs: null,
+      blocksAerial: false,
     };
     grid[0][0].plantInstanceId = peashooter.instanceId;
     grid[0][0].pumpkinInstanceId = pumpkin.instanceId;

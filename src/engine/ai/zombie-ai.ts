@@ -39,7 +39,9 @@ export function tickStatusEffects(
 /** True when zombie is in range to eat this plant. */
 export function isZombieEatingPlant(zombie: RuntimeZombie, plant: RuntimePlant): boolean {
   if (zombie.lane !== plant.row) return false;
-  if (zombie.isAerial) return false;
+  // Aerial zombies bypass plants unless the plant explicitly blocks aerial movement
+  // (e.g. Tall-nut has blocksAerial: true and forces Balloon/Bungee to stop and eat)
+  if (zombie.isAerial && !plant.blocksAerial) return false;
   return zombie.x <= plant.col + 0.5 && zombie.x >= plant.col - 0.3;
 }
 

@@ -29,6 +29,7 @@ function makePlant(overrides: Partial<RuntimePlant> = {}): RuntimePlant {
     health: 4000, maxHealth: 4000,
     lastAttackAtMs: 0, lastSunAtMs: 0,
     isSleeping: false, isCharging: false, chargeEndsAtMs: 0, armedAtMs: null,
+    blocksAerial: false,
     ...overrides,
   };
 }
@@ -219,5 +220,38 @@ describe("applyStatusEffect", () => {
     const result = applyStatusEffect(zombie, { type: "BUTTERED", expiresAtMs: 5000 });
     expect(result.isEating).toBe(false);
     expect(result.eatTargetId).toBe("p1");
+  });
+});
+
+describe("isZombieEatingPlant — aerial blocker (Tall-nut) rules", () => {
+  const wallNut = makePlant({ plantType: "WALL_NUT", col: 4, blocksAerial: false });
+  const tallNut = makePlant({ plantType: "TALL_NUT", col: 4, blocksAerial: true });
+  const balloonInRange = makeZombie({ zombieType: "BALLOON", isAerial: true, x: 4.3, lane: 0 });
+  const balloonFarRight = makeZombie({ zombieType: "BALLOON", isAerial: true, x: 7, lane: 0 });
+  const normalInRange = makeZombie({ zombieType: "NORMAL", isAerial: false, x: 4.3, lane: 0 });
+
+  it("BALLOON bypasses a regular Wall-nut (blocksAerial: false)", () => {
+    expect(isZombieEatingPlant(balloonInRange, wallNut)).toBe(false);
+  });
+
+  it("BALLOON is stopped by Tall-nut (blocksAerial: true)", () => {
+    expect(isZombieEatingPlant(balloonInRange, tallNut)).toBe(true);
+  });
+
+  it("BALLOON out of column range does not eat Tall-nut", () => {
+    expect(isZombieEatingPlant(balloonFarRight, tallNut)).toBe(false);
+  });
+
+  it("BALLOON in different lane does not eat Tall-nut", () => {
+    const wrongLane = makeZombie({ zombieType: "BALLOON", isAerial: true, x: 4.3, lane: 1 });
+    expect(isZombieEatingPlant(wrongLane, tallNut)).toBe(false);
+  });
+
+  it("normal zombie can still eat a Tall-nut (blocksAerial irrelevant for ground units)", () => {
+    expect(isZombieEatingPlant(normalInRange, tallNut)).toBe(true);
+  });
+
+  it("normal zombie can eat a regular Wall-nut", () => {
+    expect(isZombieEatingPlant(normalInRange, wallNut)).toBe(true);
   });
 });

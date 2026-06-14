@@ -107,6 +107,7 @@ export interface RuntimePlant {
   isCharging: boolean;
   chargeEndsAtMs: number;
   armedAtMs: number | null; // Potato Mine arm timestamp
+  blocksAerial: boolean;
 }
 
 export interface RuntimeZombie {
