@@ -6,12 +6,18 @@ import { NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { SerializedGameState } from "@/lib/game-serializer";
+import { authenticateRequest } from "@/lib/auth";
 
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
   const { id } = await params;
+
+  const auth = await authenticateRequest(request);
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
 
   let body: unknown;
   try {
@@ -26,11 +32,15 @@ export async function POST(
     // Ensure session exists
     const existing = await prisma.gameSession.findUnique({
       where: { id },
-      select: { id: true },
+      select: { id: true, userId: true },
     });
 
     if (!existing) {
       return NextResponse.json({ error: "Session not found" }, { status: 404 });
+    }
+
+    if (existing.userId !== auth.session.userId) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const now = new Date();

@@ -1,24 +1,29 @@
 // ---------------------------------------------------------------------------
 // POST /api/game/sessions   — create a new game session
-// GET  /api/game/sessions?userId=xxx  — list active/paused sessions for a user
+// GET  /api/game/sessions   — list active/paused sessions for authenticated user
 // ---------------------------------------------------------------------------
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import type { EnvironmentType } from "@/engine/types";
+import { authenticateRequest } from "@/lib/auth";
 
 // ---------------------------------------------------------------------------
 // POST — create session
 // ---------------------------------------------------------------------------
 
 interface CreateSessionBody {
-  userId: string;
   levelNumber?: number;
   environmentType: string;
   loadout: string[];
 }
 
 export async function POST(request: Request): Promise<NextResponse> {
+  const auth = await authenticateRequest(request);
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   let body: unknown;
   try {
     body = await request.json();
@@ -26,22 +31,16 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { userId, levelNumber, environmentType, loadout } = body as CreateSessionBody;
+  const { levelNumber, environmentType, loadout } = body as CreateSessionBody;
 
-  if (!userId || !environmentType || !Array.isArray(loadout)) {
+  if (!environmentType || !Array.isArray(loadout)) {
     return NextResponse.json(
-      { error: "Missing required fields: userId, environmentType, loadout" },
+      { error: "Missing required fields: environmentType, loadout" },
       { status: 400 }
     );
   }
 
   try {
-    // Validate user exists
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
-
     // Validate level exists if levelNumber provided
     if (levelNumber !== undefined) {
       const level = await prisma.level.findUnique({ where: { levelNumber } });
@@ -63,7 +62,7 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     const session = await prisma.gameSession.create({
       data: {
-        userId,
+        userId: auth.session.userId,
         levelNumber: levelNumber ?? null,
         environmentType: envType,
         waterLaneIndices,
@@ -103,17 +102,15 @@ export async function POST(request: Request): Promise<NextResponse> {
 // ---------------------------------------------------------------------------
 
 export async function GET(request: Request): Promise<NextResponse> {
-  const { searchParams } = new URL(request.url);
-  const userId = searchParams.get("userId");
-
-  if (!userId) {
-    return NextResponse.json({ error: "Missing userId query parameter" }, { status: 400 });
+  const auth = await authenticateRequest(request);
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
 
   try {
     const sessions = await prisma.gameSession.findMany({
       where: {
-        userId,
+        userId: auth.session.userId,
         status: { in: ["ACTIVE", "PAUSED"] },
       },
       select: {

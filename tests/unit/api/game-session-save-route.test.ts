@@ -5,6 +5,7 @@ import type { SerializedGameState } from "@/lib/game-serializer";
 import { POST as saveSession } from "@/app/api/game/sessions/[id]/save/route";
 import { GET as loadSession } from "@/app/api/game/sessions/[id]/route";
 import { prisma as routePrisma } from "@/lib/prisma";
+import { hashSessionToken } from "@/lib/auth";
 
 const prisma: PrismaClient = createTestPrismaClient();
 
@@ -25,10 +26,30 @@ beforeEach(async () => {
   await prisma.user.deleteMany();
 });
 
-function createSaveRequest(sessionId: string, payload: SerializedGameState): Request {
+async function createAuthToken(userId: string): Promise<string> {
+  const token = `test-token-${userId}`;
+  await prisma.session.create({
+    data: {
+      userId,
+      tokenHash: hashSessionToken(token),
+      expiresAt: new Date(Date.now() + 86_400_000),
+    },
+  });
+  return token;
+}
+
+function authHeaders(token: string): HeadersInit {
+  return { authorization: `Bearer ${token}` };
+}
+
+function createSaveRequest(
+  sessionId: string,
+  payload: SerializedGameState,
+  token: string
+): Request {
   return new Request(`http://localhost/api/game/sessions/${sessionId}/save`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...authHeaders(token) },
     body: JSON.stringify(payload),
   });
 }
@@ -42,6 +63,7 @@ describe("POST /api/game/sessions/:id/save", () => {
         displayName: "Route Save Tester",
       },
     });
+    const token = await createAuthToken(user.id);
     const session = await prisma.gameSession.create({
       data: {
         userId: user.id,
@@ -104,7 +126,7 @@ describe("POST /api/game/sessions/:id/save", () => {
       totalZombiesKilled: 3,
     };
 
-    const saveResponse = await saveSession(createSaveRequest(session.id, payload), {
+    const saveResponse = await saveSession(createSaveRequest(session.id, payload, token), {
       params: Promise.resolve({ id: session.id }),
     });
 
@@ -124,9 +146,14 @@ describe("POST /api/game/sessions/:id/save", () => {
     expect(saved.seedCooldowns).toEqual(payload.seedCooldowns);
     expect(saved.loadoutSnapshot).toEqual(payload.loadoutSnapshot);
 
-    const loadResponse = await loadSession(new Request(`http://localhost/api/game/sessions/${session.id}`), {
-      params: Promise.resolve({ id: session.id }),
-    });
+    const loadResponse = await loadSession(
+      new Request(`http://localhost/api/game/sessions/${session.id}`, {
+        headers: authHeaders(token),
+      }),
+      {
+        params: Promise.resolve({ id: session.id }),
+      }
+    );
     const loaded = await loadResponse.json();
 
     expect(loadResponse.status).toBe(200);
