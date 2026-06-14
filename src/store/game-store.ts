@@ -61,7 +61,7 @@ import {
   applyProjectileHits,
   transformProjectileWithTorchwood,
 } from "../engine/ai/projectile-ai";
-import { generateWave } from "../engine/wave-generator";
+import { generateWave, getFinalWaveNumber, parseWaveConfig } from "../engine/wave-generator";
 import { applyProjectileDamage, isPlantDead, isZombieDead } from "../engine/physics/collision";
 import { createInitialRngState, DEFAULT_RNG_SEED, nextRandomValue } from "../engine/rng";
 
@@ -645,11 +645,17 @@ const INITIAL_STATE: GameEngineState = {
   loadout: [],
   selectedSlot: null,
   nextSkyDropAtMs: SKY_SUN_INTERVAL_MS,
+  waveConfig: null,
   zombieSpawnQueue: [],
 };
 
+interface InitGameOptions {
+  waveConfig?: unknown;
+  rngSeed?: unknown;
+}
+
 interface GameActions {
-  initGame: (env: EnvironmentConfig, loadout: SeedPacketSlot[]) => void;
+  initGame: (env: EnvironmentConfig, loadout: SeedPacketSlot[], options?: InitGameOptions) => void;
   startGame: () => void;
   pauseGame: () => void;
   resumeGame: () => void;
@@ -667,11 +673,12 @@ export type GameStore = GameEngineState & GameActions;
 export const useGameStore = create<GameStore>()((set, get) => ({
   ...INITIAL_STATE,
 
-  initGame: (env, loadout) => {
+  initGame: (env, loadout, options) => {
     _plantCounter = 0;
     _zombieCounter = 0;
     _sunDropCounter = 0;
     resetPlantAiCounters();
+    const waveConfig = parseWaveConfig(options?.waveConfig);
     set({
       ...INITIAL_STATE,
       status: "idle",
@@ -682,9 +689,12 @@ export const useGameStore = create<GameStore>()((set, get) => ({
       loadout,
       nextSkyDropAtMs: SKY_SUN_INTERVAL_MS,
       nextWaveAtMs: WAVE_INTERVAL_MS,
+      waveConfig,
       rngState: createInitialRngState([
+        options?.rngSeed,
         env,
         loadout.map((slot) => slot.plantType),
+        waveConfig,
       ]),
     });
   },
@@ -940,14 +950,17 @@ export const useGameStore = create<GameStore>()((set, get) => ({
 
     if (newGameTimeMs >= nextWaveAtMs) {
       const newWaveNumber = waveNumber + 1;
-      const entries = generateWave(newWaveNumber, env.gridRows);
+      const waveResult = generateWave(newWaveNumber, env.gridRows, rngState, state.waveConfig);
+      rngState = waveResult.rngState;
+      const entries = waveResult.entries;
       const newEntries = entries.map((entry) => ({
         zombieType: entry.zombieType,
         lane: entry.lane,
         spawnAtMs: newGameTimeMs + entry.spawnAtMs,
+        ...(entry.x !== undefined ? { x: entry.x } : {}),
       }));
       zombieSpawnQueue = [...zombieSpawnQueue, ...newEntries];
-      if (env.gravesEnabled && newWaveNumber % 5 === 0) {
+      if (env.gravesEnabled && (newWaveNumber % 5 === 0 || waveResult.isFlagWave || waveResult.isFinalWave)) {
         const graveAmbushes = state.grid
           .flat()
           .filter((cell) => cell.graveId !== null)
@@ -1404,7 +1417,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
     // 11. Check victory
     // -----------------------------------------------------------------------
     const zombieCount = Object.keys(zombies).length;
-    if (waveNumber > 5 && zombieCount === 0 && remainingQueue.length === 0) {
+    if (waveNumber >= getFinalWaveNumber(state.waveConfig) && zombieCount === 0 && remainingQueue.length === 0) {
       set({
         status: "victory",
         gameTimeMs: newGameTimeMs,

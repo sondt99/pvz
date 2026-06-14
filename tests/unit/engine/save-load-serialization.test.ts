@@ -88,6 +88,16 @@ describe("save/load serialization", () => {
       ],
       selectedSlot: null,
       nextSkyDropAtMs: 16_000,
+      waveConfig: {
+        finalWaveNumber: 1,
+        waves: [
+          {
+            waveNumber: 1,
+            entries: [{ zombieType: "NORMAL", lane: 1, spawnAtMs: 0 }],
+            final: true,
+          },
+        ],
+      },
       zombieSpawnQueue: [
         { zombieType: "CONEHEAD", lane: 1, spawnAtMs: 12_000, x: 9.5 },
       ],
@@ -131,11 +141,13 @@ describe("save/load serialization", () => {
     expect(serialized.spawnQueueState).toEqual(state.zombieSpawnQueue);
     expect(serialized.environmentState.nextSkyDropTimerMs).toBe(6_000);
     expect(serialized.environmentState.rngState).toBe(123_456_789);
+    expect(serialized.environmentState.waveConfig).toEqual(state.waveConfig);
 
     expect(restored.gameTimeMs).toBe(10_000);
     expect(restored.nextWaveAtMs).toBe(18_000);
     expect(restored.nextSkyDropAtMs).toBe(16_000);
     expect(restored.rngState).toBe(123_456_789);
+    expect(restored.waveConfig).toEqual(state.waveConfig);
     expect(restored.projectiles?.["projectile-cabbage-1"]).toMatchObject({
       projectileType: "CABBAGE",
       trajectory: "lobbed",

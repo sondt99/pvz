@@ -10,6 +10,7 @@ import type {
   RuntimeSunDrop,
   RuntimeZombie,
 } from "@/engine/types";
+import type { WaveConfig } from "@/engine/wave-generator";
 import type { GridCell, StackedEntity, ZombieInstance, SeedCooldowns } from "@/types/game";
 
 export interface SerializedGridCellEnvironment {
@@ -26,6 +27,7 @@ export interface SerializedEnvironmentState {
   gridCells: SerializedGridCellEnvironment[];
   nextSkyDropTimerMs: number;
   rngState?: number;
+  waveConfig?: WaveConfig | null;
 }
 
 export interface SerializedGraveState {
@@ -101,6 +103,7 @@ function serializeEnvironmentState(state: GameEngineState): SerializedEnvironmen
     ),
     nextSkyDropTimerMs: Math.max(0, state.nextSkyDropAtMs - state.gameTimeMs),
     rngState: state.rngState,
+    waveConfig: state.waveConfig,
   };
 }
 

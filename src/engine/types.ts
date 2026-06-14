@@ -3,6 +3,8 @@
 // Distinct from src/types/game.ts (DB serialization types).
 // ---------------------------------------------------------------------------
 
+import type { WaveConfig } from "./wave-generator";
+
 export type GameStatus = "idle" | "playing" | "paused" | "victory" | "game-over";
 
 export type EnvironmentType = "DAY" | "NIGHT" | "POOL" | "FOG" | "ROOF";
@@ -208,6 +210,7 @@ export interface GameEngineState {
   loadout: SeedPacketSlot[];
   selectedSlot: number | null;
   nextSkyDropAtMs: number;
+  waveConfig?: WaveConfig | null;
   zombieSpawnQueue: Array<{
     zombieType: string;
     lane: number;

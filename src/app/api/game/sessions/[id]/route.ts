@@ -60,6 +60,8 @@ export async function GET(
         fogEnabled: session.fogEnabled,
         slopeEnabled: session.slopeEnabled,
         conveyorBelt: session.conveyorBelt,
+        environmentConfig: session.environmentConfig,
+        rngSeed: session.rngSeed,
       },
       currentGameTimeMs
     );

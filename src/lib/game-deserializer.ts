@@ -26,7 +26,8 @@ import { getPlantDef } from "@/engine/entities/plant-defs";
 import { getZombieDef } from "@/engine/entities/zombie-defs";
 import { LAWN_MOWER_READY_X, LAWN_MOWER_SPEED_COLS_PER_SEC } from "@/engine/constants";
 import type { EnvironmentType } from "@/engine/types";
-import { DEFAULT_RNG_SEED, normalizeRngState } from "@/engine/rng";
+import { createInitialRngState, DEFAULT_RNG_SEED, normalizeRngState } from "@/engine/rng";
+import { parseWaveConfig } from "@/engine/wave-generator";
 
 // ---------------------------------------------------------------------------
 // Session shape expected from DB
@@ -58,6 +59,8 @@ interface SessionData {
   fogEnabled: boolean;
   slopeEnabled: boolean;
   conveyorBelt: boolean;
+  environmentConfig?: unknown;
+  rngSeed?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -103,6 +106,12 @@ export function deserializeGameState(
   const spawnQueueStateRaw = isSpawnQueueState(session.spawnQueueState) ? session.spawnQueueState : [];
   const seedCooldownsRaw = isSeedCooldowns(session.seedCooldowns) ? session.seedCooldowns : {};
   const loadoutSnapshotRaw = isStringArray(session.loadoutSnapshot) ? session.loadoutSnapshot : [];
+  const sessionEnvironmentConfig = isPlainRecord(session.environmentConfig)
+    ? session.environmentConfig
+    : {};
+  const waveConfig = parseWaveConfig(
+    environmentState?.waveConfig ?? sessionEnvironmentConfig.waveConfig
+  );
 
   // --- Restore environment mutations like fog reveal and graves ---
   if (environmentState) {
@@ -235,7 +244,11 @@ export function deserializeGameState(
   const zombieSpawnQueue = spawnQueueStateRaw.map((entry) => ({ ...entry }));
 
   const nextSkyDropTimerMs = environmentState?.nextSkyDropTimerMs ?? 0;
-  const rngState = environmentState ? normalizeRngState(environmentState.rngState) : DEFAULT_RNG_SEED;
+  const rngState = environmentState?.rngState !== undefined
+    ? normalizeRngState(environmentState.rngState)
+    : session.rngSeed
+      ? createInitialRngState([session.rngSeed, env, loadoutSnapshotRaw, waveConfig])
+      : DEFAULT_RNG_SEED;
 
   // --- Reconstruct loadout ---
   const loadout: SeedPacketSlot[] = loadoutSnapshotRaw.map((plantType, index) => {
@@ -288,6 +301,7 @@ export function deserializeGameState(
     loadout,
     selectedSlot: null,
     nextSkyDropAtMs: restoredGameTimeMs + nextSkyDropTimerMs,
+    waveConfig,
     zombieSpawnQueue,
   };
 }
@@ -314,6 +328,10 @@ function isSerializedEnvironmentState(v: unknown): v is SerializedEnvironmentSta
     Array.isArray(state.gridCells) &&
     state.gridCells.every(isSerializedGridCellEnvironment)
   );
+}
+
+function isPlainRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
 }
 
 function isSerializedGridCellEnvironment(v: unknown): boolean {
