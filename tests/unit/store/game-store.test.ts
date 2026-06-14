@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { useGameStore } from "@/store/game-store";
 import type { EnvironmentConfig, SeedPacketSlot } from "@/engine/types";
 import { WAVE_INTERVAL_MS, SKY_SUN_INTERVAL_MS, ZOMBIE_SPAWN_X } from "@/engine/constants";
+import { getZombieDef } from "@/engine/entities/zombie-defs";
 
 const DAY_ENV: EnvironmentConfig = {
   type: "DAY",
@@ -277,9 +278,10 @@ describe("tick — zombie movement", () => {
     const id = Object.keys(before)[0];
     expect(before[id].x).toBe(ZOMBIE_SPAWN_X);
 
-    useGameStore.getState().tick(1000); // 1 second; NORMAL speed=0.5 cols/s
+    const normalSpeed = getZombieDef("NORMAL").speedColsPerSec;
+    useGameStore.getState().tick(1000);
     const after = useGameStore.getState().zombies[id];
-    expect(after.x).toBeCloseTo(ZOMBIE_SPAWN_X - 0.5, 5);
+    expect(after.x).toBeCloseTo(ZOMBIE_SPAWN_X - normalSpeed, 5);
   });
 
   it("does not tick when paused", () => {
@@ -309,8 +311,8 @@ describe("tick — zombie movement", () => {
     useGameStore.getState().tick(0);
     expect(Object.keys(useGameStore.getState().zombies)).toHaveLength(1);
 
-    // NORMAL speed=0.5 cols/s; start x=9.5; reach -0.5 needs 20 s
-    for (let i = 0; i < 20; i++) {
+    // NORMAL speed is tuned near PvZ's 4.7 seconds per tile; 48 s crosses the house edge.
+    for (let i = 0; i < 48; i++) {
       useGameStore.getState().tick(1000);
     }
     expect(useGameStore.getState().status).toBe("game-over");

@@ -2,8 +2,8 @@ export const GRID_COLS = 9;
 export const GRID_ROWS_STANDARD = 5;
 export const GRID_ROWS_POOL = 6;
 
-export const TILE_W = 80; // pixels per tile
-export const TILE_H = 80;
+export const TILE_W = 92; // pixels per tile
+export const TILE_H = 88;
 
 export const SKY_SUN_INTERVAL_MS = 7_000; // Day: sun every 7 s
 export const SKY_SUN_FALL_SPEED_PER_MS = 0.001; // row-units per ms
@@ -20,6 +20,7 @@ export const WAVE_INTERVAL_MS = 30_000;
 export const FINAL_WAVE_DELAY_MS = 10_000;
 
 export const SUNFLOWER_PRODUCE_INTERVAL_MS = 24_000;
+export const SUN_PRODUCER_INITIAL_DELAY_MS = 7_000;
 export const SUNSHROOM_PRODUCE_INTERVAL_MS = 24_000;
 export const SUNSHROOM_SMALL_VALUE = 15;
 export const SUNSHROOM_MEDIUM_VALUE = 25;

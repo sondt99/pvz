@@ -14,12 +14,20 @@ const PLANT_EMOJI: Record<string, string> = {
   PUFF_SHROOM: "🍄",
   SUN_SHROOM: "☀️",
   FUME_SHROOM: "💨",
+  ICE_SHROOM: "❄️",
   LILY_PAD: "🪷",
+  TANGLE_KELP: "〰",
+  SEA_SHROOM: "🍄",
+  PLANTERN: "✦",
+  BLOVER: "◌",
+  SPLIT_PEA: "↔",
   SPIKEWEED: "🌵",
   TORCHWOOD: "🔥",
-  TWIN_SUNFLOWER: "🌻",
-  GATLING_PEA: "🟩",
   TALL_NUT: "🥜",
+  FLOWER_POT: "▱",
+  CABBAGE_PULT: "🥬",
+  KERNEL_PULT: "🌽",
+  MELON_PULT: "🍈",
 };
 
 const PLANT_BG: Record<string, string> = {
@@ -29,6 +37,15 @@ const PLANT_BG: Record<string, string> = {
   SNOW_PEA: "#004c5c",
   CHERRY_BOMB: "#5c0000",
   POTATO_MINE: "#4a3c1a",
+  PUFF_SHROOM: "#3b245c",
+  SUN_SHROOM: "#5c4b14",
+  FUME_SHROOM: "#334b25",
+  LILY_PAD: "#15593d",
+  PLANTERN: "#5b5420",
+  FLOWER_POT: "#704029",
+  CABBAGE_PULT: "#355d24",
+  KERNEL_PULT: "#5d4b1d",
+  MELON_PULT: "#245d36",
   default: "#1a3a1a",
 };
 

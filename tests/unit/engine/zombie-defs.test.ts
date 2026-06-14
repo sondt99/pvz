@@ -28,7 +28,7 @@ describe("getZombieDef", () => {
     expect(def.health).toBe(200);
     expect(def.armorHealth).toBe(0);
     expect(def.armorLayers).toBe(0);
-    expect(def.speedColsPerSec).toBeCloseTo(0.5);
+    expect(def.speedColsPerSec).toBeCloseTo(1 / 4.7);
     expect(def.eatDamagePerSec).toBe(100);
     expect(def.isAerial).toBe(false);
     expect(def.isUnderground).toBe(false);
@@ -76,7 +76,7 @@ describe("getZombieDef", () => {
   it("IMP is fast with low health (thrown by Gargantuar)", () => {
     const def = getZombieDef("IMP");
     expect(def.health).toBe(100);
-    expect(def.speedColsPerSec).toBeCloseTo(1.0);
+    expect(def.speedColsPerSec).toBeCloseTo(1 / 2.4);
     expect(def.isBoss).toBe(false);
   });
 
@@ -89,7 +89,7 @@ describe("getZombieDef", () => {
   it("WALL_NUT_ZOMBIE has very high health and is slow", () => {
     const def = getZombieDef("WALL_NUT_ZOMBIE");
     expect(def.health).toBe(4000);
-    expect(def.speedColsPerSec).toBeCloseTo(0.25);
+    expect(def.speedColsPerSec).toBeCloseTo(1 / 6.2);
   });
 
   it("ZOMBONI has extremely high eat damage (crushes plants)", () => {

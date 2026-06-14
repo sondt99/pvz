@@ -10,7 +10,7 @@ import { generateGrid, getCell, canPlantHere, setPlantOnCell } from "../engine/g
 import { getInitialSun, tickSkySun, spendSun, collectSun, createSkySunDrop, advanceSunDrop, isSunDropExpired } from "../engine/sun";
 import { getPlantDef } from "../engine/entities/plant-defs";
 import { getZombieDef } from "../engine/entities/zombie-defs";
-import { SKY_SUN_INTERVAL_MS, SKY_SUN_FALL_SPEED_PER_MS, WAVE_INTERVAL_MS, ZOMBIE_SPAWN_X } from "../engine/constants";
+import { SKY_SUN_INTERVAL_MS, SKY_SUN_FALL_SPEED_PER_MS, SUN_PRODUCER_INITIAL_DELAY_MS, WAVE_INTERVAL_MS, ZOMBIE_SPAWN_X } from "../engine/constants";
 import { resetPlantAiCounters, shouldPlantAttack, plantFire, plantProduceSun } from "../engine/ai/plant-ai";
 import {
   tickStatusEffects,
@@ -149,11 +149,16 @@ export const useGameStore = create<GameStore>()((set, get) => ({
     })) return false;
 
     const instanceId = nextPlantId(plantType, row, col);
+    const initialSunClock =
+      def.produceSun && def.sunProduceIntervalMs !== null
+        ? state.gameTimeMs - Math.max(0, def.sunProduceIntervalMs - SUN_PRODUCER_INITIAL_DELAY_MS)
+        : state.gameTimeMs;
+
     const plant: RuntimePlant = {
       instanceId, plantType, row, col,
       health: def.health, maxHealth: def.health,
       lastAttackAtMs: 0,
-      lastSunAtMs: state.gameTimeMs,
+      lastSunAtMs: initialSunClock,
       isSleeping: def.isMushroomType && state.environment.type !== "NIGHT",
       isCharging: false, chargeEndsAtMs: 0, armedAtMs: null,
     };
