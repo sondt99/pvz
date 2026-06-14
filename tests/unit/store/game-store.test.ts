@@ -87,6 +87,7 @@ const EXTENDED_LOADOUT: SeedPacketSlot[] = [
   { plantType: "GARLIC", plantId: "garlic", sunCost: 50, cooldownRemainingMs: 0, cooldownTotalMs: 30000, isSelected: false, slotIndex: 18 },
   { plantType: "KERNEL_PULT", plantId: "kernel-pult", sunCost: 100, cooldownRemainingMs: 0, cooldownTotalMs: 7000, isSelected: false, slotIndex: 19 },
   { plantType: "STARFRUIT", plantId: "starfruit", sunCost: 125, cooldownRemainingMs: 0, cooldownTotalMs: 7000, isSelected: false, slotIndex: 20 },
+  { plantType: "TALL_NUT", plantId: "tall-nut", sunCost: 125, cooldownRemainingMs: 0, cooldownTotalMs: 30000, isSelected: false, slotIndex: 21 },
 ];
 
 function makeZombie(overrides: Partial<RuntimeZombie> = {}): RuntimeZombie {
@@ -1090,6 +1091,80 @@ describe("tick — zombie movement", () => {
     expect(zombies).toHaveLength(1);
     expect(zombies[0].zombieType).toBe("CONEHEAD");
     expect(zombies[0].lane).toBe(2);
+  });
+
+  it("routes aquatic zombies to Pool water lanes when queued on land", () => {
+    useGameStore.getState().initGame(POOL_ENV, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+
+    useGameStore.getState().queueZombie("DUCKY_TUBE", 0, 0);
+    useGameStore.getState().queueZombie("SNORKEL", 1, 0);
+    useGameStore.getState().queueZombie("DOLPHIN_RIDER", 4, 0);
+    useGameStore.getState().tick(0);
+
+    const zombies = Object.values(useGameStore.getState().zombies);
+    expect(zombies).toHaveLength(3);
+    expect(zombies.every((zombie) => POOL_ENV.waterLaneIndices.includes(zombie.lane))).toBe(true);
+    expect(zombies.find((zombie) => zombie.zombieType === "SNORKEL")?.isSubmerged).toBe(true);
+  });
+
+  it("surfaces Snorkel zombies when they start eating a pool plant", () => {
+    useGameStore.getState().initGame(POOL_ENV, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({ currentSun: 500, nextWaveAtMs: Number.MAX_SAFE_INTEGER });
+
+    expect(useGameStore.getState().placePlant("LILY_PAD", 2, 3)).toBe(true);
+    expect(useGameStore.getState().placePlant("WALL_NUT", 2, 3)).toBe(true);
+    useGameStore.setState({
+      zombies: {
+        z1: makeZombie({ instanceId: "z1", zombieType: "SNORKEL", lane: 2, x: 3.2, isSubmerged: true }),
+      },
+    });
+
+    useGameStore.getState().tick(0);
+    expect(useGameStore.getState().zombies.z1.isEating).toBe(true);
+    expect(useGameStore.getState().zombies.z1.isSubmerged).toBe(false);
+  });
+
+  it("lets Dolphin Rider jump over the first pool plant and slow down afterward", () => {
+    useGameStore.getState().initGame(POOL_ENV, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({ currentSun: 500, nextWaveAtMs: Number.MAX_SAFE_INTEGER });
+
+    expect(useGameStore.getState().placePlant("LILY_PAD", 2, 3)).toBe(true);
+    expect(useGameStore.getState().placePlant("WALL_NUT", 2, 3)).toBe(true);
+    useGameStore.setState({
+      zombies: {
+        z1: makeZombie({ instanceId: "z1", zombieType: "DOLPHIN_RIDER", lane: 2, x: 3.2, hasJumped: false }),
+      },
+    });
+
+    useGameStore.getState().tick(0);
+    const zombie = useGameStore.getState().zombies.z1;
+    expect(zombie.isEating).toBe(false);
+    expect(zombie.hasJumped).toBe(true);
+    expect(zombie.x).toBeLessThan(3);
+    expect(zombie.speedColsPerSec).toBeCloseTo(getZombieDef("NORMAL").speedColsPerSec);
+  });
+
+  it("prevents Dolphin Rider from jumping over Tall-nut", () => {
+    useGameStore.getState().initGame(POOL_ENV, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({ currentSun: 500, nextWaveAtMs: Number.MAX_SAFE_INTEGER });
+
+    expect(useGameStore.getState().placePlant("LILY_PAD", 2, 3)).toBe(true);
+    expect(useGameStore.getState().placePlant("TALL_NUT", 2, 3)).toBe(true);
+    useGameStore.setState({
+      zombies: {
+        z1: makeZombie({ instanceId: "z1", zombieType: "DOLPHIN_RIDER", lane: 2, x: 3.2, hasJumped: false }),
+      },
+    });
+
+    useGameStore.getState().tick(0);
+    const zombie = useGameStore.getState().zombies.z1;
+    expect(zombie.isEating).toBe(true);
+    expect(zombie.hasJumped).toBe(false);
+    expect(zombie.x).toBe(3.2);
   });
 
   it("does not spawn zombie before its scheduled time", () => {

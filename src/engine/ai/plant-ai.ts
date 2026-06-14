@@ -39,12 +39,13 @@ export function findNearestZombieInLane(
   lane: number,
   zombies: Record<string, RuntimeZombie>,
   sourceCol = -Infinity,
-  opts: { includeAerial?: boolean; maxDistanceCols?: number } = {}
+  opts: { includeAerial?: boolean; includeSubmerged?: boolean; maxDistanceCols?: number } = {}
 ): RuntimeZombie | null {
   let nearest: RuntimeZombie | null = null;
   for (const zombie of Object.values(zombies)) {
     if (zombie.lane !== lane) continue;
     if (zombie.isUnderground) continue;
+    if (zombie.isSubmerged && !opts.includeSubmerged) continue;
     if (zombie.isAerial && !opts.includeAerial) continue;
     if (zombie.x <= sourceCol) continue;
     if (
@@ -60,12 +61,13 @@ export function findNearestZombieBehindInLane(
   lane: number,
   zombies: Record<string, RuntimeZombie>,
   sourceCol: number,
-  opts: { includeAerial?: boolean } = {}
+  opts: { includeAerial?: boolean; includeSubmerged?: boolean } = {}
 ): RuntimeZombie | null {
   let nearest: RuntimeZombie | null = null;
   for (const zombie of Object.values(zombies)) {
     if (zombie.lane !== lane) continue;
     if (zombie.isUnderground) continue;
+    if (zombie.isSubmerged && !opts.includeSubmerged) continue;
     if (zombie.isAerial && !opts.includeAerial) continue;
     if (zombie.x >= sourceCol) continue;
     if (nearest === null || zombie.x > nearest.x) nearest = zombie;
@@ -104,6 +106,7 @@ function isZombieInScaredyCowerArea(plant: RuntimePlant, zombie: RuntimeZombie):
 
 function isZombieInStarfruitLine(plant: RuntimePlant, zombie: RuntimeZombie): boolean {
   if (zombie.isUnderground || zombie.isAerial) return false;
+  if (zombie.isSubmerged) return false;
 
   const originX = plant.col + 0.5;
   const dx = zombie.x - originX;
@@ -155,6 +158,7 @@ export function shouldPlantAttack(
   if (isScaredyShroomCowering(plant, zombies)) return false;
   if (gameTimeMs - plant.lastAttackAtMs < def.attackCooldownMs) return false;
   const includeAerial = def.plantType === "CACTUS";
+  const includeSubmerged = def.trajectory === "lobbed";
   const maxDistanceCols = getForwardRangeCols(def.plantType);
 
   if (def.plantType === "THREEPEATER") {
@@ -174,6 +178,7 @@ export function shouldPlantAttack(
 
   const target = findNearestZombieInLane(plant.row, zombies, plant.col, {
     includeAerial,
+    includeSubmerged,
     maxDistanceCols,
   });
   return target !== null;
@@ -195,9 +200,11 @@ export function plantFire(
   }
 
   const includeAerial = def.plantType === "CACTUS";
+  const includeSubmerged = def.trajectory === "lobbed";
   const maxDistanceCols = getForwardRangeCols(def.plantType);
   const target = findNearestZombieInLane(plant.row, zombies, plant.col, {
     includeAerial,
+    includeSubmerged,
     maxDistanceCols,
   });
   if (!def.projectileType || def.attackDamage === null) {

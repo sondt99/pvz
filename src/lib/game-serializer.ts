@@ -250,6 +250,8 @@ function serializeZombies(state: GameEngineState): ZombieInstance[] {
       isUnderground: zombie.isUnderground,
       isAerial: zombie.isAerial,
       isFrozen: zombie.isFrozen,
+      isSubmerged: zombie.isSubmerged,
+      hasJumped: zombie.hasJumped,
       speedColsPerSec: zombie.speedColsPerSec,
       eatDamagePerSec: zombie.eatDamagePerSec,
     },

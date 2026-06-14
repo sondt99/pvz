@@ -23,6 +23,7 @@ import {
   DOOM_SHROOM_CRATER_MS,
   DOOM_SHROOM_RADIUS_COLS,
   DOOM_SHROOM_RADIUS_LANES,
+  DOLPHIN_RIDER_POST_JUMP_SPEED_COLS_PER_SEC,
   LAWN_MOWER_READY_X,
   LAWN_MOWER_SPEED_COLS_PER_SEC,
   LAWN_MOWER_TRIGGER_X,
@@ -121,6 +122,52 @@ function chooseGarlicDiversionLane(zombie: RuntimeZombie, gridRows: number): num
     .split("")
     .reduce((sum, char) => sum + char.charCodeAt(0), 0);
   return candidates[hash % candidates.length];
+}
+
+function isAquaticZombieType(zombieType: string): boolean {
+  return zombieType === "DUCKY_TUBE" || zombieType === "SNORKEL" || zombieType === "DOLPHIN_RIDER";
+}
+
+function isWaterLane(env: EnvironmentConfig, lane: number): boolean {
+  return env.waterLaneIndices.includes(lane);
+}
+
+function resolveAquaticSpawnLane(
+  zombieType: string,
+  lane: number,
+  env: EnvironmentConfig
+): number {
+  if (!isAquaticZombieType(zombieType) || env.waterLaneIndices.length === 0) return lane;
+  if (isWaterLane(env, lane)) return lane;
+  return env.waterLaneIndices[Math.abs(lane) % env.waterLaneIndices.length] ?? lane;
+}
+
+function shouldSnorkelSubmerge(zombie: RuntimeZombie, env: EnvironmentConfig): boolean {
+  return zombie.zombieType === "SNORKEL" && !zombie.isEating && isWaterLane(env, zombie.lane);
+}
+
+function canDolphinJumpTarget(
+  zombie: RuntimeZombie,
+  plant: RuntimePlant,
+  env: EnvironmentConfig
+): boolean {
+  return (
+    zombie.zombieType === "DOLPHIN_RIDER" &&
+    zombie.hasJumped !== true &&
+    isWaterLane(env, zombie.lane) &&
+    plant.plantType !== "TALL_NUT"
+  );
+}
+
+function jumpDolphinOverPlant(zombie: RuntimeZombie, plant: RuntimePlant): RuntimeZombie {
+  return {
+    ...zombie,
+    x: Math.min(zombie.x, plant.col - 0.65),
+    hasJumped: true,
+    speedColsPerSec: DOLPHIN_RIDER_POST_JUMP_SPEED_COLS_PER_SEC,
+    isEating: false,
+    eatTargetId: null,
+  };
 }
 
 function setPlantInCorrectSlot(
@@ -761,10 +808,11 @@ export const useGameStore = create<GameStore>()((set, get) => ({
     for (const entry of toSpawn) {
       const def = getZombieDef(entry.zombieType);
       const id = nextZombieId(entry.zombieType);
+      const lane = resolveAquaticSpawnLane(entry.zombieType, entry.lane, env);
       zombies[id] = {
         instanceId: id,
         zombieType: entry.zombieType,
-        lane: entry.lane,
+        lane,
         x: entry.x ?? ZOMBIE_SPAWN_X,
         health: def.health, maxHealth: def.health,
         armorHealth: def.armorHealth,
@@ -775,6 +823,8 @@ export const useGameStore = create<GameStore>()((set, get) => ({
         isUnderground: def.isUnderground,
         isAerial: def.isAerial,
         isFrozen: false,
+        isSubmerged: entry.zombieType === "SNORKEL" && isWaterLane(env, lane),
+        hasJumped: entry.zombieType === "DOLPHIN_RIDER" ? false : undefined,
       };
     }
 
@@ -1000,6 +1050,9 @@ export const useGameStore = create<GameStore>()((set, get) => ({
     for (const [zombieId, zombie] of Object.entries(zombies)) {
       // 8a. Tick status effects
       let z = tickStatusEffects(zombie, newGameTimeMs);
+      if (z.isEating && z.zombieType === "SNORKEL" && z.isSubmerged) {
+        z = { ...z, isSubmerged: false };
+      }
 
       // 8b. If eating, check if target plant still exists and is alive
       if (z.isEating && z.eatTargetId) {
@@ -1045,9 +1098,19 @@ export const useGameStore = create<GameStore>()((set, get) => ({
 
       // 8c. If not eating, check if zombie should start eating a plant
       if (!z.isEating && !isZombieImmobilized(z)) {
+        if (shouldSnorkelSubmerge(z, env) && !z.isSubmerged) {
+          z = { ...z, isSubmerged: true };
+        }
         const foundEatTarget = chooseZombieEatTarget(z, plants);
         if (foundEatTarget) {
-          z = startEating(z, foundEatTarget.instanceId);
+          if (canDolphinJumpTarget(z, foundEatTarget, env)) {
+            z = jumpDolphinOverPlant(z, foundEatTarget);
+          } else {
+            z = startEating(
+              z.zombieType === "SNORKEL" ? { ...z, isSubmerged: false } : z,
+              foundEatTarget.instanceId
+            );
+          }
         }
       }
 

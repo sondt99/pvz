@@ -69,6 +69,12 @@ describe("findNearestZombieInLane", () => {
     expect(findNearestZombieInLane(0, zombies)).toBeNull();
   });
 
+  it("ignores submerged zombies unless explicitly requested", () => {
+    const zombies = { z1: makeZombie({ isSubmerged: true }) };
+    expect(findNearestZombieInLane(0, zombies)).toBeNull();
+    expect(findNearestZombieInLane(0, zombies, -Infinity, { includeSubmerged: true })).not.toBeNull();
+  });
+
   it("ignores aerial zombies unless explicitly requested", () => {
     const zombies = { z1: makeZombie({ isAerial: true }) };
     expect(findNearestZombieInLane(0, zombies)).toBeNull();
@@ -159,6 +165,15 @@ describe("shouldPlantAttack", () => {
     const plant = makePlant({ plantType: "PEASHOOTER" });
     const zombies = { z1: makeZombie({ lane: 0, x: 7, isAerial: true }) };
     expect(shouldPlantAttack(plant, def, 5000, zombies)).toBe(false);
+  });
+
+  it("does not let straight shooters target submerged Snorkel, while lobbers can", () => {
+    const peashooter = makePlant({ plantType: "PEASHOOTER" });
+    const cabbage = makePlant({ plantType: "CABBAGE_PULT" });
+    const submerged = { z1: makeZombie({ lane: 0, x: 7, zombieType: "SNORKEL", isSubmerged: true }) };
+
+    expect(shouldPlantAttack(peashooter, getPlantDef("PEASHOOTER"), 5000, submerged)).toBe(false);
+    expect(shouldPlantAttack(cabbage, getPlantDef("CABBAGE_PULT"), 5000, submerged)).toBe(true);
   });
 
   it("lets Cactus attack a Balloon zombie", () => {
