@@ -48,6 +48,7 @@ import {
   findStraightHits,
   findLobbedHits,
   applyProjectileHits,
+  transformProjectileWithTorchwood,
 } from "../engine/ai/projectile-ai";
 import { generateWave } from "../engine/wave-generator";
 import { applyProjectileDamage, isPlantDead, isZombieDead } from "../engine/physics/collision";
@@ -1057,7 +1058,11 @@ export const useGameStore = create<GameStore>()((set, get) => ({
 
     for (const [projId, proj] of Object.entries(projectiles)) {
       // 9a. Advance
-      const advanced = advanceProjectile(proj, deltaMs);
+      const advanced = transformProjectileWithTorchwood(
+        advanceProjectile(proj, deltaMs),
+        plants,
+        proj.x
+      );
 
       // 9b. Find hits
       const hitIds = advanced.trajectory === "straight"

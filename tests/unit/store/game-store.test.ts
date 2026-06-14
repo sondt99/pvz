@@ -1,7 +1,13 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { useGameStore } from "@/store/game-store";
 import type { EnvironmentConfig, RuntimeZombie, SeedPacketSlot } from "@/engine/types";
-import { DOOM_SHROOM_CRATER_MS, POTATO_MINE_ARM_MS, WAVE_INTERVAL_MS, ZOMBIE_SPAWN_X } from "@/engine/constants";
+import {
+  DOOM_SHROOM_CRATER_MS,
+  FIRE_PEA_DAMAGE_MULTIPLIER,
+  POTATO_MINE_ARM_MS,
+  WAVE_INTERVAL_MS,
+  ZOMBIE_SPAWN_X,
+} from "@/engine/constants";
 import { getZombieDef } from "@/engine/entities/zombie-defs";
 
 const DAY_ENV: EnvironmentConfig = {
@@ -76,6 +82,7 @@ const EXTENDED_LOADOUT: SeedPacketSlot[] = [
   { plantType: "ICE_SHROOM", plantId: "ice-shroom", sunCost: 75, cooldownRemainingMs: 0, cooldownTotalMs: 50000, isSelected: false, slotIndex: 14 },
   { plantType: "DOOM_SHROOM", plantId: "doom-shroom", sunCost: 125, cooldownRemainingMs: 0, cooldownTotalMs: 50000, isSelected: false, slotIndex: 15 },
   { plantType: "PUMPKIN", plantId: "pumpkin", sunCost: 125, cooldownRemainingMs: 0, cooldownTotalMs: 30000, isSelected: false, slotIndex: 16 },
+  { plantType: "TORCHWOOD", plantId: "torchwood", sunCost: 175, cooldownRemainingMs: 0, cooldownTotalMs: 7000, isSelected: false, slotIndex: 17 },
 ];
 
 function makeZombie(overrides: Partial<RuntimeZombie> = {}): RuntimeZombie {
@@ -770,6 +777,53 @@ describe("placePlant", () => {
     const projectiles = Object.values(useGameStore.getState().projectiles);
     expect(projectiles).toHaveLength(2);
     expect(projectiles.every((projectile) => projectile.velX < 0)).toBe(true);
+  });
+
+  it("turns Peashooter peas into fire peas after crossing Torchwood", () => {
+    useGameStore.getState().initGame(DAY_ENV, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({ currentSun: 1_000, nextWaveAtMs: Number.MAX_SAFE_INTEGER });
+
+    expect(useGameStore.getState().placePlant("PEASHOOTER", 0, 0)).toBe(true);
+    expect(useGameStore.getState().placePlant("TORCHWOOD", 0, 2)).toBe(true);
+    useGameStore.setState({
+      gameTimeMs: 1400,
+      zombies: {
+        z1: makeZombie({ instanceId: "z1", lane: 0, x: 7 }),
+      },
+    });
+
+    useGameStore.getState().tick(100);
+    useGameStore.getState().tick(100);
+
+    const projectile = Object.values(useGameStore.getState().projectiles)[0];
+    expect(projectile.projectileType).toBe("FIRE_PEA");
+    expect(projectile.damage).toBe(20 * FIRE_PEA_DAMAGE_MULTIPLIER);
+    expect(projectile.isFire).toBe(true);
+  });
+
+  it("melts Snow Pea projectiles into regular peas after crossing Torchwood", () => {
+    useGameStore.getState().initGame(DAY_ENV, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({ currentSun: 1_000, nextWaveAtMs: Number.MAX_SAFE_INTEGER });
+
+    expect(useGameStore.getState().placePlant("SNOW_PEA", 0, 0)).toBe(true);
+    expect(useGameStore.getState().placePlant("TORCHWOOD", 0, 2)).toBe(true);
+    useGameStore.setState({
+      gameTimeMs: 1400,
+      zombies: {
+        z1: makeZombie({ instanceId: "z1", lane: 0, x: 7 }),
+      },
+    });
+
+    useGameStore.getState().tick(100);
+    useGameStore.getState().tick(100);
+
+    const projectile = Object.values(useGameStore.getState().projectiles)[0];
+    expect(projectile.projectileType).toBe("PEA");
+    expect(projectile.damage).toBe(20);
+    expect(projectile.slowFactor).toBeUndefined();
+    expect(projectile.isFire).toBeUndefined();
   });
 
   it("does not let Peashooter fire at Balloon, while Cactus does", () => {

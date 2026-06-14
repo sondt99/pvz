@@ -5,8 +5,9 @@ import {
   findStraightHits,
   findLobbedHits,
   applyProjectileHits,
+  transformProjectileWithTorchwood,
 } from "@/engine/ai/projectile-ai";
-import type { RuntimeProjectile, RuntimeZombie } from "@/engine/types";
+import type { RuntimePlant, RuntimeProjectile, RuntimeZombie } from "@/engine/types";
 
 function makeStr(overrides: Partial<RuntimeProjectile> = {}): RuntimeProjectile {
   return {
@@ -33,6 +34,24 @@ function makeZombie(id: string, overrides: Partial<RuntimeZombie> = {}): Runtime
     speedColsPerSec: 0.5, eatDamagePerSec: 100,
     isEating: false, eatTargetId: null,
     statusEffects: [], isUnderground: false, isAerial: false, isFrozen: false,
+    ...overrides,
+  };
+}
+
+function makePlant(overrides: Partial<RuntimePlant> = {}): RuntimePlant {
+  return {
+    instanceId: "plant-torchwood-1",
+    plantType: "TORCHWOOD",
+    row: 0,
+    col: 3,
+    health: 450,
+    maxHealth: 450,
+    lastAttackAtMs: 0,
+    lastSunAtMs: 0,
+    isSleeping: false,
+    isCharging: false,
+    chargeEndsAtMs: 0,
+    armedAtMs: null,
     ...overrides,
   };
 }
@@ -159,6 +178,63 @@ describe("findLobbedHits", () => {
   });
 });
 
+describe("transformProjectileWithTorchwood", () => {
+  it("turns a regular forward pea crossing Torchwood into a double-damage fire pea", () => {
+    const proj = makeStr({ projectileType: "PEA", x: 3.2, sourceCol: 1, damage: 20 });
+    const transformed = transformProjectileWithTorchwood(
+      proj,
+      { torchwood: makePlant({ row: 0, col: 3 }) },
+      2.8
+    );
+
+    expect(transformed.projectileType).toBe("FIRE_PEA");
+    expect(transformed.damage).toBe(40);
+    expect(transformed.isFire).toBe(true);
+  });
+
+  it("melts Snow Pea projectiles into regular peas without applying fire damage", () => {
+    const proj = makeStr({
+      projectileType: "FROZEN_PEA",
+      x: 3.2,
+      sourceCol: 1,
+      damage: 20,
+      slowFactor: 0.5,
+    });
+    const transformed = transformProjectileWithTorchwood(
+      proj,
+      { torchwood: makePlant({ row: 0, col: 3 }) },
+      2.8
+    );
+
+    expect(transformed.projectileType).toBe("PEA");
+    expect(transformed.damage).toBe(20);
+    expect(transformed.slowFactor).toBeUndefined();
+    expect(transformed.isFire).toBeUndefined();
+  });
+
+  it("does not transform non-pea projectiles crossing Torchwood", () => {
+    const proj = makeStr({ projectileType: "SPORE", x: 3.2, sourceCol: 1, damage: 20 });
+    const transformed = transformProjectileWithTorchwood(
+      proj,
+      { torchwood: makePlant({ row: 0, col: 3 }) },
+      2.8
+    );
+
+    expect(transformed).toEqual(proj);
+  });
+
+  it("does not transform backward peas", () => {
+    const proj = makeStr({ projectileType: "PEA", x: 2.8, sourceCol: 4, damage: 20, velX: -8 });
+    const transformed = transformProjectileWithTorchwood(
+      proj,
+      { torchwood: makePlant({ row: 0, col: 3 }) },
+      3.2
+    );
+
+    expect(transformed).toEqual(proj);
+  });
+});
+
 describe("applyProjectileHits", () => {
   it("applies damage and kills zombie with <= 0 health", () => {
     const proj = makeStr({ damage: 200 });
@@ -182,6 +258,22 @@ describe("applyProjectileHits", () => {
     const result = applyProjectileHits(proj, zombies, ["z1"]);
     const effects = result.updatedZombies["z1"].statusEffects;
     expect(effects.some((e) => e.type === "SLOWED")).toBe(true);
+  });
+
+  it("fire peas thaw frozen and slowed zombies on hit", () => {
+    const proj = makeStr({ projectileType: "FIRE_PEA", damage: 20, isFire: true });
+    const zombies = {
+      z1: makeZombie("z1", {
+        isFrozen: true,
+        statusEffects: [
+          { type: "FROZEN", expiresAtMs: 10_000 },
+          { type: "SLOWED", expiresAtMs: Infinity, factor: 0.5 },
+        ],
+      }),
+    };
+    const result = applyProjectileHits(proj, zombies, ["z1"]);
+    expect(result.updatedZombies.z1.isFrozen).toBe(false);
+    expect(result.updatedZombies.z1.statusEffects).toEqual([]);
   });
 
   it("returns empty result for no hits", () => {

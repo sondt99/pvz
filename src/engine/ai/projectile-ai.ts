@@ -1,4 +1,4 @@
-import type { RuntimeProjectile, RuntimeZombie } from "../types";
+import type { RuntimePlant, RuntimeProjectile, RuntimeZombie } from "../types";
 import {
   updateStraightProjectile,
   updateLobbedProjectile,
@@ -6,6 +6,7 @@ import {
   hasLobbedLanded,
 } from "../physics/trajectory";
 import { applyProjectileDamage, isZombieDead } from "../physics/collision";
+import { FIRE_PEA_DAMAGE_MULTIPLIER } from "../constants";
 
 const STRAIGHT_HIT_RADIUS = 0.5;
 const LOBBED_HIT_RADIUS = 1.5;
@@ -13,6 +14,42 @@ const LOBBED_SPLASH_LANES = 1;
 
 function hasLobbedSplash(proj: RuntimeProjectile): boolean {
   return proj.projectileType === "MELON";
+}
+
+export function transformProjectileWithTorchwood(
+  proj: RuntimeProjectile,
+  plants: Record<string, RuntimePlant>,
+  previousX: number
+): RuntimeProjectile {
+  if (proj.trajectory !== "straight" || proj.velX <= 0) return proj;
+
+  const crossedTorchwood = Object.values(plants).some((plant) =>
+    plant.plantType === "TORCHWOOD" &&
+    !plant.isSleeping &&
+    plant.row === proj.lane &&
+    previousX < plant.col &&
+    proj.x >= plant.col
+  );
+  if (!crossedTorchwood) return proj;
+
+  if (proj.projectileType === "PEA" && proj.isFire !== true) {
+    return {
+      ...proj,
+      projectileType: "FIRE_PEA",
+      damage: proj.damage * FIRE_PEA_DAMAGE_MULTIPLIER,
+      isFire: true,
+    };
+  }
+
+  if (proj.projectileType === "FROZEN_PEA") {
+    const { slowFactor: _slowFactor, isFire: _isFire, ...rest } = proj;
+    return {
+      ...rest,
+      projectileType: "PEA",
+    };
+  }
+
+  return proj;
 }
 
 export function advanceProjectile(proj: RuntimeProjectile, deltaMs: number): RuntimeProjectile {
@@ -116,6 +153,16 @@ export function applyProjectileHits(
           ...damaged.statusEffects.filter((e) => e.type !== "SLOWED"),
           { type: "SLOWED" as const, expiresAtMs: Infinity, factor: proj.slowFactor },
         ],
+      };
+    }
+
+    if (proj.isFire) {
+      damaged = {
+        ...damaged,
+        isFrozen: false,
+        statusEffects: damaged.statusEffects.filter((e) =>
+          e.type !== "FROZEN" && e.type !== "SLOWED"
+        ),
       };
     }
 
