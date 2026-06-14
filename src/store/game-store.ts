@@ -20,6 +20,9 @@ import { getInitialSun, tickSkySun, spendSun, collectSun, createSkySunDrop, adva
 import { getPlantDef } from "../engine/entities/plant-defs";
 import { getZombieDef } from "../engine/entities/zombie-defs";
 import {
+  DIGGER_EMERGE_PAUSE_MS,
+  DIGGER_EMERGE_X,
+  DIGGER_EMERGED_SPEED_COLS_PER_SEC,
   DOOM_SHROOM_CRATER_MS,
   DOOM_SHROOM_RADIUS_COLS,
   DOOM_SHROOM_RADIUS_LANES,
@@ -27,6 +30,7 @@ import {
   LAWN_MOWER_READY_X,
   LAWN_MOWER_SPEED_COLS_PER_SEC,
   LAWN_MOWER_TRIGGER_X,
+  POGO_WITHOUT_STICK_SPEED_COLS_PER_SEC,
   POTATO_MINE_ARM_MS,
   SKY_SUN_INTERVAL_MS,
   SKY_SUN_FALL_SPEED_PER_MS,
@@ -146,16 +150,28 @@ function shouldSnorkelSubmerge(zombie: RuntimeZombie, env: EnvironmentConfig): b
   return zombie.zombieType === "SNORKEL" && !zombie.isEating && isWaterLane(env, zombie.lane);
 }
 
+function hasTallNutInCell(
+  plant: RuntimePlant,
+  plants: Record<string, RuntimePlant>
+): boolean {
+  return Object.values(plants).some((candidate) =>
+    candidate.row === plant.row &&
+    candidate.col === plant.col &&
+    candidate.plantType === "TALL_NUT"
+  );
+}
+
 function canDolphinJumpTarget(
   zombie: RuntimeZombie,
   plant: RuntimePlant,
-  env: EnvironmentConfig
+  env: EnvironmentConfig,
+  plants: Record<string, RuntimePlant>
 ): boolean {
   return (
     zombie.zombieType === "DOLPHIN_RIDER" &&
     zombie.hasJumped !== true &&
     isWaterLane(env, zombie.lane) &&
-    plant.plantType !== "TALL_NUT"
+    !hasTallNutInCell(plant, plants)
   );
 }
 
@@ -168,6 +184,64 @@ function jumpDolphinOverPlant(zombie: RuntimeZombie, plant: RuntimePlant): Runti
     isEating: false,
     eatTargetId: null,
   };
+}
+
+function isPogoStickActive(zombie: RuntimeZombie): boolean {
+  return zombie.zombieType === "POGO" && zombie.pogoStickActive !== false;
+}
+
+function canPogoJumpTarget(
+  zombie: RuntimeZombie,
+  plant: RuntimePlant,
+  plants: Record<string, RuntimePlant>
+): boolean {
+  return isPogoStickActive(zombie) && !hasTallNutInCell(plant, plants);
+}
+
+function jumpPogoOverPlant(zombie: RuntimeZombie, plant: RuntimePlant): RuntimeZombie {
+  return {
+    ...zombie,
+    x: Math.min(zombie.x, plant.col - 0.65),
+    isEating: false,
+    eatTargetId: null,
+  };
+}
+
+function removePogoStick(zombie: RuntimeZombie): RuntimeZombie {
+  return {
+    ...zombie,
+    pogoStickActive: false,
+    speedColsPerSec: POGO_WITHOUT_STICK_SPEED_COLS_PER_SEC,
+  };
+}
+
+function shouldDiggerEmerge(zombie: RuntimeZombie): boolean {
+  return zombie.zombieType === "DIGGER" && zombie.isUnderground && zombie.x <= DIGGER_EMERGE_X;
+}
+
+function emergeDigger(zombie: RuntimeZombie, gameTimeMs: number): RuntimeZombie {
+  return {
+    ...zombie,
+    x: DIGGER_EMERGE_X,
+    isUnderground: false,
+    direction: "right",
+    emergeUntilMs: gameTimeMs + DIGGER_EMERGE_PAUSE_MS,
+    speedColsPerSec: DIGGER_EMERGED_SPEED_COLS_PER_SEC,
+    isEating: false,
+    eatTargetId: null,
+  };
+}
+
+function isDiggerEmerging(zombie: RuntimeZombie, gameTimeMs: number): boolean {
+  return (
+    zombie.zombieType === "DIGGER" &&
+    typeof zombie.emergeUntilMs === "number" &&
+    gameTimeMs < zombie.emergeUntilMs
+  );
+}
+
+function hasDiggerExitedLawn(zombie: RuntimeZombie, env: EnvironmentConfig): boolean {
+  return zombie.zombieType === "DIGGER" && zombie.direction === "right" && zombie.x > env.gridCols + 0.5;
 }
 
 function setPlantInCorrectSlot(
@@ -825,6 +899,8 @@ export const useGameStore = create<GameStore>()((set, get) => ({
         isFrozen: false,
         isSubmerged: entry.zombieType === "SNORKEL" && isWaterLane(env, lane),
         hasJumped: entry.zombieType === "DOLPHIN_RIDER" ? false : undefined,
+        direction: "left",
+        pogoStickActive: entry.zombieType === "POGO" ? true : undefined,
       };
     }
 
@@ -1050,6 +1126,9 @@ export const useGameStore = create<GameStore>()((set, get) => ({
     for (const [zombieId, zombie] of Object.entries(zombies)) {
       // 8a. Tick status effects
       let z = tickStatusEffects(zombie, newGameTimeMs);
+      if (shouldDiggerEmerge(z)) {
+        z = emergeDigger(z, newGameTimeMs);
+      }
       if (z.isEating && z.zombieType === "SNORKEL" && z.isSubmerged) {
         z = { ...z, isSubmerged: false };
       }
@@ -1097,17 +1176,21 @@ export const useGameStore = create<GameStore>()((set, get) => ({
       }
 
       // 8c. If not eating, check if zombie should start eating a plant
-      if (!z.isEating && !isZombieImmobilized(z)) {
+      if (!z.isEating && !isZombieImmobilized(z) && !isDiggerEmerging(z, newGameTimeMs)) {
         if (shouldSnorkelSubmerge(z, env) && !z.isSubmerged) {
           z = { ...z, isSubmerged: true };
         }
         const foundEatTarget = chooseZombieEatTarget(z, plants);
         if (foundEatTarget) {
-          if (canDolphinJumpTarget(z, foundEatTarget, env)) {
+          if (canDolphinJumpTarget(z, foundEatTarget, env, plants)) {
             z = jumpDolphinOverPlant(z, foundEatTarget);
+          } else if (canPogoJumpTarget(z, foundEatTarget, plants)) {
+            z = jumpPogoOverPlant(z, foundEatTarget);
           } else {
+            const shouldRemovePogoStick = isPogoStickActive(z) && hasTallNutInCell(foundEatTarget, plants);
+            const eater = shouldRemovePogoStick ? removePogoStick(z) : z;
             z = startEating(
-              z.zombieType === "SNORKEL" ? { ...z, isSubmerged: false } : z,
+              eater.zombieType === "SNORKEL" ? { ...eater, isSubmerged: false } : eater,
               foundEatTarget.instanceId
             );
           }
@@ -1115,8 +1198,17 @@ export const useGameStore = create<GameStore>()((set, get) => ({
       }
 
       // 8d. If not eating and not frozen, move the zombie
-      if (!z.isEating && !z.isFrozen) {
+      if (!z.isEating && !z.isFrozen && !isDiggerEmerging(z, newGameTimeMs)) {
         z = moveZombie(z, deltaMs);
+        if (shouldDiggerEmerge(z)) {
+          z = emergeDigger(z, newGameTimeMs);
+        }
+      }
+
+      if (hasDiggerExitedLawn(z, env)) {
+        const { [zombieId]: _escapedDigger, ...remainingZombies } = zombies;
+        zombies = remainingZombies;
+        continue;
       }
 
       zombies[zombieId] = z;
@@ -1125,7 +1217,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
     // 8e. Check house breach: consume lane mower first, lose only after it is gone.
     const breachedLanes = new Set(
       Object.values(zombies)
-        .filter((zombie) => zombie.x <= LAWN_MOWER_TRIGGER_X)
+        .filter((zombie) => !zombie.isUnderground && zombie.x <= LAWN_MOWER_TRIGGER_X)
         .map((zombie) => zombie.lane)
     );
 

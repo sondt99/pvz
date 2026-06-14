@@ -16,11 +16,12 @@ export function getEffectiveSpeed(zombie: RuntimeZombie): number {
   return zombie.speedColsPerSec;
 }
 
-/** Move a zombie left by deltaMs. Returns updated zombie (does NOT move if eating/immobilized). */
+/** Move a zombie by deltaMs. Returns updated zombie (does NOT move if eating/immobilized). */
 export function moveZombie(zombie: RuntimeZombie, deltaMs: number): RuntimeZombie {
   if (zombie.isEating || isZombieImmobilized(zombie)) return zombie;
   const speed = getEffectiveSpeed(zombie);
-  return { ...zombie, x: zombie.x - speed * (deltaMs / 1000) };
+  const direction = zombie.direction === "right" ? 1 : -1;
+  return { ...zombie, x: zombie.x + direction * speed * (deltaMs / 1000) };
 }
 
 /** Remove expired status effects; update isFrozen derived flag. */

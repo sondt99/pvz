@@ -2,8 +2,12 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { useGameStore } from "@/store/game-store";
 import type { EnvironmentConfig, RuntimeZombie, SeedPacketSlot } from "@/engine/types";
 import {
+  DIGGER_EMERGE_PAUSE_MS,
+  DIGGER_EMERGE_X,
+  DIGGER_EMERGED_SPEED_COLS_PER_SEC,
   DOOM_SHROOM_CRATER_MS,
   FIRE_PEA_DAMAGE_MULTIPLIER,
+  POGO_WITHOUT_STICK_SPEED_COLS_PER_SEC,
   POTATO_MINE_ARM_MS,
   WAVE_INTERVAL_MS,
   ZOMBIE_SPAWN_X,
@@ -1165,6 +1169,127 @@ describe("tick — zombie movement", () => {
     expect(zombie.isEating).toBe(true);
     expect(zombie.hasJumped).toBe(false);
     expect(zombie.x).toBe(3.2);
+  });
+
+  it("lets Digger surface behind defenses before attacking from the left side", () => {
+    useGameStore.setState({ currentSun: 500, nextWaveAtMs: Number.MAX_SAFE_INTEGER });
+    expect(useGameStore.getState().placePlant("PEASHOOTER", 0, 0)).toBe(true);
+    useGameStore.setState({
+      zombies: {
+        z1: makeZombie({
+          instanceId: "z1",
+          zombieType: "DIGGER",
+          lane: 0,
+          x: -0.6,
+          isUnderground: true,
+          direction: "left",
+        }),
+      },
+    });
+
+    useGameStore.getState().tick(0);
+    let state = useGameStore.getState();
+    expect(state.status).toBe("playing");
+    expect(state.lawnMowers["mower-0"].state).toBe("ready");
+    expect(state.zombies.z1).toMatchObject({
+      isUnderground: false,
+      direction: "right",
+      x: DIGGER_EMERGE_X,
+      speedColsPerSec: DIGGER_EMERGED_SPEED_COLS_PER_SEC,
+      isEating: false,
+    });
+
+    useGameStore.getState().tick(DIGGER_EMERGE_PAUSE_MS - 1);
+    expect(useGameStore.getState().zombies.z1).toMatchObject({
+      x: DIGGER_EMERGE_X,
+      isEating: false,
+    });
+
+    useGameStore.getState().tick(1);
+    state = useGameStore.getState();
+    expect(state.zombies.z1).toMatchObject({
+      isEating: true,
+      direction: "right",
+    });
+    expect(state.plants[state.zombies.z1.eatTargetId ?? ""]?.plantType).toBe("PEASHOOTER");
+  });
+
+  it("lets Pogo jump over multiple regular plants until a Tall-nut removes the pogo stick", () => {
+    useGameStore.getState().initGame(DAY_ENV, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({ currentSun: 1000, nextWaveAtMs: Number.MAX_SAFE_INTEGER });
+
+    expect(useGameStore.getState().placePlant("TALL_NUT", 1, 3)).toBe(true);
+    expect(useGameStore.getState().placePlant("WALL_NUT", 1, 4)).toBe(true);
+    expect(useGameStore.getState().placePlant("PEASHOOTER", 1, 5)).toBe(true);
+    useGameStore.setState({
+      zombies: {
+        z1: makeZombie({
+          instanceId: "z1",
+          zombieType: "POGO",
+          lane: 1,
+          x: 5.2,
+          pogoStickActive: true,
+          direction: "left",
+        }),
+      },
+    });
+
+    useGameStore.getState().tick(0);
+    let pogo = useGameStore.getState().zombies.z1;
+    expect(pogo.x).toBeCloseTo(4.35);
+    expect(pogo).toMatchObject({
+      isEating: false,
+      pogoStickActive: true,
+    });
+
+    useGameStore.getState().tick(0);
+    pogo = useGameStore.getState().zombies.z1;
+    expect(pogo.x).toBeCloseTo(3.35);
+    expect(pogo).toMatchObject({
+      isEating: false,
+      pogoStickActive: true,
+    });
+
+    useGameStore.getState().tick(0);
+    const zombie = useGameStore.getState().zombies.z1;
+    expect(zombie.x).toBeCloseTo(3.35);
+    expect(zombie).toMatchObject({
+      isEating: true,
+      pogoStickActive: false,
+      speedColsPerSec: POGO_WITHOUT_STICK_SPEED_COLS_PER_SEC,
+    });
+    expect(useGameStore.getState().plants[zombie.eatTargetId ?? ""]?.plantType).toBe("TALL_NUT");
+  });
+
+  it("prevents Pogo from jumping over a Pumpkin-protected Tall-nut", () => {
+    useGameStore.getState().initGame(DAY_ENV, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({ currentSun: 1000, nextWaveAtMs: Number.MAX_SAFE_INTEGER });
+
+    expect(useGameStore.getState().placePlant("TALL_NUT", 2, 3)).toBe(true);
+    expect(useGameStore.getState().placePlant("PUMPKIN", 2, 3)).toBe(true);
+    useGameStore.setState({
+      zombies: {
+        z1: makeZombie({
+          instanceId: "z1",
+          zombieType: "POGO",
+          lane: 2,
+          x: 3.2,
+          pogoStickActive: true,
+          direction: "left",
+        }),
+      },
+    });
+
+    useGameStore.getState().tick(0);
+    const zombie = useGameStore.getState().zombies.z1;
+    expect(zombie).toMatchObject({
+      x: 3.2,
+      isEating: true,
+      pogoStickActive: false,
+    });
+    expect(useGameStore.getState().plants[zombie.eatTargetId ?? ""]?.plantType).toBe("PUMPKIN");
   });
 
   it("does not spawn zombie before its scheduled time", () => {

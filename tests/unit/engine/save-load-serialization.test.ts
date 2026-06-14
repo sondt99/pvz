@@ -160,7 +160,7 @@ describe("save/load serialization", () => {
     });
   });
 
-  it("preserves partially damaged zombie armor separately from base health", () => {
+  it("preserves zombie armor and bypasser movement fields", () => {
     const environment: EnvironmentConfig = {
       type: "DAY",
       gridRows: 5,
@@ -195,6 +195,44 @@ describe("save/load serialization", () => {
           isAerial: false,
           isFrozen: false,
         },
+        "zombie-digger-1": {
+          instanceId: "zombie-digger-1",
+          zombieType: "DIGGER",
+          lane: 0,
+          x: 0.15,
+          health: 200,
+          maxHealth: 200,
+          armorHealth: 0,
+          speedColsPerSec: 1 / 6.2,
+          eatDamagePerSec: 100,
+          isEating: false,
+          eatTargetId: null,
+          statusEffects: [],
+          isUnderground: false,
+          isAerial: false,
+          isFrozen: false,
+          direction: "right",
+          emergeUntilMs: 9_000,
+        },
+        "zombie-pogo-1": {
+          instanceId: "zombie-pogo-1",
+          zombieType: "POGO",
+          lane: 1,
+          x: 3.35,
+          health: 200,
+          maxHealth: 200,
+          armorHealth: 0,
+          speedColsPerSec: 1 / 4.7,
+          eatDamagePerSec: 100,
+          isEating: false,
+          eatTargetId: null,
+          statusEffects: [],
+          isUnderground: false,
+          isAerial: false,
+          isFrozen: false,
+          direction: "left",
+          pogoStickActive: false,
+        },
       },
       projectiles: {},
       sunDrops: {},
@@ -215,9 +253,13 @@ describe("save/load serialization", () => {
 
     const serialized = serializeGameState(state);
     const zombie = serialized.zombieState[0];
+    const digger = serialized.zombieState.find((entry) => entry.instanceId === "zombie-digger-1");
+    const pogo = serialized.zombieState.find((entry) => entry.instanceId === "zombie-pogo-1");
 
     expect(zombie.health).toBe(200);
     expect(zombie.extraState?.armorHealth).toBe(640);
+    expect(digger?.extraState).toMatchObject({ direction: "right", emergeUntilMs: 9_000 });
+    expect(pogo?.extraState).toMatchObject({ direction: "left", pogoStickActive: false });
 
     const restored = deserializeGameState(
       {
@@ -254,6 +296,17 @@ describe("save/load serialization", () => {
       zombieType: "BUCKETHEAD",
       health: 200,
       armorHealth: 640,
+    });
+    expect(restored.zombies?.["zombie-digger-1"]).toMatchObject({
+      zombieType: "DIGGER",
+      direction: "right",
+      emergeUntilMs: 9_000,
+      isUnderground: false,
+    });
+    expect(restored.zombies?.["zombie-pogo-1"]).toMatchObject({
+      zombieType: "POGO",
+      direction: "left",
+      pogoStickActive: false,
     });
   });
 
