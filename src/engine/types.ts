@@ -125,6 +125,9 @@ export interface RuntimeZombie {
   isFrozen: boolean;
   isSubmerged?: boolean;
   hasJumped?: boolean;
+  direction?: "left" | "right";
+  emergeUntilMs?: number;
+  pogoStickActive?: boolean;
 }
 
 export interface RuntimeProjectile {

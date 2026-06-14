@@ -216,6 +216,9 @@ export function deserializeGameState(
       isFrozen: typeof extra.isFrozen === "boolean" ? extra.isFrozen : false,
       isSubmerged: typeof extra.isSubmerged === "boolean" ? extra.isSubmerged : false,
       hasJumped: typeof extra.hasJumped === "boolean" ? extra.hasJumped : undefined,
+      direction: extra.direction === "right" ? "right" : "left",
+      emergeUntilMs: typeof extra.emergeUntilMs === "number" ? extra.emergeUntilMs : undefined,
+      pogoStickActive: typeof extra.pogoStickActive === "boolean" ? extra.pogoStickActive : undefined,
     };
 
     zombies[z.instanceId] = zombie;

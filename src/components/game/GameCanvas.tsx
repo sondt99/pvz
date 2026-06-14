@@ -685,6 +685,25 @@ function drawZombie(ctx: CanvasRenderingContext2D, zombie: RuntimeZombie, gridRo
   ctx.shadowBlur = 8;
   ctx.shadowOffsetY = 5;
 
+  if (zombie.isUnderground) {
+    ctx.fillStyle = "#6b4d2f";
+    ctx.beginPath();
+    ctx.ellipse(cx, ground - 2, 34, 12, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#8a6a43";
+    ctx.beginPath();
+    ctx.ellipse(cx + 8, ground - 10, 22, 8, -0.12, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#5a3d25";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(cx - 10, ground - 22);
+    ctx.lineTo(cx + 18, ground - 43);
+    ctx.stroke();
+    ctx.restore();
+    return;
+  }
+
   ctx.strokeStyle = zombie.isFrozen ? "#6aaeca" : "#5a6f57";
   ctx.lineWidth = 7;
   ctx.beginPath();
@@ -742,6 +761,21 @@ function drawZombie(ctx: CanvasRenderingContext2D, zombie: RuntimeZombie, gridRo
     ctx.strokeStyle = "#d3d4cc";
     ctx.lineWidth = 4;
     ctx.strokeRect(cx - 18, ground - 61, 36, 42);
+  }
+
+  if (zombie.zombieType === "POGO" && zombie.pogoStickActive !== false) {
+    ctx.strokeStyle = "#343a3a";
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(cx + 24, ground - 42);
+    ctx.lineTo(cx + 31, ground + 19);
+    ctx.stroke();
+    ctx.strokeStyle = "#b7c2c1";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(cx + 18, ground + 19);
+    ctx.lineTo(cx + 44, ground + 19);
+    ctx.stroke();
   }
 
   ctx.restore();

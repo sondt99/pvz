@@ -64,6 +64,11 @@ describe("moveZombie", () => {
     expect(result.x).toBeCloseTo(6.5);
   });
 
+  it("moves zombie right when direction is right", () => {
+    const result = moveZombie(makeZombie({ x: 1, direction: "right" }), 1000);
+    expect(result.x).toBeCloseTo(1.5);
+  });
+
   it("does not move frozen zombie", () => {
     const result = moveZombie(makeZombie({ x: 7, isFrozen: true }), 1000);
     expect(result.x).toBe(7);
