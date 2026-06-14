@@ -7,6 +7,11 @@ import {
   DIGGER_EMERGED_SPEED_COLS_PER_SEC,
   DOOM_SHROOM_CRATER_MS,
   FIRE_PEA_DAMAGE_MULTIPLIER,
+  GARGANTUAR_IMP_LANDING_MAX_X,
+  GARGANTUAR_IMP_LANDING_MIN_X,
+  GARGANTUAR_IMP_THROW_HEALTH_THRESHOLD,
+  GARGANTUAR_IMP_THROW_MIN_X,
+  GARGANTUAR_SMASH_RECOVERY_MS,
   POGO_WITHOUT_STICK_SPEED_COLS_PER_SEC,
   POTATO_MINE_ARM_MS,
   WAVE_INTERVAL_MS,
@@ -1290,6 +1295,97 @@ describe("tick — zombie movement", () => {
       pogoStickActive: false,
     });
     expect(useGameStore.getState().plants[zombie.eatTargetId ?? ""]?.plantType).toBe("PUMPKIN");
+  });
+
+  it("lets Gargantuar smash plants instead of eating them over time", () => {
+    useGameStore.getState().initGame(DAY_ENV, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({ currentSun: 1000, nextWaveAtMs: Number.MAX_SAFE_INTEGER });
+
+    expect(useGameStore.getState().placePlant("WALL_NUT", 3, 4)).toBe(true);
+    const wallNutId = useGameStore.getState().grid[3][4].plantInstanceId;
+    useGameStore.setState({
+      zombies: {
+        z1: makeZombie({
+          instanceId: "z1",
+          zombieType: "GARGANTUAR",
+          lane: 3,
+          x: 4.2,
+          direction: "left",
+          hasThrownImp: false,
+        }),
+      },
+    });
+
+    useGameStore.getState().tick(0);
+    let state = useGameStore.getState();
+    expect(state.plants[wallNutId ?? ""]).toBeUndefined();
+    expect(state.grid[3][4].plantInstanceId).toBeNull();
+    expect(state.zombies.z1.isEating).toBe(false);
+    expect(state.zombies.z1.smashUntilMs).toBe(GARGANTUAR_SMASH_RECOVERY_MS);
+
+    useGameStore.getState().tick(GARGANTUAR_SMASH_RECOVERY_MS - 1);
+    state = useGameStore.getState();
+    expect(state.zombies.z1.x).toBe(4.2);
+    expect(state.zombies.z1.isEating).toBe(false);
+  });
+
+  it("throws one Imp into the back lawn once Gargantuar reaches half health", () => {
+    useGameStore.getState().initGame(DAY_ENV, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({ nextWaveAtMs: Number.MAX_SAFE_INTEGER });
+    useGameStore.setState({
+      zombies: {
+        z1: makeZombie({
+          instanceId: "z1",
+          zombieType: "GARGANTUAR",
+          lane: 2,
+          x: GARGANTUAR_IMP_THROW_MIN_X + 0.1,
+          health: GARGANTUAR_IMP_THROW_HEALTH_THRESHOLD,
+          hasThrownImp: false,
+          direction: "left",
+        }),
+      },
+    });
+
+    useGameStore.getState().tick(0);
+    let zombies = Object.values(useGameStore.getState().zombies);
+    const gargantuar = useGameStore.getState().zombies.z1;
+    const imp = zombies.find((zombie) => zombie.zombieType === "IMP");
+
+    expect(gargantuar.hasThrownImp).toBe(true);
+    expect(imp).toBeDefined();
+    expect(imp?.lane).toBe(2);
+    expect(imp?.x).toBeGreaterThanOrEqual(GARGANTUAR_IMP_LANDING_MIN_X);
+    expect(imp?.x).toBeLessThanOrEqual(GARGANTUAR_IMP_LANDING_MAX_X);
+
+    useGameStore.getState().tick(0);
+    zombies = Object.values(useGameStore.getState().zombies);
+    expect(zombies.filter((zombie) => zombie.zombieType === "IMP")).toHaveLength(1);
+  });
+
+  it("does not throw the Imp once Gargantuar is too close to the house", () => {
+    useGameStore.getState().initGame(DAY_ENV, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({ nextWaveAtMs: Number.MAX_SAFE_INTEGER });
+    useGameStore.setState({
+      zombies: {
+        z1: makeZombie({
+          instanceId: "z1",
+          zombieType: "GARGANTUAR",
+          lane: 2,
+          x: GARGANTUAR_IMP_THROW_MIN_X,
+          health: GARGANTUAR_IMP_THROW_HEALTH_THRESHOLD,
+          hasThrownImp: false,
+          direction: "left",
+        }),
+      },
+    });
+
+    useGameStore.getState().tick(0);
+    const zombies = Object.values(useGameStore.getState().zombies);
+    expect(useGameStore.getState().zombies.z1.hasThrownImp).toBe(false);
+    expect(zombies.some((zombie) => zombie.zombieType === "IMP")).toBe(false);
   });
 
   it("does not spawn zombie before its scheduled time", () => {
