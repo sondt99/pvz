@@ -27,6 +27,11 @@ import {
   DOOM_SHROOM_RADIUS_COLS,
   DOOM_SHROOM_RADIUS_LANES,
   DOLPHIN_RIDER_POST_JUMP_SPEED_COLS_PER_SEC,
+  GARGANTUAR_IMP_LANDING_MAX_X,
+  GARGANTUAR_IMP_LANDING_MIN_X,
+  GARGANTUAR_IMP_THROW_HEALTH_THRESHOLD,
+  GARGANTUAR_IMP_THROW_MIN_X,
+  GARGANTUAR_SMASH_RECOVERY_MS,
   LAWN_MOWER_READY_X,
   LAWN_MOWER_SPEED_COLS_PER_SEC,
   LAWN_MOWER_TRIGGER_X,
@@ -102,7 +107,7 @@ function chooseZombieEatTarget(
 ): RuntimePlant | null {
   let target: RuntimePlant | null = null;
   for (const plant of Object.values(plants)) {
-    if (plant.plantType === "SPIKEWEED") continue;
+    if (plant.plantType === "SPIKEWEED" && zombie.zombieType !== "GARGANTUAR") continue;
     if (!isZombieEatingPlant(zombie, plant)) continue;
     if (target === null) {
       target = plant;
@@ -144,6 +149,37 @@ function resolveAquaticSpawnLane(
   if (!isAquaticZombieType(zombieType) || env.waterLaneIndices.length === 0) return lane;
   if (isWaterLane(env, lane)) return lane;
   return env.waterLaneIndices[Math.abs(lane) % env.waterLaneIndices.length] ?? lane;
+}
+
+function createRuntimeZombie(
+  zombieType: string,
+  lane: number,
+  x: number,
+  env: EnvironmentConfig
+): RuntimeZombie {
+  const def = getZombieDef(zombieType);
+  return {
+    instanceId: nextZombieId(zombieType),
+    zombieType,
+    lane,
+    x,
+    health: def.health,
+    maxHealth: def.health,
+    armorHealth: def.armorHealth,
+    speedColsPerSec: def.speedColsPerSec,
+    eatDamagePerSec: def.eatDamagePerSec,
+    isEating: false,
+    eatTargetId: null,
+    statusEffects: [],
+    isUnderground: def.isUnderground,
+    isAerial: def.isAerial,
+    isFrozen: false,
+    isSubmerged: zombieType === "SNORKEL" && isWaterLane(env, lane),
+    hasJumped: zombieType === "DOLPHIN_RIDER" ? false : undefined,
+    direction: "left",
+    pogoStickActive: zombieType === "POGO" ? true : undefined,
+    hasThrownImp: zombieType === "GARGANTUAR" ? false : undefined,
+  };
 }
 
 function shouldSnorkelSubmerge(zombie: RuntimeZombie, env: EnvironmentConfig): boolean {
@@ -242,6 +278,61 @@ function isDiggerEmerging(zombie: RuntimeZombie, gameTimeMs: number): boolean {
 
 function hasDiggerExitedLawn(zombie: RuntimeZombie, env: EnvironmentConfig): boolean {
   return zombie.zombieType === "DIGGER" && zombie.direction === "right" && zombie.x > env.gridCols + 0.5;
+}
+
+function isGargantuarSmashing(zombie: RuntimeZombie, gameTimeMs: number): boolean {
+  return (
+    zombie.zombieType === "GARGANTUAR" &&
+    typeof zombie.smashUntilMs === "number" &&
+    gameTimeMs < zombie.smashUntilMs
+  );
+}
+
+function startGargantuarSmash(zombie: RuntimeZombie, gameTimeMs: number): RuntimeZombie {
+  return {
+    ...zombie,
+    isEating: false,
+    eatTargetId: null,
+    smashUntilMs: gameTimeMs + GARGANTUAR_SMASH_RECOVERY_MS,
+  };
+}
+
+function shouldThrowGargantuarImp(zombie: RuntimeZombie): boolean {
+  return (
+    zombie.zombieType === "GARGANTUAR" &&
+    zombie.hasThrownImp !== true &&
+    zombie.health > 0 &&
+    zombie.health <= GARGANTUAR_IMP_THROW_HEALTH_THRESHOLD &&
+    zombie.x > GARGANTUAR_IMP_THROW_MIN_X
+  );
+}
+
+function getGargantuarImpLandingX(zombie: RuntimeZombie): number {
+  const landingX = Math.round(zombie.x - 5);
+  return Math.max(
+    GARGANTUAR_IMP_LANDING_MIN_X,
+    Math.min(GARGANTUAR_IMP_LANDING_MAX_X, landingX)
+  );
+}
+
+function applyGargantuarImpThrows(
+  zombies: Record<string, RuntimeZombie>,
+  env: EnvironmentConfig
+): Record<string, RuntimeZombie> {
+  let updated = { ...zombies };
+  for (const [zombieId, zombie] of Object.entries(zombies)) {
+    if (!shouldThrowGargantuarImp(zombie)) continue;
+
+    const imp = createRuntimeZombie(
+      "IMP",
+      zombie.lane,
+      getGargantuarImpLandingX(zombie),
+      env
+    );
+    updated[zombieId] = { ...zombie, hasThrownImp: true };
+    updated[imp.instanceId] = imp;
+  }
+  return updated;
 }
 
 function setPlantInCorrectSlot(
@@ -880,28 +971,9 @@ export const useGameStore = create<GameStore>()((set, get) => ({
 
     let zombies: Record<string, RuntimeZombie> = { ...state.zombies };
     for (const entry of toSpawn) {
-      const def = getZombieDef(entry.zombieType);
-      const id = nextZombieId(entry.zombieType);
       const lane = resolveAquaticSpawnLane(entry.zombieType, entry.lane, env);
-      zombies[id] = {
-        instanceId: id,
-        zombieType: entry.zombieType,
-        lane,
-        x: entry.x ?? ZOMBIE_SPAWN_X,
-        health: def.health, maxHealth: def.health,
-        armorHealth: def.armorHealth,
-        speedColsPerSec: def.speedColsPerSec,
-        eatDamagePerSec: def.eatDamagePerSec,
-        isEating: false, eatTargetId: null,
-        statusEffects: [],
-        isUnderground: def.isUnderground,
-        isAerial: def.isAerial,
-        isFrozen: false,
-        isSubmerged: entry.zombieType === "SNORKEL" && isWaterLane(env, lane),
-        hasJumped: entry.zombieType === "DOLPHIN_RIDER" ? false : undefined,
-        direction: "left",
-        pogoStickActive: entry.zombieType === "POGO" ? true : undefined,
-      };
+      const zombie = createRuntimeZombie(entry.zombieType, lane, entry.x ?? ZOMBIE_SPAWN_X, env);
+      zombies[zombie.instanceId] = zombie;
     }
 
     let score = state.score;
@@ -1176,13 +1248,27 @@ export const useGameStore = create<GameStore>()((set, get) => ({
       }
 
       // 8c. If not eating, check if zombie should start eating a plant
-      if (!z.isEating && !isZombieImmobilized(z) && !isDiggerEmerging(z, newGameTimeMs)) {
+      if (
+        !z.isEating &&
+        !isZombieImmobilized(z) &&
+        !isDiggerEmerging(z, newGameTimeMs) &&
+        !isGargantuarSmashing(z, newGameTimeMs)
+      ) {
         if (shouldSnorkelSubmerge(z, env) && !z.isSubmerged) {
           z = { ...z, isSubmerged: true };
         }
         const foundEatTarget = chooseZombieEatTarget(z, plants);
         if (foundEatTarget) {
-          if (canDolphinJumpTarget(z, foundEatTarget, env, plants)) {
+          if (z.zombieType === "GARGANTUAR") {
+            if (!gridChanged) {
+              newGrid = cloneGrid(state.grid);
+              gridChanged = true;
+            }
+            setPlantInCorrectSlot(newGrid, foundEatTarget.row, foundEatTarget.col, foundEatTarget.plantType, null);
+            const { [foundEatTarget.instanceId]: _smashedPlant, ...remainingPlants } = plants;
+            plants = remainingPlants;
+            z = startGargantuarSmash(z, newGameTimeMs);
+          } else if (canDolphinJumpTarget(z, foundEatTarget, env, plants)) {
             z = jumpDolphinOverPlant(z, foundEatTarget);
           } else if (canPogoJumpTarget(z, foundEatTarget, plants)) {
             z = jumpPogoOverPlant(z, foundEatTarget);
@@ -1198,7 +1284,12 @@ export const useGameStore = create<GameStore>()((set, get) => ({
       }
 
       // 8d. If not eating and not frozen, move the zombie
-      if (!z.isEating && !z.isFrozen && !isDiggerEmerging(z, newGameTimeMs)) {
+      if (
+        !z.isEating &&
+        !z.isFrozen &&
+        !isDiggerEmerging(z, newGameTimeMs) &&
+        !isGargantuarSmashing(z, newGameTimeMs)
+      ) {
         z = moveZombie(z, deltaMs);
         if (shouldDiggerEmerge(z)) {
           z = emergeDigger(z, newGameTimeMs);
@@ -1291,6 +1382,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
       }
     }
     projectiles = updatedProjectiles;
+    zombies = applyGargantuarImpThrows(zombies, env);
 
     // -----------------------------------------------------------------------
     // 10. Remove dead plants (health <= 0) — any remaining after eating loop

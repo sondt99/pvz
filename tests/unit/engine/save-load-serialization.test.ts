@@ -160,7 +160,7 @@ describe("save/load serialization", () => {
     });
   });
 
-  it("preserves zombie armor and bypasser movement fields", () => {
+  it("preserves zombie armor, bypasser movement fields, and boss action fields", () => {
     const environment: EnvironmentConfig = {
       type: "DAY",
       gridRows: 5,
@@ -233,6 +233,26 @@ describe("save/load serialization", () => {
           direction: "left",
           pogoStickActive: false,
         },
+        "zombie-gargantuar-1": {
+          instanceId: "zombie-gargantuar-1",
+          zombieType: "GARGANTUAR",
+          lane: 2,
+          x: 4.25,
+          health: 1500,
+          maxHealth: 3000,
+          armorHealth: 0,
+          speedColsPerSec: 1 / 6.2,
+          eatDamagePerSec: 1800,
+          isEating: false,
+          eatTargetId: null,
+          statusEffects: [],
+          isUnderground: false,
+          isAerial: false,
+          isFrozen: false,
+          direction: "left",
+          hasThrownImp: true,
+          smashUntilMs: 6_500,
+        },
       },
       projectiles: {},
       sunDrops: {},
@@ -255,11 +275,13 @@ describe("save/load serialization", () => {
     const zombie = serialized.zombieState[0];
     const digger = serialized.zombieState.find((entry) => entry.instanceId === "zombie-digger-1");
     const pogo = serialized.zombieState.find((entry) => entry.instanceId === "zombie-pogo-1");
+    const gargantuar = serialized.zombieState.find((entry) => entry.instanceId === "zombie-gargantuar-1");
 
     expect(zombie.health).toBe(200);
     expect(zombie.extraState?.armorHealth).toBe(640);
     expect(digger?.extraState).toMatchObject({ direction: "right", emergeUntilMs: 9_000 });
     expect(pogo?.extraState).toMatchObject({ direction: "left", pogoStickActive: false });
+    expect(gargantuar?.extraState).toMatchObject({ hasThrownImp: true, smashUntilMs: 6_500 });
 
     const restored = deserializeGameState(
       {
@@ -307,6 +329,11 @@ describe("save/load serialization", () => {
       zombieType: "POGO",
       direction: "left",
       pogoStickActive: false,
+    });
+    expect(restored.zombies?.["zombie-gargantuar-1"]).toMatchObject({
+      zombieType: "GARGANTUAR",
+      hasThrownImp: true,
+      smashUntilMs: 6_500,
     });
   });
 

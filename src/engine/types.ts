@@ -128,6 +128,8 @@ export interface RuntimeZombie {
   direction?: "left" | "right";
   emergeUntilMs?: number;
   pogoStickActive?: boolean;
+  hasThrownImp?: boolean;
+  smashUntilMs?: number;
 }
 
 export interface RuntimeProjectile {
