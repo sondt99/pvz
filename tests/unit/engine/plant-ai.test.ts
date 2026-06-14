@@ -95,11 +95,31 @@ describe("findNearestZombieBehindInLane", () => {
 
 describe("shouldPlantAttack", () => {
   const def = getPlantDef("PEASHOOTER");
+  const roofEnv = { slopeEnabled: true };
 
   it("returns true when zombie is in lane and cooldown elapsed", () => {
     const plant = makePlant({ lastAttackAtMs: 0 });
     const zombies = { z1: makeZombie({ lane: 0, x: 7 }) };
     expect(shouldPlantAttack(plant, def, 2000, zombies)).toBe(true);
+  });
+
+  it("blocks straight shooters on the four leftmost roof columns", () => {
+    const plant = makePlant({ col: 3 });
+    const zombies = { z1: makeZombie({ lane: 0, x: 7 }) };
+    expect(shouldPlantAttack(plant, def, 5000, zombies, 5, roofEnv)).toBe(false);
+  });
+
+  it("allows straight shooters once planted above the blocked roof slope", () => {
+    const plant = makePlant({ col: 4 });
+    const zombies = { z1: makeZombie({ lane: 0, x: 7 }) };
+    expect(shouldPlantAttack(plant, def, 5000, zombies, 5, roofEnv)).toBe(true);
+  });
+
+  it("allows lobbers to attack from the blocked roof columns", () => {
+    const cabbageDef = getPlantDef("CABBAGE_PULT");
+    const plant = makePlant({ plantType: "CABBAGE_PULT", col: 0 });
+    const zombies = { z1: makeZombie({ lane: 0, x: 7 }) };
+    expect(shouldPlantAttack(plant, cabbageDef, 5000, zombies, 5, roofEnv)).toBe(true);
   });
 
   it("returns false when cooldown not elapsed", () => {
@@ -243,6 +263,8 @@ describe("shouldPlantAttack", () => {
 });
 
 describe("plantFire", () => {
+  const roofEnv = { slopeEnabled: true };
+
   it("creates a straight projectile for Peashooter", () => {
     const plant = makePlant({ col: 2 });
     const def = getPlantDef("PEASHOOTER");
@@ -252,6 +274,16 @@ describe("plantFire", () => {
     expect(projectile?.trajectory).toBe("straight");
     expect(projectile?.damage).toBe(20);
     expect(updatedPlant.lastAttackAtMs).toBe(5000);
+  });
+
+  it("does not create straight projectiles from the blocked roof columns", () => {
+    const plant = makePlant({ col: 3 });
+    const def = getPlantDef("PEASHOOTER");
+    const zombies = { z1: makeZombie({ lane: 0, x: 7 }) };
+    const { projectile, projectiles, updatedPlant } = plantFire(plant, def, 5000, zombies, 5, Math.random, roofEnv);
+    expect(projectile).toBeNull();
+    expect(projectiles).toHaveLength(0);
+    expect(updatedPlant.lastAttackAtMs).toBe(0);
   });
 
   it("creates a lobbed projectile for Cabbage-pult", () => {

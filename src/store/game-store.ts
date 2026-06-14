@@ -1061,14 +1061,15 @@ export const useGameStore = create<GameStore>()((set, get) => ({
       }
 
       // 7c. Attack
-      if (shouldPlantAttack(currentPlant, def, newGameTimeMs, zombies, env.gridRows)) {
+      if (shouldPlantAttack(currentPlant, def, newGameTimeMs, zombies, env.gridRows, env)) {
         const fireResult = plantFire(
           currentPlant,
           def,
           newGameTimeMs,
           zombies,
           env.gridRows,
-          nextPlantRandom
+          nextPlantRandom,
+          env
         );
         if (fireResult.projectiles.length > 0) {
           projectiles = {

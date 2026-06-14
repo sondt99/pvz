@@ -817,6 +817,52 @@ describe("placePlant", () => {
     expect(Object.values(useGameStore.getState().projectiles)).toHaveLength(2);
   });
 
+  it("blocks Peashooter shots from the four leftmost Roof columns", () => {
+    useGameStore.getState().initGame(ROOF_ENV, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({ currentSun: 1000, nextWaveAtMs: Number.MAX_SAFE_INTEGER });
+
+    expect(useGameStore.getState().placePlant("FLOWER_POT", 0, 0)).toBe(true);
+    expect(useGameStore.getState().placePlant("PEASHOOTER", 0, 0)).toBe(true);
+    useGameStore.setState({
+      gameTimeMs: 5000,
+      zombies: {
+        z1: makeZombie({ instanceId: "z1", lane: 0, x: 7, speedColsPerSec: 0 }),
+      },
+    });
+
+    useGameStore.getState().tick(1);
+    expect(Object.values(useGameStore.getState().projectiles)).toHaveLength(0);
+
+    useGameStore.getState().tick(2000);
+    expect(useGameStore.getState().zombies.z1.health).toBe(200);
+  });
+
+  it("lets Cabbage-pult lob over the Roof slope from the leftmost columns", () => {
+    useGameStore.getState().initGame(ROOF_ENV, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({ currentSun: 1000, nextWaveAtMs: Number.MAX_SAFE_INTEGER });
+
+    expect(useGameStore.getState().placePlant("FLOWER_POT", 0, 0)).toBe(true);
+    expect(useGameStore.getState().placePlant("CABBAGE_PULT", 0, 0)).toBe(true);
+    useGameStore.setState({
+      gameTimeMs: 5000,
+      zombies: {
+        z1: makeZombie({ instanceId: "z1", lane: 0, x: 7, speedColsPerSec: 0 }),
+      },
+    });
+
+    useGameStore.getState().tick(1);
+    const projectile = Object.values(useGameStore.getState().projectiles)[0];
+    expect(projectile).toMatchObject({
+      trajectory: "lobbed",
+      targetCol: 7,
+    });
+
+    useGameStore.getState().tick(2000);
+    expect(useGameStore.getState().zombies.z1.health).toBe(160);
+  });
+
   it("uses deterministic RNG for Kernel-pult butter and applies BUTTERED on hit", () => {
     const butterSeed = 1;
     const expectedNextRng = nextRandomValue(butterSeed).rngState;

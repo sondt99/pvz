@@ -13,6 +13,7 @@ export const SUN_VALUE_SKY = 25;
 export const SUN_VALUE_SUNFLOWER = 25;
 
 export const FOG_START_COL = 5; // columns ≥ 5 are fogged
+export const ROOF_STRAIGHT_PROJECTILE_BLOCKED_COLS = 4;
 
 export const ZOMBIE_SPAWN_X = 9.5; // tiles off-screen right
 
