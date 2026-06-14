@@ -116,6 +116,7 @@ export function findStraightHits(
   const inRange = Object.entries(zombies).filter(([, z]) =>
     Math.abs(z.lane - proj.lane) <= STRAIGHT_LANE_HIT_RADIUS &&
     !z.isUnderground &&
+    !z.isSubmerged &&
     (!z.isAerial || proj.canHitAerial === true) &&
     isInProjectileTravelDirection(proj, z) &&
     (

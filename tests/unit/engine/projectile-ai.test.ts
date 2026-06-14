@@ -113,6 +113,12 @@ describe("findStraightHits", () => {
     expect(findStraightHits(proj, zombies)).toHaveLength(0);
   });
 
+  it("ignores submerged Snorkel zombies for straight projectiles", () => {
+    const proj = makeStr({ lane: 0, x: 5, sourceCol: 2 });
+    const zombies = { z1: makeZombie("z1", { lane: 0, x: 5, zombieType: "SNORKEL", isSubmerged: true }) };
+    expect(findStraightHits(proj, zombies)).toHaveLength(0);
+  });
+
   it("piercing projectile hits all zombies in radius", () => {
     const proj = makeStr({ lane: 0, x: 5, sourceCol: 2, piercing: true });
     const zombies = {
@@ -211,6 +217,14 @@ describe("findLobbedHits", () => {
       z1: makeZombie("z1", { lane: 2, x: 7 }),
       z2: makeZombie("z2", { lane: 2, x: 7.4 }),
       z3: makeZombie("z3", { lane: 1, x: 7 }),
+    };
+    expect(findLobbedHits(proj, zombies)).toEqual(["z1"]);
+  });
+
+  it("allows lobbed projectiles to hit submerged Snorkel zombies", () => {
+    const proj = makeLob({ projectileType: "CABBAGE", x: 7, targetCol: 7, targetLane: 2 });
+    const zombies = {
+      z1: makeZombie("z1", { lane: 2, x: 7, zombieType: "SNORKEL", isSubmerged: true }),
     };
     expect(findLobbedHits(proj, zombies)).toEqual(["z1"]);
   });

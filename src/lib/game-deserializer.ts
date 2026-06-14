@@ -214,6 +214,8 @@ export function deserializeGameState(
       isUnderground: typeof extra.isUnderground === "boolean" ? extra.isUnderground : def.isUnderground,
       isAerial: typeof extra.isAerial === "boolean" ? extra.isAerial : def.isAerial,
       isFrozen: typeof extra.isFrozen === "boolean" ? extra.isFrozen : false,
+      isSubmerged: typeof extra.isSubmerged === "boolean" ? extra.isSubmerged : false,
+      hasJumped: typeof extra.hasJumped === "boolean" ? extra.hasJumped : undefined,
     };
 
     zombies[z.instanceId] = zombie;

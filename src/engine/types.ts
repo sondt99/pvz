@@ -123,6 +123,8 @@ export interface RuntimeZombie {
   isUnderground: boolean;
   isAerial: boolean;
   isFrozen: boolean;
+  isSubmerged?: boolean;
+  hasJumped?: boolean;
 }
 
 export interface RuntimeProjectile {
