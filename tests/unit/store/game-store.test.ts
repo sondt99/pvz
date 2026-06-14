@@ -9,6 +9,7 @@ import {
   ZOMBIE_SPAWN_X,
 } from "@/engine/constants";
 import { getZombieDef } from "@/engine/entities/zombie-defs";
+import { nextRandomValue } from "@/engine/rng";
 
 const DAY_ENV: EnvironmentConfig = {
   type: "DAY",
@@ -84,6 +85,7 @@ const EXTENDED_LOADOUT: SeedPacketSlot[] = [
   { plantType: "PUMPKIN", plantId: "pumpkin", sunCost: 125, cooldownRemainingMs: 0, cooldownTotalMs: 30000, isSelected: false, slotIndex: 16 },
   { plantType: "TORCHWOOD", plantId: "torchwood", sunCost: 175, cooldownRemainingMs: 0, cooldownTotalMs: 7000, isSelected: false, slotIndex: 17 },
   { plantType: "GARLIC", plantId: "garlic", sunCost: 50, cooldownRemainingMs: 0, cooldownTotalMs: 30000, isSelected: false, slotIndex: 18 },
+  { plantType: "KERNEL_PULT", plantId: "kernel-pult", sunCost: 100, cooldownRemainingMs: 0, cooldownTotalMs: 7000, isSelected: false, slotIndex: 19 },
 ];
 
 function makeZombie(overrides: Partial<RuntimeZombie> = {}): RuntimeZombie {
@@ -802,6 +804,43 @@ describe("placePlant", () => {
 
     useGameStore.getState().tick(100);
     expect(Object.values(useGameStore.getState().projectiles)).toHaveLength(2);
+  });
+
+  it("uses deterministic RNG for Kernel-pult butter and applies BUTTERED on hit", () => {
+    const butterSeed = 1;
+    const expectedNextRng = nextRandomValue(butterSeed).rngState;
+
+    useGameStore.getState().initGame(DAY_ENV, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({
+      currentSun: 500,
+      nextWaveAtMs: Number.MAX_SAFE_INTEGER,
+      rngState: butterSeed,
+    });
+
+    expect(useGameStore.getState().placePlant("KERNEL_PULT", 0, 0)).toBe(true);
+    useGameStore.setState({
+      zombies: {
+        z1: makeZombie({ instanceId: "z1", lane: 0, x: 7, health: 200, maxHealth: 200, armorHealth: 0 }),
+      },
+    });
+
+    useGameStore.getState().tick(2999);
+    expect(Object.values(useGameStore.getState().projectiles)).toHaveLength(0);
+
+    useGameStore.getState().tick(1);
+    const projectile = Object.values(useGameStore.getState().projectiles)[0];
+    expect(projectile.projectileType).toBe("BUTTER");
+    expect(projectile.damage).toBe(40);
+    expect(useGameStore.getState().rngState).toBe(expectedNextRng);
+
+    useGameStore.getState().tick(2000);
+    const zombie = useGameStore.getState().zombies.z1;
+    expect(zombie.health).toBe(160);
+    expect(zombie.statusEffects).toContainEqual({
+      type: "BUTTERED",
+      expiresAtMs: 10_000,
+    });
   });
 
   it("fires Threepeater projectiles into the covered lanes", () => {

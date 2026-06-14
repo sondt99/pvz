@@ -100,7 +100,8 @@ export function createLobbedProjectile(
   targetLane: number,
   targetCol: number,
   damage: number,
-  flightTimeMs = 2000
+  flightTimeMs = 2000,
+  opts: Pick<RuntimeProjectile, "statusEffectOnHit"> = {}
 ): RuntimeProjectile {
   const { velX, velY } = calcLobbedVelocity(sourceCol, targetCol, flightTimeMs);
   return {
@@ -116,5 +117,6 @@ export function createLobbedProjectile(
     sourceCol,
     targetCol,
     targetLane,
+    ...(opts.statusEffectOnHit ? { statusEffectOnHit: opts.statusEffectOnHit } : {}),
   };
 }

@@ -26,6 +26,7 @@ import { getPlantDef } from "@/engine/entities/plant-defs";
 import { getZombieDef } from "@/engine/entities/zombie-defs";
 import { LAWN_MOWER_READY_X, LAWN_MOWER_SPEED_COLS_PER_SEC } from "@/engine/constants";
 import type { EnvironmentType } from "@/engine/types";
+import { DEFAULT_RNG_SEED, normalizeRngState } from "@/engine/rng";
 
 // ---------------------------------------------------------------------------
 // Session shape expected from DB
@@ -227,6 +228,7 @@ export function deserializeGameState(
   const zombieSpawnQueue = spawnQueueStateRaw.map((entry) => ({ ...entry }));
 
   const nextSkyDropTimerMs = environmentState?.nextSkyDropTimerMs ?? 0;
+  const rngState = environmentState ? normalizeRngState(environmentState.rngState) : DEFAULT_RNG_SEED;
 
   // --- Reconstruct loadout ---
   const loadout: SeedPacketSlot[] = loadoutSnapshotRaw.map((plantType, index) => {
@@ -274,6 +276,7 @@ export function deserializeGameState(
     score: session.score,
     waveNumber: session.waveNumber,
     nextWaveAtMs: restoredGameTimeMs + session.nextWaveTimerMs,
+    rngState,
     totalZombiesKilled: session.totalZombiesKilled,
     loadout,
     selectedSlot: null,
@@ -300,6 +303,7 @@ function isSerializedEnvironmentState(v: unknown): v is SerializedEnvironmentSta
   const state = v as Record<string, unknown>;
   return (
     typeof state.nextSkyDropTimerMs === "number" &&
+    (state.rngState === undefined || typeof state.rngState === "number") &&
     Array.isArray(state.gridCells) &&
     state.gridCells.every(isSerializedGridCellEnvironment)
   );

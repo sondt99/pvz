@@ -1,16 +1,24 @@
-import type { RuntimeZombie, RuntimePlant, RuntimeStatusEffect } from "../types";
+import type { RuntimeZombie, RuntimePlant, RuntimeStatusEffect, StatusEffectType } from "../types";
+
+function hasStatusEffect(zombie: RuntimeZombie, type: StatusEffectType): boolean {
+  return zombie.statusEffects.some((effect) => effect.type === type);
+}
+
+export function isZombieImmobilized(zombie: RuntimeZombie): boolean {
+  return zombie.isFrozen || hasStatusEffect(zombie, "FROZEN") || hasStatusEffect(zombie, "BUTTERED");
+}
 
 /** Effective movement speed factoring in status effects. */
 export function getEffectiveSpeed(zombie: RuntimeZombie): number {
-  if (zombie.isFrozen) return 0;
+  if (isZombieImmobilized(zombie)) return 0;
   const slow = zombie.statusEffects.find((e) => e.type === "SLOWED");
   if (slow) return zombie.speedColsPerSec * (slow.factor ?? 0.5);
   return zombie.speedColsPerSec;
 }
 
-/** Move a zombie left by deltaMs. Returns updated zombie (does NOT move if eating/frozen). */
+/** Move a zombie left by deltaMs. Returns updated zombie (does NOT move if eating/immobilized). */
 export function moveZombie(zombie: RuntimeZombie, deltaMs: number): RuntimeZombie {
-  if (zombie.isEating || zombie.isFrozen) return zombie;
+  if (zombie.isEating || isZombieImmobilized(zombie)) return zombie;
   const speed = getEffectiveSpeed(zombie);
   return { ...zombie, x: zombie.x - speed * (deltaMs / 1000) };
 }
@@ -22,7 +30,8 @@ export function tickStatusEffects(
 ): RuntimeZombie {
   const active = zombie.statusEffects.filter((e) => e.expiresAtMs > gameTimeMs);
   const isFrozen = active.some((e) => e.type === "FROZEN");
-  const isEating = isFrozen ? false : zombie.isEating;
+  const immobilized = isFrozen || active.some((e) => e.type === "BUTTERED");
+  const isEating = immobilized ? false : zombie.isEating;
   return { ...zombie, statusEffects: active, isFrozen, isEating };
 }
 
@@ -58,5 +67,6 @@ export function applyStatusEffect(
   const others = zombie.statusEffects.filter((e) => e.type !== effect.type);
   const effects = [...others, effect];
   const isFrozen = effects.some((e) => e.type === "FROZEN");
-  return { ...zombie, statusEffects: effects, isFrozen, isEating: isFrozen ? false : zombie.isEating };
+  const immobilized = isFrozen || effects.some((e) => e.type === "BUTTERED");
+  return { ...zombie, statusEffects: effects, isFrozen, isEating: immobilized ? false : zombie.isEating };
 }

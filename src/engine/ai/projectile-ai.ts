@@ -5,6 +5,7 @@ import {
   isOffscreen,
   hasLobbedLanded,
 } from "../physics/trajectory";
+import { applyStatusEffect } from "./zombie-ai";
 import { applyProjectileDamage, isZombieDead } from "../physics/collision";
 import { FIRE_PEA_DAMAGE_MULTIPLIER } from "../constants";
 
@@ -134,7 +135,8 @@ export interface HitResult {
 export function applyProjectileHits(
   proj: RuntimeProjectile,
   zombies: Record<string, RuntimeZombie>,
-  hitIds: string[]
+  hitIds: string[],
+  gameTimeMs = 0
 ): HitResult {
   if (hitIds.length === 0) return { updatedZombies: zombies, killedZombieIds: [], removeProjectile: false };
 
@@ -164,6 +166,16 @@ export function applyProjectileHits(
           e.type !== "FROZEN" && e.type !== "SLOWED"
         ),
       };
+    }
+
+    if (proj.statusEffectOnHit) {
+      damaged = applyStatusEffect(damaged, {
+        type: proj.statusEffectOnHit.type,
+        expiresAtMs: gameTimeMs + proj.statusEffectOnHit.durationMs,
+        ...(proj.statusEffectOnHit.factor !== undefined
+          ? { factor: proj.statusEffectOnHit.factor }
+          : {}),
+      });
     }
 
     updatedZombies[id] = damaged;

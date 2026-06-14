@@ -72,6 +72,7 @@ describe("save/load serialization", () => {
       gameTimeMs: 10_000,
       waveNumber: 4,
       nextWaveAtMs: 18_000,
+      rngState: 123_456_789,
       score: 750,
       totalZombiesKilled: 9,
       loadout: [
@@ -129,10 +130,12 @@ describe("save/load serialization", () => {
     expect(serialized.lawnMowerState).toHaveLength(1);
     expect(serialized.spawnQueueState).toEqual(state.zombieSpawnQueue);
     expect(serialized.environmentState.nextSkyDropTimerMs).toBe(6_000);
+    expect(serialized.environmentState.rngState).toBe(123_456_789);
 
     expect(restored.gameTimeMs).toBe(10_000);
     expect(restored.nextWaveAtMs).toBe(18_000);
     expect(restored.nextSkyDropAtMs).toBe(16_000);
+    expect(restored.rngState).toBe(123_456_789);
     expect(restored.projectiles?.["projectile-cabbage-1"]).toMatchObject({
       projectileType: "CABBAGE",
       trajectory: "lobbed",
@@ -201,6 +204,7 @@ describe("save/load serialization", () => {
       gameTimeMs: 5_000,
       waveNumber: 1,
       nextWaveAtMs: 20_000,
+      rngState: 987_654_321,
       score: 0,
       totalZombiesKilled: 0,
       loadout: [],
@@ -314,6 +318,7 @@ describe("save/load serialization", () => {
       gameTimeMs: 5_000,
       waveNumber: 1,
       nextWaveAtMs: 20_000,
+      rngState: 246_813_579,
       score: 0,
       totalZombiesKilled: 0,
       loadout: [],

@@ -7,6 +7,9 @@ import {
 import { createPlantSunDrop, shouldProduceSun } from "../sun";
 import {
   FUME_SHROOM_RANGE_COLS,
+  KERNEL_PULT_BUTTER_CHANCE,
+  KERNEL_PULT_BUTTER_DAMAGE,
+  KERNEL_PULT_BUTTER_STUN_MS,
   PUFF_SHROOM_RANGE_COLS,
   SCAREDY_SHROOM_COWER_COLS,
   SCAREDY_SHROOM_COWER_LANES,
@@ -145,7 +148,8 @@ export function plantFire(
   def: PlantDefinition,
   gameTimeMs: number,
   zombies: Record<string, RuntimeZombie>,
-  gridRows = 5
+  gridRows = 5,
+  random: () => number = Math.random
 ): { projectile: RuntimeProjectile | null; projectiles: RuntimeProjectile[]; updatedPlant: RuntimePlant } {
   if (isScaredyShroomCowering(plant, zombies)) {
     return { projectile: null, projectiles: [], updatedPlant: plant };
@@ -160,8 +164,18 @@ export function plantFire(
   if (!def.projectileType || def.attackDamage === null) {
     return { projectile: null, projectiles: [], updatedPlant: plant };
   }
-  const projectileType = def.projectileType;
-  const attackDamage = def.attackDamage;
+  let projectileType = def.projectileType;
+  let attackDamage = def.attackDamage;
+  let statusEffectOnHit: RuntimeProjectile["statusEffectOnHit"];
+
+  if (def.plantType === "KERNEL_PULT" && random() < KERNEL_PULT_BUTTER_CHANCE) {
+    projectileType = "BUTTER";
+    attackDamage = KERNEL_PULT_BUTTER_DAMAGE;
+    statusEffectOnHit = {
+      type: "BUTTERED",
+      durationMs: KERNEL_PULT_BUTTER_STUN_MS,
+    };
+  }
 
   const updatedPlant: RuntimePlant = { ...plant, lastAttackAtMs: gameTimeMs };
 
@@ -228,7 +242,9 @@ export function plantFire(
       projectileType,
       plant.row, plant.col,
       target.lane, Math.max(0, Math.round(target.x)),
-      attackDamage
+      attackDamage,
+      2000,
+      { statusEffectOnHit }
     );
     return { projectile, projectiles: [projectile], updatedPlant };
   }
