@@ -59,6 +59,12 @@ describe("updateStraightProjectile", () => {
     expect(result.y).toBe(0);
   });
 
+  it("advances lane by velLane * delta for diagonal or vertical stars", () => {
+    const proj = makeStr({ lane: 2, velLane: -4 });
+    const result = updateStraightProjectile(proj, 500);
+    expect(result.lane).toBeCloseTo(0);
+  });
+
   it("preserves other fields", () => {
     const proj = makeStr({ damage: 42 });
     expect(updateStraightProjectile(proj, 100).damage).toBe(42);
@@ -113,6 +119,11 @@ describe("isOffscreen", () => {
 
   it("returns true when x < -1", () => {
     expect(isOffscreen(makeStr({ x: -1.1 }), 9)).toBe(true);
+  });
+
+  it("returns true when a straight projectile leaves row bounds", () => {
+    expect(isOffscreen(makeStr({ lane: -1.1 }), 9, 5)).toBe(true);
+    expect(isOffscreen(makeStr({ lane: 5.1 }), 9, 5)).toBe(true);
   });
 
   it("returns false for lobbed projectiles (caller checks landing instead)", () => {
@@ -180,6 +191,14 @@ describe("createStraightProjectile", () => {
     const p = createStraightProjectile("p1", "PEA", 0, 4, 20, { direction: "backward" });
     expect(p.x).toBeLessThan(4);
     expect(p.velX).toBeLessThan(0);
+  });
+
+  it("can create a vertical straight projectile for Starfruit", () => {
+    const p = createStraightProjectile("p1", "STAR", 2, 4, 20, { velX: 0, velLane: -8, xOffset: 0.5 });
+    expect(p.x).toBeCloseTo(4.5);
+    expect(p.velX).toBe(0);
+    expect(p.velLane).toBe(-8);
+    expect(p.sourceLane).toBe(2);
   });
 
   it("applies slowFactor opt", () => {

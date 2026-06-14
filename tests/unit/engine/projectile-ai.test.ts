@@ -84,6 +84,11 @@ describe("shouldRemoveProjectile", () => {
     expect(shouldRemoveProjectile(makeStr({ sourceCol: 2, x: 6, maxTravelDistanceCols: 4 }), 9)).toBe(true);
   });
 
+  it("removes straight projectile after it leaves row bounds", () => {
+    expect(shouldRemoveProjectile(makeStr({ lane: -1.1 }), 9, 5)).toBe(true);
+    expect(shouldRemoveProjectile(makeStr({ lane: 5.1 }), 9, 5)).toBe(true);
+  });
+
   it("removes lobbed projectile when it reaches targetCol", () => {
     expect(shouldRemoveProjectile(makeLob({ x: 7, targetCol: 7 }), 9)).toBe(true);
   });
@@ -134,6 +139,50 @@ describe("findStraightHits", () => {
       z2: makeZombie("z2", { lane: 0, x: 3.2 }),
     };
     expect(findStraightHits(proj, zombies)).toEqual(["z2"]);
+  });
+
+  it("hits a zombie behind Starfruit with the left star", () => {
+    const proj = makeStr({
+      projectileType: "STAR",
+      lane: 2,
+      x: 2,
+      sourceCol: 4,
+      sourceLane: 2,
+      velX: -8,
+    });
+    const zombies = { z1: makeZombie("z1", { lane: 2, x: 2.1 }) };
+    expect(findStraightHits(proj, zombies)).toEqual(["z1"]);
+  });
+
+  it("hits an adjacent front zombie with a Starfruit diagonal", () => {
+    const proj = makeStr({
+      projectileType: "STAR",
+      lane: 2.2,
+      x: 3,
+      sourceCol: 2,
+      sourceLane: 2,
+      velX: 8,
+      velLane: 4,
+    });
+    const zombies = { z1: makeZombie("z1", { lane: 2, x: 3.1 }) };
+    expect(findStraightHits(proj, zombies)).toEqual(["z1"]);
+  });
+
+  it("hits zombies on Starfruit diagonal lanes", () => {
+    const proj = makeStr({
+      projectileType: "STAR",
+      lane: 1,
+      x: 4.5,
+      sourceCol: 2,
+      sourceLane: 2,
+      velX: 8,
+      velLane: -4,
+    });
+    const zombies = {
+      z1: makeZombie("z1", { lane: 1, x: 4.6 }),
+      z2: makeZombie("z2", { lane: 2, x: 4.6 }),
+    };
+    expect(findStraightHits(proj, zombies)).toEqual(["z1"]);
   });
 
   it("does not let normal peas hit aerial zombies", () => {

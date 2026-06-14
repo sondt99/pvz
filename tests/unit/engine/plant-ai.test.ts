@@ -134,6 +134,27 @@ describe("shouldPlantAttack", () => {
     expect(shouldPlantAttack(plant, def, 5000, zombies)).toBe(true);
   });
 
+  it("lets Starfruit attack zombies behind and on diagonals", () => {
+    const def = getPlantDef("STARFRUIT");
+    const plant = makePlant({ plantType: "STARFRUIT", row: 2, col: 2 });
+
+    expect(
+      shouldPlantAttack(plant, def, 5000, {
+        z1: makeZombie({ lane: 2, x: 1.5 }),
+      })
+    ).toBe(true);
+    expect(
+      shouldPlantAttack(plant, def, 5000, {
+        z1: makeZombie({ lane: 1, x: 4.5 }),
+      })
+    ).toBe(true);
+    expect(
+      shouldPlantAttack(plant, def, 5000, {
+        z1: makeZombie({ lane: 2, x: 7 }),
+      })
+    ).toBe(false);
+  });
+
   it("does not let Peashooter attack a Balloon zombie", () => {
     const plant = makePlant({ plantType: "PEASHOOTER" });
     const zombies = { z1: makeZombie({ lane: 0, x: 7, isAerial: true }) };
@@ -299,6 +320,23 @@ describe("plantFire", () => {
     const { projectiles } = plantFire(plant, def, 5000, zombies);
     expect(projectiles).toHaveLength(2);
     expect(projectiles.every((proj) => proj.velX < 0)).toBe(true);
+  });
+
+  it("Starfruit creates five directional star projectiles", () => {
+    const plant = makePlant({ plantType: "STARFRUIT", row: 2, col: 2 });
+    const def = getPlantDef("STARFRUIT");
+    const zombies = { z1: makeZombie({ lane: 1, x: 4.5 }) };
+    const { projectiles } = plantFire(plant, def, 5000, zombies);
+
+    expect(projectiles).toHaveLength(5);
+    expect(projectiles.map((proj) => [proj.velX, proj.velLane ?? 0])).toEqual([
+      [-8, 0],
+      [0, -8],
+      [0, 8],
+      [8, -4],
+      [8, 4],
+    ]);
+    expect(projectiles.every((proj) => proj.projectileType === "STAR")).toBe(true);
   });
 
   it("Cactus projectiles can hit aerial zombies", () => {

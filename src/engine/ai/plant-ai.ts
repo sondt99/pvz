@@ -16,6 +16,14 @@ import {
   SEA_SHROOM_RANGE_COLS,
 } from "../constants";
 
+const STARFRUIT_DIRECTIONS = [
+  { name: "left", velX: -8, velLane: 0, xOffset: -0.25 },
+  { name: "up", velX: 0, velLane: -8, xOffset: 0.5 },
+  { name: "down", velX: 0, velLane: 8, xOffset: 0.5 },
+  { name: "up-right", velX: 8, velLane: -4, xOffset: 0.8 },
+  { name: "down-right", velX: 8, velLane: 4, xOffset: 0.8 },
+] as const;
+
 let _projCounter = 0;
 let _sunDropCounter = 0;
 
@@ -94,6 +102,33 @@ function isZombieInScaredyCowerArea(plant: RuntimePlant, zombie: RuntimeZombie):
   );
 }
 
+function isZombieInStarfruitLine(plant: RuntimePlant, zombie: RuntimeZombie): boolean {
+  if (zombie.isUnderground || zombie.isAerial) return false;
+
+  const originX = plant.col + 0.5;
+  const dx = zombie.x - originX;
+  const laneDelta = zombie.lane - plant.row;
+
+  const sameLane = Math.abs(laneDelta) <= 0.35;
+  if (dx < -0.1 && sameLane) return true;
+  if (dx >= 0 && dx <= 1.5 && sameLane) return true;
+
+  const sameColumn = Math.abs(dx) <= 0.5;
+  if (sameColumn && Math.abs(laneDelta) > 0.35) return true;
+
+  if (dx < 0) return false;
+  if (laneDelta < 0 && Math.abs(laneDelta + dx / 2) <= 0.5) return true;
+  if (laneDelta > 0 && Math.abs(laneDelta - dx / 2) <= 0.5) return true;
+  return false;
+}
+
+function hasStarfruitTarget(
+  plant: RuntimePlant,
+  zombies: Record<string, RuntimeZombie>
+): boolean {
+  return Object.values(zombies).some((zombie) => isZombieInStarfruitLine(plant, zombie));
+}
+
 export function isScaredyShroomCowering(
   plant: RuntimePlant,
   zombies: Record<string, RuntimeZombie>
@@ -131,6 +166,10 @@ export function shouldPlantAttack(
       findNearestZombieInLane(plant.row, zombies, plant.col) !== null ||
       findNearestZombieBehindInLane(plant.row, zombies, plant.col) !== null
     );
+  }
+
+  if (def.plantType === "STARFRUIT") {
+    return hasStarfruitTarget(plant, zombies);
   }
 
   const target = findNearestZombieInLane(plant.row, zombies, plant.col, {
@@ -227,6 +266,28 @@ export function plantFire(
         projectiles.push(makeProjectile(plant.row, "backward", -0.25));
         projectiles.push(makeProjectile(plant.row, "backward", -0.55));
       }
+      return { projectile: projectiles[0] ?? null, projectiles, updatedPlant };
+    }
+
+    if (def.plantType === "STARFRUIT") {
+      if (!hasStarfruitTarget(plant, zombies)) {
+        return { projectile: null, projectiles: [], updatedPlant: plant };
+      }
+
+      const projectiles = STARFRUIT_DIRECTIONS.map((direction) =>
+        createStraightProjectile(
+          `proj-${++_projCounter}-${projectileType}-${direction.name}`,
+          projectileType,
+          plant.row,
+          plant.col,
+          attackDamage,
+          {
+            velX: direction.velX,
+            velLane: direction.velLane,
+            xOffset: direction.xOffset,
+          }
+        )
+      );
       return { projectile: projectiles[0] ?? null, projectiles, updatedPlant };
     }
 

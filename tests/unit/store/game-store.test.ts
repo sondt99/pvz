@@ -86,6 +86,7 @@ const EXTENDED_LOADOUT: SeedPacketSlot[] = [
   { plantType: "TORCHWOOD", plantId: "torchwood", sunCost: 175, cooldownRemainingMs: 0, cooldownTotalMs: 7000, isSelected: false, slotIndex: 17 },
   { plantType: "GARLIC", plantId: "garlic", sunCost: 50, cooldownRemainingMs: 0, cooldownTotalMs: 30000, isSelected: false, slotIndex: 18 },
   { plantType: "KERNEL_PULT", plantId: "kernel-pult", sunCost: 100, cooldownRemainingMs: 0, cooldownTotalMs: 7000, isSelected: false, slotIndex: 19 },
+  { plantType: "STARFRUIT", plantId: "starfruit", sunCost: 125, cooldownRemainingMs: 0, cooldownTotalMs: 7000, isSelected: false, slotIndex: 20 },
 ];
 
 function makeZombie(overrides: Partial<RuntimeZombie> = {}): RuntimeZombie {
@@ -858,6 +859,36 @@ describe("placePlant", () => {
 
     useGameStore.getState().tick(100);
     expect(Object.values(useGameStore.getState().projectiles).map((projectile) => projectile.lane)).toEqual([1, 2, 3]);
+  });
+
+  it("fires Starfruit stars in five directions and hits diagonal zombies", () => {
+    useGameStore.getState().initGame(DAY_ENV, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({ currentSun: 500, nextWaveAtMs: Number.MAX_SAFE_INTEGER });
+
+    expect(useGameStore.getState().placePlant("STARFRUIT", 2, 2)).toBe(true);
+    useGameStore.setState({
+      gameTimeMs: 1499,
+      zombies: {
+        z1: makeZombie({ instanceId: "z1", lane: 1, x: 4.5, health: 200, maxHealth: 200, armorHealth: 0 }),
+      },
+    });
+
+    expect(Object.values(useGameStore.getState().projectiles)).toHaveLength(0);
+
+    useGameStore.getState().tick(1);
+    const projectiles = Object.values(useGameStore.getState().projectiles);
+    expect(projectiles).toHaveLength(5);
+    expect(projectiles.map((projectile) => [projectile.velX, projectile.velLane ?? 0])).toEqual([
+      [-8, 0],
+      [0, -8],
+      [0, 8],
+      [8, -4],
+      [8, 4],
+    ]);
+
+    useGameStore.getState().tick(250);
+    expect(useGameStore.getState().zombies.z1.health).toBe(180);
   });
 
   it("fires Split Pea rear projectiles backward when a zombie is behind it", () => {

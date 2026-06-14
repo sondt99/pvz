@@ -1130,7 +1130,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
       }
 
       // 9f. Keep or discard projectile
-      const shouldRemove = shouldRemoveProjectile(advanced, env.gridCols) || hitResult.removeProjectile;
+      const shouldRemove = shouldRemoveProjectile(advanced, env.gridCols, env.gridRows) || hitResult.removeProjectile;
       if (!shouldRemove) {
         updatedProjectiles[projId] = advanced;
       }

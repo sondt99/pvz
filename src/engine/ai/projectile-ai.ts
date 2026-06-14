@@ -10,6 +10,7 @@ import { applyProjectileDamage, isZombieDead } from "../physics/collision";
 import { FIRE_PEA_DAMAGE_MULTIPLIER } from "../constants";
 
 const STRAIGHT_HIT_RADIUS = 0.5;
+const STRAIGHT_LANE_HIT_RADIUS = 0.35;
 const LOBBED_HIT_RADIUS = 1.5;
 const LOBBED_SPLASH_LANES = 1;
 
@@ -59,7 +60,11 @@ export function advanceProjectile(proj: RuntimeProjectile, deltaMs: number): Run
     : updateLobbedProjectile(proj, deltaMs);
 }
 
-export function shouldRemoveProjectile(proj: RuntimeProjectile, gridCols: number): boolean {
+export function shouldRemoveProjectile(
+  proj: RuntimeProjectile,
+  gridCols: number,
+  gridRows?: number
+): boolean {
   if (proj.trajectory === "straight") {
     if (
       proj.maxTravelDistanceCols !== undefined &&
@@ -67,9 +72,38 @@ export function shouldRemoveProjectile(proj: RuntimeProjectile, gridCols: number
     ) {
       return true;
     }
-    return isOffscreen(proj, gridCols);
+    return isOffscreen(proj, gridCols, gridRows);
   }
   return hasLobbedLanded(proj);
+}
+
+function isInProjectileTravelDirection(proj: RuntimeProjectile, zombie: RuntimeZombie): boolean {
+  const velLane = proj.velLane ?? 0;
+  const sourceLane = proj.sourceLane ?? proj.lane;
+
+  const colMatches = proj.velX > 0
+    ? zombie.x > proj.sourceCol
+    : proj.velX < 0
+      ? zombie.x < proj.sourceCol
+      : true;
+  const laneMatches = velLane > 0
+    ? zombie.lane > sourceLane - STRAIGHT_LANE_HIT_RADIUS
+    : velLane < 0
+      ? zombie.lane < sourceLane + STRAIGHT_LANE_HIT_RADIUS
+      : true;
+
+  return colMatches && laneMatches;
+}
+
+function distanceAlongProjectile(proj: RuntimeProjectile, zombie: RuntimeZombie): number {
+  const velLane = proj.velLane ?? 0;
+  const speed = Math.hypot(proj.velX, velLane);
+  if (speed === 0) return 0;
+
+  const sourceLane = proj.sourceLane ?? proj.lane;
+  const unitX = proj.velX / speed;
+  const unitLane = velLane / speed;
+  return (zombie.x - proj.sourceCol) * unitX + (zombie.lane - sourceLane) * unitLane;
 }
 
 /** Find zombie IDs hit by a straight projectile. Piercing hits all; otherwise first. */
@@ -80,10 +114,10 @@ export function findStraightHits(
   if (proj.trajectory !== "straight") return [];
 
   const inRange = Object.entries(zombies).filter(([, z]) =>
-    z.lane === proj.lane &&
+    Math.abs(z.lane - proj.lane) <= STRAIGHT_LANE_HIT_RADIUS &&
     !z.isUnderground &&
     (!z.isAerial || proj.canHitAerial === true) &&
-    (proj.velX >= 0 ? z.x > proj.sourceCol : z.x < proj.sourceCol) &&
+    isInProjectileTravelDirection(proj, z) &&
     (
       proj.maxTravelDistanceCols === undefined ||
       Math.abs(z.x - proj.sourceCol) <= proj.maxTravelDistanceCols
@@ -94,7 +128,9 @@ export function findStraightHits(
   if (proj.piercing) return inRange.map(([id]) => id);
 
   // Only the closest zombie in the projectile's travel direction.
-  const sorted = inRange.sort(([, a], [, b]) => proj.velX >= 0 ? a.x - b.x : b.x - a.x);
+  const sorted = inRange.sort(([, a], [, b]) =>
+    distanceAlongProjectile(proj, a) - distanceAlongProjectile(proj, b)
+  );
   return sorted.length > 0 ? [sorted[0][0]] : [];
 }
 
