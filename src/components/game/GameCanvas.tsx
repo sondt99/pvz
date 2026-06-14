@@ -541,6 +541,27 @@ function drawPumpkin(ctx: CanvasRenderingContext2D, cx: number, cy: number): voi
   ctx.fill();
 }
 
+function drawGarlic(ctx: CanvasRenderingContext2D, cx: number, cy: number): void {
+  ctx.fillStyle = "#eee5c8";
+  ctx.beginPath();
+  ctx.ellipse(cx, cy + 3, 25, 32, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = "#c6b98d";
+  ctx.lineWidth = 3;
+  for (const offset of [-11, 0, 11]) {
+    ctx.beginPath();
+    ctx.moveTo(cx + offset, cy - 21);
+    ctx.quadraticCurveTo(cx + offset * 0.4, cy + 3, cx + offset * 0.2, cy + 28);
+    ctx.stroke();
+  }
+
+  ctx.fillStyle = "#5b5f33";
+  ctx.beginPath();
+  ctx.ellipse(cx, cy - 30, 9, 6, -0.2, 0, Math.PI * 2);
+  ctx.fill();
+}
+
 function drawMushroom(ctx: CanvasRenderingContext2D, cx: number, cy: number, color: string): void {
   ctx.fillStyle = color;
   ctx.beginPath();
@@ -566,6 +587,7 @@ function drawPlant(ctx: CanvasRenderingContext2D, plant: RuntimePlant): void {
   else if (plant.plantType === "WALL_NUT") drawWallNut(ctx, cx, cy);
   else if (plant.plantType === "TALL_NUT") drawWallNut(ctx, cx, cy, true);
   else if (plant.plantType === "PUMPKIN") drawPumpkin(ctx, cx, cy);
+  else if (plant.plantType === "GARLIC") drawGarlic(ctx, cx, cy);
   else if (plant.plantType === "SNOW_PEA") drawPeashooter(ctx, cx, cy, true);
   else if (plant.plantType === "CHERRY_BOMB") drawBomb(ctx, cx, cy);
   else if (plant.plantType.includes("SHROOM")) drawMushroom(ctx, cx, cy, plant.plantType === "SUN_SHROOM" ? "#d8a33c" : "#8e67c7");

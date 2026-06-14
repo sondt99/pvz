@@ -108,6 +108,19 @@ function chooseZombieEatTarget(
   return target;
 }
 
+function chooseGarlicDiversionLane(zombie: RuntimeZombie, gridRows: number): number {
+  const candidates = [zombie.lane - 1, zombie.lane + 1].filter(
+    (lane) => lane >= 0 && lane < gridRows
+  );
+  if (candidates.length === 0) return zombie.lane;
+  if (candidates.length === 1) return candidates[0];
+
+  const hash = zombie.instanceId
+    .split("")
+    .reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  return candidates[hash % candidates.length];
+}
+
 function setPlantInCorrectSlot(
   grid: GameEngineState["grid"],
   row: number,
@@ -970,11 +983,19 @@ export const useGameStore = create<GameStore>()((set, get) => ({
 
       // 8b. If eating, check if target plant still exists and is alive
       if (z.isEating && z.eatTargetId) {
-        const targetPlant = plants[z.eatTargetId];
+        const targetId = z.eatTargetId;
+        const targetPlant = plants[targetId];
         if (targetPlant && !isPlantDead(targetPlant)) {
           // Apply eating damage to the plant
           const damagedPlant = applyEatingDamage(targetPlant, z, deltaMs);
-          plants[z.eatTargetId] = damagedPlant;
+          plants[targetId] = damagedPlant;
+
+          if (targetPlant.plantType === "GARLIC") {
+            z = stopEating({
+              ...z,
+              lane: chooseGarlicDiversionLane(z, env.gridRows),
+            });
+          }
 
           // If plant just died from eating damage, remove it
           if (isPlantDead(damagedPlant)) {
@@ -983,7 +1004,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
               gridChanged = true;
             }
             setPlantInCorrectSlot(newGrid, damagedPlant.row, damagedPlant.col, damagedPlant.plantType, null);
-            const { [z.eatTargetId]: _dead, ...remainingPlants } = plants;
+            const { [targetId]: _dead, ...remainingPlants } = plants;
             plants = remainingPlants;
             z = stopEating(z);
           }
@@ -995,7 +1016,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
               gridChanged = true;
             }
             setPlantInCorrectSlot(newGrid, targetPlant.row, targetPlant.col, targetPlant.plantType, null);
-            const { [z.eatTargetId]: _dead, ...remainingPlants } = plants;
+            const { [targetId]: _dead, ...remainingPlants } = plants;
             plants = remainingPlants;
           }
           z = stopEating(z);

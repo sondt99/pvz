@@ -83,6 +83,7 @@ const EXTENDED_LOADOUT: SeedPacketSlot[] = [
   { plantType: "DOOM_SHROOM", plantId: "doom-shroom", sunCost: 125, cooldownRemainingMs: 0, cooldownTotalMs: 50000, isSelected: false, slotIndex: 15 },
   { plantType: "PUMPKIN", plantId: "pumpkin", sunCost: 125, cooldownRemainingMs: 0, cooldownTotalMs: 30000, isSelected: false, slotIndex: 16 },
   { plantType: "TORCHWOOD", plantId: "torchwood", sunCost: 175, cooldownRemainingMs: 0, cooldownTotalMs: 7000, isSelected: false, slotIndex: 17 },
+  { plantType: "GARLIC", plantId: "garlic", sunCost: 50, cooldownRemainingMs: 0, cooldownTotalMs: 30000, isSelected: false, slotIndex: 18 },
 ];
 
 function makeZombie(overrides: Partial<RuntimeZombie> = {}): RuntimeZombie {
@@ -394,6 +395,66 @@ describe("placePlant", () => {
     expect(useGameStore.getState().plants[peashooter!.instanceId]).toBeDefined();
     expect(useGameStore.getState().grid[0][3].pumpkinInstanceId).toBeNull();
     expect(useGameStore.getState().grid[0][3].plantInstanceId).toBe(peashooter!.instanceId);
+  });
+
+  it("redirects top-lane zombies downward when they bite Garlic", () => {
+    useGameStore.getState().initGame(DAY_ENV, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({ currentSun: 500 });
+
+    expect(useGameStore.getState().placePlant("GARLIC", 0, 3)).toBe(true);
+    const garlic = Object.values(useGameStore.getState().plants).find(
+      (plant) => plant.plantType === "GARLIC"
+    );
+    expect(garlic).toBeDefined();
+
+    useGameStore.setState({
+      zombies: {
+        z1: makeZombie({ instanceId: "z1", lane: 0, x: 3.2 }),
+      },
+    });
+    useGameStore.getState().tick(0);
+    useGameStore.getState().tick(100);
+
+    expect(useGameStore.getState().zombies.z1.lane).toBe(1);
+    expect(useGameStore.getState().zombies.z1.isEating).toBe(false);
+    expect(useGameStore.getState().plants[garlic!.instanceId].health).toBeLessThan(garlic!.health);
+  });
+
+  it("redirects middle-lane zombies to an adjacent Garlic lane", () => {
+    useGameStore.getState().initGame(DAY_ENV, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({ currentSun: 500 });
+
+    expect(useGameStore.getState().placePlant("GARLIC", 2, 3)).toBe(true);
+    useGameStore.setState({
+      zombies: {
+        z1: makeZombie({ instanceId: "z1", lane: 2, x: 3.2 }),
+      },
+    });
+    useGameStore.getState().tick(0);
+    useGameStore.getState().tick(100);
+
+    expect([1, 3]).toContain(useGameStore.getState().zombies.z1.lane);
+    expect(useGameStore.getState().zombies.z1.isEating).toBe(false);
+  });
+
+  it("redirects bottom-lane zombies upward when they bite Garlic", () => {
+    useGameStore.getState().initGame(DAY_ENV, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({ currentSun: 500 });
+
+    expect(useGameStore.getState().placePlant("GARLIC", 4, 3)).toBe(true);
+    useGameStore.setState({
+      zombies: {
+        z1: makeZombie({ instanceId: "z1", lane: 4, x: 3.2 }),
+      },
+    });
+    useGameStore.getState().tick(0);
+    useGameStore.getState().tick(100);
+
+    expect(useGameStore.getState().zombies.z1.lane).toBe(3);
+    expect(useGameStore.getState().zombies.z1.isEating).toBe(false);
   });
 
   it("rejects planting on visible Night graves", () => {
