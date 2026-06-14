@@ -3,6 +3,7 @@
 // ---------------------------------------------------------------------------
 
 import { NextResponse } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { SerializedGameState } from "@/lib/game-serializer";
 
@@ -39,10 +40,10 @@ export async function POST(
       data: {
         status: "PAUSED",
         lastSavedAt: now,
-        gridState: JSON.stringify(payload.gridState),
-        zombieState: JSON.stringify(payload.zombieState),
-        seedCooldowns: JSON.stringify(payload.seedCooldowns),
-        loadoutSnapshot: JSON.stringify(payload.loadoutSnapshot),
+        gridState: payload.gridState as unknown as Prisma.InputJsonValue,
+        zombieState: payload.zombieState as unknown as Prisma.InputJsonValue,
+        seedCooldowns: payload.seedCooldowns as unknown as Prisma.InputJsonValue,
+        loadoutSnapshot: payload.loadoutSnapshot as unknown as Prisma.InputJsonValue,
         currentSun: payload.currentSun,
         cumulativeSun: payload.cumulativeSun,
         score: payload.score,
