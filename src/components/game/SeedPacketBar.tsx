@@ -30,6 +30,7 @@ const PLANT_EMOJI: Record<string, string> = {
   FLOWER_POT: "▱",
   CABBAGE_PULT: "🥬",
   KERNEL_PULT: "🌽",
+  GARLIC: "🧄",
   MELON_PULT: "🍈",
 };
 
@@ -52,6 +53,7 @@ const PLANT_BG: Record<string, string> = {
   FLOWER_POT: "#704029",
   CABBAGE_PULT: "#355d24",
   KERNEL_PULT: "#5d4b1d",
+  GARLIC: "#d8d0a2",
   MELON_PULT: "#245d36",
   default: "#1a3a1a",
 };

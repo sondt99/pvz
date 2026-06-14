@@ -101,6 +101,7 @@ const PLANT_COSTS: Record<string, number> = {
   FLOWER_POT: 25,
   CABBAGE_PULT: 100,
   KERNEL_PULT: 100,
+  GARLIC: 50,
   MELON_PULT: 300,
 };
 
@@ -113,6 +114,7 @@ const PLANT_RECHARGE_MS: Record<string, number> = {
   DOOM_SHROOM: 50_000,
   TANGLE_KELP: 30_000,
   BLOVER: 30_000,
+  GARLIC: 30_000,
   default: 7_500,
 };
 
@@ -121,7 +123,7 @@ const LOADOUTS: Record<EnvironmentType, string[]> = {
   NIGHT: ["SUN_SHROOM", "PUFF_SHROOM", "FUME_SHROOM", "SCAREDY_SHROOM", "WALL_NUT", "ICE_SHROOM", "DOOM_SHROOM"],
   POOL: ["SUNFLOWER", "PEASHOOTER", "LILY_PAD", "TANGLE_KELP", "WALL_NUT", "PUMPKIN", "TORCHWOOD", "SNOW_PEA"],
   FOG: ["SUN_SHROOM", "SEA_SHROOM", "LILY_PAD", "PLANTERN", "BLOVER", "SPLIT_PEA"],
-  ROOF: ["FLOWER_POT", "CABBAGE_PULT", "KERNEL_PULT", "WALL_NUT", "PUMPKIN", "CHERRY_BOMB", "MELON_PULT"],
+  ROOF: ["FLOWER_POT", "CABBAGE_PULT", "KERNEL_PULT", "WALL_NUT", "PUMPKIN", "GARLIC", "CHERRY_BOMB", "MELON_PULT"],
 };
 
 function makeLoadout(envType: EnvironmentType): SeedPacketSlot[] {
