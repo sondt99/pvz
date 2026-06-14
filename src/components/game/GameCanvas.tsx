@@ -80,6 +80,7 @@ const PROJECTILE_COLORS: Record<string, string> = {
   SPORE: "#cda7ff",
   CABBAGE: "#a6df6b",
   KERNEL: "#ffd76a",
+  BUTTER: "#ffe98a",
   MELON: "#76cb62",
   STAR: "#ffe066",
   SPIKE: "#d0f0a0",
@@ -726,6 +727,15 @@ function drawProjectile(ctx: CanvasRenderingContext2D, proj: RuntimeProjectile):
     ctx.beginPath();
     ctx.ellipse(px, py, 11, 9, 0.4, 0, Math.PI * 2);
     ctx.fill();
+  } else if (proj.projectileType === "BUTTER") {
+    ctx.beginPath();
+    ctx.roundRect(px - 10, py - 7, 20, 14, 4);
+    ctx.fill();
+    ctx.strokeStyle = "#f3c953";
+    ctx.globalAlpha = 0.8;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
   } else if (proj.projectileType === "STAR") {
     ctx.beginPath();
     for (let i = 0; i < 10; i++) {

@@ -260,6 +260,22 @@ describe("applyProjectileHits", () => {
     expect(effects.some((e) => e.type === "SLOWED")).toBe(true);
   });
 
+  it("applies BUTTERED status from butter projectiles with hit-time expiry", () => {
+    const proj = makeLob({
+      projectileType: "BUTTER",
+      damage: 40,
+      statusEffectOnHit: { type: "BUTTERED", durationMs: 5000 },
+    });
+    const zombies = { z1: makeZombie("z1", { health: 200, armorHealth: 0 }) };
+    const result = applyProjectileHits(proj, zombies, ["z1"], 12_000);
+
+    expect(result.updatedZombies.z1.health).toBe(160);
+    expect(result.updatedZombies.z1.statusEffects).toContainEqual({
+      type: "BUTTERED",
+      expiresAtMs: 17_000,
+    });
+  });
+
   it("fire peas thaw frozen and slowed zombies on hit", () => {
     const proj = makeStr({ projectileType: "FIRE_PEA", damage: 20, isFire: true });
     const zombies = {

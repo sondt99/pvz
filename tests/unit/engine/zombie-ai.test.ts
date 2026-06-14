@@ -8,6 +8,7 @@ import {
   stopEating,
   applyEatingDamage,
   applyStatusEffect,
+  isZombieImmobilized,
 } from "@/engine/ai/zombie-ai";
 import type { RuntimeZombie, RuntimePlant } from "@/engine/types";
 
@@ -41,6 +42,14 @@ describe("getEffectiveSpeed", () => {
     expect(getEffectiveSpeed(makeZombie({ isFrozen: true }))).toBe(0);
   });
 
+  it("returns 0 when buttered", () => {
+    const zombie = makeZombie({
+      statusEffects: [{ type: "BUTTERED", expiresAtMs: 10_000 }],
+    });
+    expect(getEffectiveSpeed(zombie)).toBe(0);
+    expect(isZombieImmobilized(zombie)).toBe(true);
+  });
+
   it("returns halved speed when SLOWED", () => {
     const zombie = makeZombie({
       statusEffects: [{ type: "SLOWED", expiresAtMs: Infinity, factor: 0.5 }],
@@ -57,6 +66,17 @@ describe("moveZombie", () => {
 
   it("does not move frozen zombie", () => {
     const result = moveZombie(makeZombie({ x: 7, isFrozen: true }), 1000);
+    expect(result.x).toBe(7);
+  });
+
+  it("does not move buttered zombie", () => {
+    const result = moveZombie(
+      makeZombie({
+        x: 7,
+        statusEffects: [{ type: "BUTTERED", expiresAtMs: 10_000 }],
+      }),
+      1000
+    );
     expect(result.x).toBe(7);
   });
 
@@ -91,6 +111,22 @@ describe("tickStatusEffects", () => {
     });
     const result = tickStatusEffects(zombie, 0);
     expect(result.isEating).toBe(false);
+  });
+
+  it("stops eating while buttered and resumes normal state after expiry", () => {
+    const zombie = makeZombie({
+      isEating: true,
+      eatTargetId: "p1",
+      statusEffects: [{ type: "BUTTERED", expiresAtMs: 10_000 }],
+    });
+
+    const active = tickStatusEffects(zombie, 5_000);
+    expect(active.isEating).toBe(false);
+    expect(active.statusEffects).toHaveLength(1);
+
+    const expired = tickStatusEffects(active, 10_000);
+    expect(expired.statusEffects).toHaveLength(0);
+    expect(isZombieImmobilized(expired)).toBe(false);
   });
 });
 
@@ -171,5 +207,12 @@ describe("applyStatusEffect", () => {
     const zombie = makeZombie();
     const result = applyStatusEffect(zombie, { type: "FROZEN", expiresAtMs: 5000 });
     expect(result.isFrozen).toBe(true);
+  });
+
+  it("stops eating immediately when BUTTERED effect is applied", () => {
+    const zombie = makeZombie({ isEating: true, eatTargetId: "p1" });
+    const result = applyStatusEffect(zombie, { type: "BUTTERED", expiresAtMs: 5000 });
+    expect(result.isEating).toBe(false);
+    expect(result.eatTargetId).toBe("p1");
   });
 });

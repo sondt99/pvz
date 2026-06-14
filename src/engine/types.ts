@@ -86,6 +86,12 @@ export interface RuntimeStatusEffect {
   factor?: number; // SLOWED: fraction of normal speed
 }
 
+export interface RuntimeProjectileStatusEffect {
+  type: StatusEffectType;
+  durationMs: number;
+  factor?: number;
+}
+
 export interface RuntimePlant {
   instanceId: string;
   plantType: string;
@@ -134,6 +140,7 @@ export interface RuntimeProjectile {
   piercing?: boolean;
   canHitAerial?: boolean;
   maxTravelDistanceCols?: number;
+  statusEffectOnHit?: RuntimeProjectileStatusEffect;
   sourceCol: number;
   targetCol?: number;
   targetLane?: number;
@@ -186,6 +193,7 @@ export interface GameEngineState {
   gameTimeMs: number;
   waveNumber: number;
   nextWaveAtMs: number;
+  rngState: number;
   score: number;
   totalZombiesKilled: number;
   loadout: SeedPacketSlot[];

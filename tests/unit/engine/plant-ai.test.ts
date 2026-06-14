@@ -10,7 +10,12 @@ import {
 } from "@/engine/ai/plant-ai";
 import type { RuntimePlant, RuntimeZombie } from "@/engine/types";
 import { getPlantDef } from "@/engine/entities/plant-defs";
-import { FUME_SHROOM_RANGE_COLS, PUFF_SHROOM_RANGE_COLS } from "@/engine/constants";
+import {
+  FUME_SHROOM_RANGE_COLS,
+  KERNEL_PULT_BUTTER_DAMAGE,
+  KERNEL_PULT_BUTTER_STUN_MS,
+  PUFF_SHROOM_RANGE_COLS,
+} from "@/engine/constants";
 
 beforeEach(() => resetPlantAiCounters());
 
@@ -220,6 +225,31 @@ describe("plantFire", () => {
     const { projectile } = plantFire(plant, def, 5000, zombies);
     expect(projectile?.trajectory).toBe("lobbed");
     expect(projectile?.targetCol).toBe(7);
+  });
+
+  it("can force Kernel-pult to fire a normal kernel", () => {
+    const plant = makePlant({ plantType: "KERNEL_PULT", col: 1 });
+    const def = getPlantDef("KERNEL_PULT");
+    const zombies = { z1: makeZombie({ lane: 0, x: 7 }) };
+    const { projectile } = plantFire(plant, def, 5000, zombies, 5, () => 0.9);
+
+    expect(projectile?.projectileType).toBe("KERNEL");
+    expect(projectile?.damage).toBe(20);
+    expect(projectile?.statusEffectOnHit).toBeUndefined();
+  });
+
+  it("can force Kernel-pult to fire butter that stuns on hit", () => {
+    const plant = makePlant({ plantType: "KERNEL_PULT", col: 1 });
+    const def = getPlantDef("KERNEL_PULT");
+    const zombies = { z1: makeZombie({ lane: 0, x: 7 }) };
+    const { projectile } = plantFire(plant, def, 5000, zombies, 5, () => 0.1);
+
+    expect(projectile?.projectileType).toBe("BUTTER");
+    expect(projectile?.damage).toBe(KERNEL_PULT_BUTTER_DAMAGE);
+    expect(projectile?.statusEffectOnHit).toEqual({
+      type: "BUTTERED",
+      durationMs: KERNEL_PULT_BUTTER_STUN_MS,
+    });
   });
 
   it("returns null projectile when no zombie in lane", () => {

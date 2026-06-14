@@ -41,6 +41,7 @@ import {
   stopEating,
   applyEatingDamage,
   moveZombie,
+  isZombieImmobilized,
 } from "../engine/ai/zombie-ai";
 import {
   advanceProjectile,
@@ -52,6 +53,7 @@ import {
 } from "../engine/ai/projectile-ai";
 import { generateWave } from "../engine/wave-generator";
 import { applyProjectileDamage, isPlantDead, isZombieDead } from "../engine/physics/collision";
+import { createInitialRngState, DEFAULT_RNG_SEED, nextRandomValue } from "../engine/rng";
 
 // ---------------------------------------------------------------------------
 // Module-level counters give stable deterministic IDs within a session.
@@ -425,6 +427,7 @@ const INITIAL_STATE: GameEngineState = {
   gameTimeMs: 0,
   waveNumber: 0,
   nextWaveAtMs: WAVE_INTERVAL_MS,
+  rngState: DEFAULT_RNG_SEED,
   score: 0,
   totalZombiesKilled: 0,
   loadout: [],
@@ -467,6 +470,10 @@ export const useGameStore = create<GameStore>()((set, get) => ({
       loadout,
       nextSkyDropAtMs: SKY_SUN_INTERVAL_MS,
       nextWaveAtMs: WAVE_INTERVAL_MS,
+      rngState: createInitialRngState([
+        env,
+        loadout.map((slot) => slot.plantType),
+      ]),
     });
   },
 
@@ -716,6 +723,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
     // -----------------------------------------------------------------------
     let waveNumber = state.waveNumber;
     let nextWaveAtMs = state.nextWaveAtMs;
+    let rngState = state.rngState;
     let zombieSpawnQueue = [...state.zombieSpawnQueue];
 
     if (newGameTimeMs >= nextWaveAtMs) {
@@ -808,6 +816,11 @@ export const useGameStore = create<GameStore>()((set, get) => ({
     // -----------------------------------------------------------------------
     let plants = { ...state.plants };
     let projectiles = { ...state.projectiles };
+    const nextPlantRandom = () => {
+      const result = nextRandomValue(rngState);
+      rngState = result.rngState;
+      return result.value;
+    };
     const loadout = state.loadout.map((slot) => ({
       ...slot,
       cooldownRemainingMs: Math.max(0, slot.cooldownRemainingMs - deltaMs),
@@ -851,7 +864,14 @@ export const useGameStore = create<GameStore>()((set, get) => ({
 
       // 7c. Attack
       if (shouldPlantAttack(currentPlant, def, newGameTimeMs, zombies, env.gridRows)) {
-        const fireResult = plantFire(currentPlant, def, newGameTimeMs, zombies, env.gridRows);
+        const fireResult = plantFire(
+          currentPlant,
+          def,
+          newGameTimeMs,
+          zombies,
+          env.gridRows,
+          nextPlantRandom
+        );
         if (fireResult.projectiles.length > 0) {
           projectiles = {
             ...projectiles,
@@ -1024,7 +1044,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
       }
 
       // 8c. If not eating, check if zombie should start eating a plant
-      if (!z.isEating) {
+      if (!z.isEating && !isZombieImmobilized(z)) {
         const foundEatTarget = chooseZombieEatTarget(z, plants);
         if (foundEatTarget) {
           z = startEating(z, foundEatTarget.instanceId);
@@ -1091,7 +1111,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
         : findLobbedHits(advanced, zombies);
 
       // 9c. Apply hits
-      const hitResult = applyProjectileHits(advanced, zombies, hitIds);
+      const hitResult = applyProjectileHits(advanced, zombies, hitIds, newGameTimeMs);
 
       // 9d. Score killed zombies
       for (const killedId of hitResult.killedZombieIds) {
@@ -1150,6 +1170,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
         lawnMowers,
         projectiles,
         loadout,
+        rngState,
         score,
         totalZombiesKilled,
         ...(gridChanged ? { grid: newGrid } : {}),
@@ -1172,6 +1193,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
       lawnMowers,
       projectiles,
       loadout,
+      rngState,
       score,
       totalZombiesKilled,
       ...(gridChanged ? { grid: newGrid } : {}),
@@ -1183,6 +1205,6 @@ export const useGameStore = create<GameStore>()((set, get) => ({
     _zombieCounter = 0;
     _sunDropCounter = 0;
     resetPlantAiCounters();
-    set({ ...INITIAL_STATE, grid: [] });
+    set({ ...INITIAL_STATE, grid: [], rngState: DEFAULT_RNG_SEED });
   },
 }));
