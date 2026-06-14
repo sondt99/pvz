@@ -5,12 +5,18 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { deserializeGameState } from "@/lib/game-deserializer";
+import { authenticateRequest } from "@/lib/auth";
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
   const { id } = await params;
+
+  const auth = await authenticateRequest(request);
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
 
   try {
     const session = await prisma.gameSession.findUnique({
@@ -19,6 +25,10 @@ export async function GET(
 
     if (!session) {
       return NextResponse.json({ error: "Session not found" }, { status: 404 });
+    }
+
+    if (session.userId !== auth.session.userId) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const currentGameTimeMs = 0; // Client will reconcile timing after load
