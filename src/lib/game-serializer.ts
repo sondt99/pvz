@@ -210,7 +210,7 @@ function serializeZombies(state: GameEngineState): ZombieInstance[] {
     xPosition: zombie.x,
     health: zombie.health,
     maxHealth: zombie.maxHealth,
-    armorLayers: 0, // runtime doesn't store remaining armor layers; caller can set via extraState
+    armorLayers: zombie.armorHealth > 0 ? 1 : 0,
     statusEffects: zombie.statusEffects.map((effect) => ({
       type: effect.type,
       remainingMs: effect.expiresAtMs === Infinity
@@ -218,7 +218,7 @@ function serializeZombies(state: GameEngineState): ZombieInstance[] {
         : Math.max(0, effect.expiresAtMs - gameTimeMs),
     })),
     extraState: {
-      armorHealth: 0, // not tracked in runtime; will be 0 after damage
+      armorHealth: zombie.armorHealth,
       isEating: zombie.isEating,
       eatTargetId: zombie.eatTargetId,
       isUnderground: zombie.isUnderground,
