@@ -186,6 +186,11 @@ describe("createStraightProjectile", () => {
     const p = createStraightProjectile("p1", "FROZEN_PEA", 0, 0, 20, { slowFactor: 0.5 });
     expect(p.slowFactor).toBe(0.5);
   });
+
+  it("applies maxTravelDistanceCols opt", () => {
+    const p = createStraightProjectile("p1", "FUME", 0, 2, 20, { maxTravelDistanceCols: 4 });
+    expect(p.maxTravelDistanceCols).toBe(4);
+  });
 });
 
 describe("createLobbedProjectile", () => {

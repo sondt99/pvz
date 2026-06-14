@@ -5,6 +5,13 @@ import {
   createLobbedProjectile,
 } from "../physics/trajectory";
 import { createPlantSunDrop, shouldProduceSun } from "../sun";
+import {
+  FUME_SHROOM_RANGE_COLS,
+  PUFF_SHROOM_RANGE_COLS,
+  SCAREDY_SHROOM_COWER_COLS,
+  SCAREDY_SHROOM_COWER_LANES,
+  SEA_SHROOM_RANGE_COLS,
+} from "../constants";
 
 let _projCounter = 0;
 let _sunDropCounter = 0;
@@ -21,7 +28,7 @@ export function findNearestZombieInLane(
   lane: number,
   zombies: Record<string, RuntimeZombie>,
   sourceCol = -Infinity,
-  opts: { includeAerial?: boolean } = {}
+  opts: { includeAerial?: boolean; maxDistanceCols?: number } = {}
 ): RuntimeZombie | null {
   let nearest: RuntimeZombie | null = null;
   for (const zombie of Object.values(zombies)) {
@@ -29,6 +36,10 @@ export function findNearestZombieInLane(
     if (zombie.isUnderground) continue;
     if (zombie.isAerial && !opts.includeAerial) continue;
     if (zombie.x <= sourceCol) continue;
+    if (
+      opts.maxDistanceCols !== undefined &&
+      zombie.x - sourceCol > opts.maxDistanceCols
+    ) continue;
     if (nearest === null || zombie.x < nearest.x) nearest = zombie;
   }
   return nearest;
@@ -64,6 +75,30 @@ function hasForwardTargetInLanes(
   return lanes.some((lane) => findNearestZombieInLane(lane, zombies, sourceCol, opts) !== null);
 }
 
+function getForwardRangeCols(plantType: string): number | undefined {
+  if (plantType === "PUFF_SHROOM") return PUFF_SHROOM_RANGE_COLS;
+  if (plantType === "SEA_SHROOM") return SEA_SHROOM_RANGE_COLS;
+  if (plantType === "FUME_SHROOM") return FUME_SHROOM_RANGE_COLS;
+  return undefined;
+}
+
+function isZombieInScaredyCowerArea(plant: RuntimePlant, zombie: RuntimeZombie): boolean {
+  if (zombie.isUnderground) return false;
+  const zombieCol = Math.floor(zombie.x);
+  return (
+    Math.abs(zombie.lane - plant.row) <= SCAREDY_SHROOM_COWER_LANES &&
+    Math.abs(zombieCol - plant.col) <= SCAREDY_SHROOM_COWER_COLS
+  );
+}
+
+export function isScaredyShroomCowering(
+  plant: RuntimePlant,
+  zombies: Record<string, RuntimeZombie>
+): boolean {
+  if (plant.plantType !== "SCAREDY_SHROOM") return false;
+  return Object.values(zombies).some((zombie) => isZombieInScaredyCowerArea(plant, zombie));
+}
+
 /**
  * Whether a plant should fire this tick.
  * Conditions: not sleeping/charging, attack cooldown elapsed, zombie in lane ahead.
@@ -79,8 +114,10 @@ export function shouldPlantAttack(
   if (def.attackDamage === null || def.attackCooldownMs === null) return false;
   if (def.projectileType === null || def.trajectory === null) return false;
   if (def.attackRange === "none") return false;
+  if (isScaredyShroomCowering(plant, zombies)) return false;
   if (gameTimeMs - plant.lastAttackAtMs < def.attackCooldownMs) return false;
   const includeAerial = def.plantType === "CACTUS";
+  const maxDistanceCols = getForwardRangeCols(def.plantType);
 
   if (def.plantType === "THREEPEATER") {
     return hasForwardTargetInLanes(threepeaterLanes(plant.row, gridRows), zombies, plant.col);
@@ -93,7 +130,10 @@ export function shouldPlantAttack(
     );
   }
 
-  const target = findNearestZombieInLane(plant.row, zombies, plant.col, { includeAerial });
+  const target = findNearestZombieInLane(plant.row, zombies, plant.col, {
+    includeAerial,
+    maxDistanceCols,
+  });
   return target !== null;
 }
 
@@ -107,8 +147,16 @@ export function plantFire(
   zombies: Record<string, RuntimeZombie>,
   gridRows = 5
 ): { projectile: RuntimeProjectile | null; projectiles: RuntimeProjectile[]; updatedPlant: RuntimePlant } {
+  if (isScaredyShroomCowering(plant, zombies)) {
+    return { projectile: null, projectiles: [], updatedPlant: plant };
+  }
+
   const includeAerial = def.plantType === "CACTUS";
-  const target = findNearestZombieInLane(plant.row, zombies, plant.col, { includeAerial });
+  const maxDistanceCols = getForwardRangeCols(def.plantType);
+  const target = findNearestZombieInLane(plant.row, zombies, plant.col, {
+    includeAerial,
+    maxDistanceCols,
+  });
   if (!def.projectileType || def.attackDamage === null) {
     return { projectile: null, projectiles: [], updatedPlant: plant };
   }
@@ -118,10 +166,17 @@ export function plantFire(
   const updatedPlant: RuntimePlant = { ...plant, lastAttackAtMs: gameTimeMs };
 
   if (def.trajectory === "straight") {
-    const opts: { slowFactor?: number; isFire?: boolean; piercing?: boolean; canHitAerial?: boolean } = {};
+    const opts: {
+      slowFactor?: number;
+      isFire?: boolean;
+      piercing?: boolean;
+      canHitAerial?: boolean;
+      maxTravelDistanceCols?: number;
+    } = {};
     if (def.plantType === "SNOW_PEA") opts.slowFactor = 0.5;
     if (def.plantType === "FUME_SHROOM") opts.piercing = true;
     if (def.plantType === "CACTUS") opts.canHitAerial = true;
+    if (maxDistanceCols !== undefined) opts.maxTravelDistanceCols = maxDistanceCols;
 
     const makeProjectile = (
       lane: number,

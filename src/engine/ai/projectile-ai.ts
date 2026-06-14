@@ -22,7 +22,15 @@ export function advanceProjectile(proj: RuntimeProjectile, deltaMs: number): Run
 }
 
 export function shouldRemoveProjectile(proj: RuntimeProjectile, gridCols: number): boolean {
-  if (proj.trajectory === "straight") return isOffscreen(proj, gridCols);
+  if (proj.trajectory === "straight") {
+    if (
+      proj.maxTravelDistanceCols !== undefined &&
+      Math.abs(proj.x - proj.sourceCol) >= proj.maxTravelDistanceCols
+    ) {
+      return true;
+    }
+    return isOffscreen(proj, gridCols);
+  }
   return hasLobbedLanded(proj);
 }
 
@@ -38,6 +46,10 @@ export function findStraightHits(
     !z.isUnderground &&
     (!z.isAerial || proj.canHitAerial === true) &&
     (proj.velX >= 0 ? z.x > proj.sourceCol : z.x < proj.sourceCol) &&
+    (
+      proj.maxTravelDistanceCols === undefined ||
+      Math.abs(z.x - proj.sourceCol) <= proj.maxTravelDistanceCols
+    ) &&
     Math.abs(z.x - proj.x) <= STRAIGHT_HIT_RADIUS
   );
 

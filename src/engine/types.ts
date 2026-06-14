@@ -132,6 +132,7 @@ export interface RuntimeProjectile {
   isFire?: boolean;
   piercing?: boolean;
   canHitAerial?: boolean;
+  maxTravelDistanceCols?: number;
   sourceCol: number;
   targetCol?: number;
   targetLane?: number;

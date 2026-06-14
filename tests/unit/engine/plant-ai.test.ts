@@ -6,9 +6,11 @@ import {
   plantFire,
   plantProduceSun,
   resetPlantAiCounters,
+  isScaredyShroomCowering,
 } from "@/engine/ai/plant-ai";
 import type { RuntimePlant, RuntimeZombie } from "@/engine/types";
 import { getPlantDef } from "@/engine/entities/plant-defs";
+import { FUME_SHROOM_RANGE_COLS, PUFF_SHROOM_RANGE_COLS } from "@/engine/constants";
 
 beforeEach(() => resetPlantAiCounters());
 
@@ -139,6 +141,64 @@ describe("shouldPlantAttack", () => {
     const zombies = { z1: makeZombie({ lane: 0, x: 7, isAerial: true }) };
     expect(shouldPlantAttack(plant, cactusDef, 5000, zombies)).toBe(true);
   });
+
+  it("limits Puff-shroom targeting to its short 3-tile range", () => {
+    const puffDef = getPlantDef("PUFF_SHROOM");
+    const plant = makePlant({ plantType: "PUFF_SHROOM", col: 2 });
+
+    expect(
+      shouldPlantAttack(
+        plant,
+        puffDef,
+        5000,
+        { z1: makeZombie({ lane: 0, x: 2 + PUFF_SHROOM_RANGE_COLS }) }
+      )
+    ).toBe(true);
+
+    expect(
+      shouldPlantAttack(
+        plant,
+        puffDef,
+        5000,
+        { z1: makeZombie({ lane: 0, x: 2 + PUFF_SHROOM_RANGE_COLS + 0.1 }) }
+      )
+    ).toBe(false);
+  });
+
+  it("limits Fume-shroom targeting to its 4-tile piercing range", () => {
+    const fumeDef = getPlantDef("FUME_SHROOM");
+    const plant = makePlant({ plantType: "FUME_SHROOM", col: 2 });
+
+    expect(
+      shouldPlantAttack(
+        plant,
+        fumeDef,
+        5000,
+        { z1: makeZombie({ lane: 0, x: 2 + FUME_SHROOM_RANGE_COLS }) }
+      )
+    ).toBe(true);
+
+    expect(
+      shouldPlantAttack(
+        plant,
+        fumeDef,
+        5000,
+        { z1: makeZombie({ lane: 0, x: 2 + FUME_SHROOM_RANGE_COLS + 0.1 }) }
+      )
+    ).toBe(false);
+  });
+
+  it("makes Scaredy-shroom cower and stop attacking when a zombie enters its 3x3 area", () => {
+    const scaredyDef = getPlantDef("SCAREDY_SHROOM");
+    const plant = makePlant({ plantType: "SCAREDY_SHROOM", row: 2, col: 3 });
+    const closeZombies = { z1: makeZombie({ lane: 1, x: 4.2 }) };
+    const farZombies = { z1: makeZombie({ lane: 2, x: 7 }) };
+
+    expect(isScaredyShroomCowering(plant, closeZombies)).toBe(true);
+    expect(shouldPlantAttack(plant, scaredyDef, 5000, closeZombies)).toBe(false);
+    expect(isScaredyShroomCowering(plant, farZombies)).toBe(false);
+    expect(shouldPlantAttack(plant, scaredyDef, 5000, farZombies)).toBe(true);
+  });
 });
 
 describe("plantFire", () => {
@@ -217,6 +277,33 @@ describe("plantFire", () => {
     const zombies = { z1: makeZombie({ lane: 0, x: 7, isAerial: true }) };
     const { projectile } = plantFire(plant, def, 5000, zombies);
     expect(projectile?.canHitAerial).toBe(true);
+  });
+
+  it("adds max travel distance to Puff-shroom spores", () => {
+    const plant = makePlant({ plantType: "PUFF_SHROOM", col: 2 });
+    const def = getPlantDef("PUFF_SHROOM");
+    const zombies = { z1: makeZombie({ lane: 0, x: 5 }) };
+    const { projectile } = plantFire(plant, def, 5000, zombies);
+    expect(projectile?.maxTravelDistanceCols).toBe(PUFF_SHROOM_RANGE_COLS);
+  });
+
+  it("adds piercing and max travel distance to Fume-shroom fumes", () => {
+    const plant = makePlant({ plantType: "FUME_SHROOM", col: 2 });
+    const def = getPlantDef("FUME_SHROOM");
+    const zombies = { z1: makeZombie({ lane: 0, x: 6 }) };
+    const { projectile } = plantFire(plant, def, 5000, zombies);
+    expect(projectile?.piercing).toBe(true);
+    expect(projectile?.maxTravelDistanceCols).toBe(FUME_SHROOM_RANGE_COLS);
+  });
+
+  it("returns no projectile when Scaredy-shroom is cowering", () => {
+    const plant = makePlant({ plantType: "SCAREDY_SHROOM", row: 2, col: 3 });
+    const def = getPlantDef("SCAREDY_SHROOM");
+    const zombies = { z1: makeZombie({ lane: 2, x: 4 }) };
+    const { projectile, projectiles, updatedPlant } = plantFire(plant, def, 5000, zombies);
+    expect(projectile).toBeNull();
+    expect(projectiles).toHaveLength(0);
+    expect(updatedPlant.lastAttackAtMs).toBe(0);
   });
 });
 

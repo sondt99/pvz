@@ -30,6 +30,12 @@ export const SUNSHROOM_SMALL_VALUE = 15;
 export const SUNSHROOM_MEDIUM_VALUE = 25;
 export const SUNSHROOM_LARGE_VALUE = 50;
 
+export const PUFF_SHROOM_RANGE_COLS = 3;
+export const SEA_SHROOM_RANGE_COLS = 3;
+export const FUME_SHROOM_RANGE_COLS = 4;
+export const SCAREDY_SHROOM_COWER_LANES = 1;
+export const SCAREDY_SHROOM_COWER_COLS = 1;
+
 export const POTATO_MINE_ARM_MS = 14_000;
 export const DOOM_SHROOM_RADIUS_LANES = 2;
 export const DOOM_SHROOM_RADIUS_COLS = 3.5;
