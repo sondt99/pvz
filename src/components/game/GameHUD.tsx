@@ -3,6 +3,16 @@
 import { useState } from "react";
 import { useGameStore } from "@/store/game-store";
 
+function persistenceIcon(label: string): string {
+  if (label === "Cloud" || label === "Loaded") return "☁️ ";
+  if (label === "Saving") return "⏳ ";
+  if (label === "Saved") return "✓ ";
+  if (label === "Local") return "💾 ";
+  if (label === "Syncing") return "↻ ";
+  if (label === "Save failed") return "⚠ ";
+  return "";
+}
+
 interface GameHUDProps {
   onPauseRequest?: () => Promise<void> | void;
   onResumeRequest?: () => Promise<void> | void;
@@ -71,7 +81,7 @@ export function GameHUD({
           minWidth: 80,
         }}
       >
-        <span style={{ fontSize: 20 }}>☀</span>
+        <span style={{ fontSize: 20 }}>☀️</span>
         <span
           style={{
             color: "#ffd700",
@@ -87,10 +97,16 @@ export function GameHUD({
 
       {/* Wave number */}
       <div style={{ color: "#c0e8a0", fontSize: 14 }}>
-        <span style={{ opacity: 0.7 }}>Wave </span>
-        <span style={{ fontWeight: "bold", fontSize: 16, color: "#e0ffe0" }}>
-          {waveNumber}
-        </span>
+        {waveNumber === 0 ? (
+          <span style={{ opacity: 0.6 }}>Ready</span>
+        ) : (
+          <>
+            <span style={{ opacity: 0.7 }}>Wave </span>
+            <span style={{ fontWeight: "bold", fontSize: 16, color: "#e0ffe0" }}>
+              {waveNumber}
+            </span>
+          </>
+        )}
       </div>
 
       {/* Score */}
@@ -114,7 +130,7 @@ export function GameHUD({
             opacity: 0.86,
           }}
         >
-          {persistenceLabel}
+          {persistenceIcon(persistenceLabel)}{persistenceLabel}
         </span>
       )}
 
@@ -140,9 +156,9 @@ export function GameHUD({
           onClick={handlePauseResume}
           disabled={isSyncing}
           style={{
-            background: isPaused ? "#2a7a2a" : "#5a3a0a",
+            background: isPaused ? "#2a7a2a" : "rgba(20, 20, 20, 0.5)",
             color: "#e0ffe0",
-            border: "2px solid #2a5a0a",
+            border: isPaused ? "2px solid #4aaa4a" : "2px solid rgba(255,255,255,0.2)",
             borderRadius: 8,
             padding: "6px 16px",
             fontWeight: "bold",
