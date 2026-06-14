@@ -2,6 +2,7 @@ import { create } from "zustand";
 import type {
   GameEngineState,
   EnvironmentConfig,
+  RuntimeLawnMower,
   RuntimePlant,
   RuntimeZombie,
   SeedPacketSlot,
@@ -10,7 +11,17 @@ import { generateGrid, getCell, canPlantHere, setFlowerPotOnCell, setLilyPadOnCe
 import { getInitialSun, tickSkySun, spendSun, collectSun, createSkySunDrop, advanceSunDrop, isSunDropExpired } from "../engine/sun";
 import { getPlantDef } from "../engine/entities/plant-defs";
 import { getZombieDef } from "../engine/entities/zombie-defs";
-import { POTATO_MINE_ARM_MS, SKY_SUN_INTERVAL_MS, SKY_SUN_FALL_SPEED_PER_MS, SUN_PRODUCER_INITIAL_DELAY_MS, WAVE_INTERVAL_MS, ZOMBIE_SPAWN_X } from "../engine/constants";
+import {
+  LAWN_MOWER_READY_X,
+  LAWN_MOWER_SPEED_COLS_PER_SEC,
+  LAWN_MOWER_TRIGGER_X,
+  POTATO_MINE_ARM_MS,
+  SKY_SUN_INTERVAL_MS,
+  SKY_SUN_FALL_SPEED_PER_MS,
+  SUN_PRODUCER_INITIAL_DELAY_MS,
+  WAVE_INTERVAL_MS,
+  ZOMBIE_SPAWN_X,
+} from "../engine/constants";
 import { resetPlantAiCounters, shouldPlantAttack, plantFire, plantProduceSun } from "../engine/ai/plant-ai";
 import {
   tickStatusEffects,
@@ -121,6 +132,89 @@ function clearAllFog(grid: GameEngineState["grid"]): void {
   }
 }
 
+function lawnMowerId(lane: number): string {
+  return `mower-${lane}`;
+}
+
+function createLawnMowers(env: EnvironmentConfig): Record<string, RuntimeLawnMower> {
+  return Object.fromEntries(
+    Array.from({ length: env.gridRows }, (_, lane) => [
+      lawnMowerId(lane),
+      {
+        instanceId: lawnMowerId(lane),
+        lane,
+        x: LAWN_MOWER_READY_X,
+        state: "ready",
+        speedColsPerSec: LAWN_MOWER_SPEED_COLS_PER_SEC,
+        triggeredAtMs: null,
+      } satisfies RuntimeLawnMower,
+    ])
+  );
+}
+
+function advanceLawnMowers(
+  lawnMowers: Record<string, RuntimeLawnMower>,
+  deltaMs: number,
+  gridCols: number
+): Record<string, RuntimeLawnMower> {
+  const updated: Record<string, RuntimeLawnMower> = {};
+  for (const [id, mower] of Object.entries(lawnMowers)) {
+    if (mower.state !== "active") {
+      updated[id] = mower;
+      continue;
+    }
+
+    const x = mower.x + mower.speedColsPerSec * (deltaMs / 1000);
+    updated[id] = {
+      ...mower,
+      x,
+      state: x > gridCols + 0.75 ? "spent" : "active",
+    };
+  }
+  return updated;
+}
+
+function clearZombiesByPredicate(
+  zombies: Record<string, RuntimeZombie>,
+  predicate: (zombie: RuntimeZombie) => boolean
+): {
+  zombies: Record<string, RuntimeZombie>;
+  scoreDelta: number;
+  killedCount: number;
+} {
+  let updated = { ...zombies };
+  let scoreDelta = 0;
+  let killedCount = 0;
+
+  for (const [id, zombie] of Object.entries(zombies)) {
+    if (!predicate(zombie)) continue;
+    scoreDelta += scoreKilledZombie(zombie);
+    killedCount += 1;
+    const { [id]: _killed, ...rest } = updated;
+    updated = rest;
+  }
+
+  return { zombies: updated, scoreDelta, killedCount };
+}
+
+function clearActiveLawnMowerHits(
+  zombies: Record<string, RuntimeZombie>,
+  lawnMowers: Record<string, RuntimeLawnMower>
+): {
+  zombies: Record<string, RuntimeZombie>;
+  scoreDelta: number;
+  killedCount: number;
+} {
+  return clearZombiesByPredicate(zombies, (zombie) =>
+    Object.values(lawnMowers).some(
+      (mower) =>
+        mower.state === "active" &&
+        mower.lane === zombie.lane &&
+        zombie.x <= mower.x + 0.45
+    )
+  );
+}
+
 function scoreKilledZombie(zombie: RuntimeZombie): number {
   try {
     return getZombieDef(zombie.zombieType).scoreValue;
@@ -200,6 +294,7 @@ const INITIAL_STATE: GameEngineState = {
   zombies: {},
   projectiles: {},
   sunDrops: {},
+  lawnMowers: {},
   currentSun: 50,
   cumulativeSun: 0,
   gameTimeMs: 0,
@@ -242,6 +337,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
       status: "idle",
       environment: env,
       grid: generateGrid(env),
+      lawnMowers: createLawnMowers(env),
       currentSun: getInitialSun(env),
       loadout,
       nextSkyDropAtMs: SKY_SUN_INTERVAL_MS,
@@ -518,6 +614,14 @@ export const useGameStore = create<GameStore>()((set, get) => ({
       };
     }
 
+    let score = state.score;
+    let totalZombiesKilled = state.totalZombiesKilled;
+    let lawnMowers = advanceLawnMowers(state.lawnMowers, deltaMs, env.gridCols);
+    const activeMowerHits = clearActiveLawnMowerHits(zombies, lawnMowers);
+    zombies = activeMowerHits.zombies;
+    score += activeMowerHits.scoreDelta;
+    totalZombiesKilled += activeMowerHits.killedCount;
+
     // -----------------------------------------------------------------------
     // 5. Tick sun drops: advance falling drops, remove expired ones
     // -----------------------------------------------------------------------
@@ -548,8 +652,6 @@ export const useGameStore = create<GameStore>()((set, get) => ({
     // -----------------------------------------------------------------------
     let plants = { ...state.plants };
     let projectiles = { ...state.projectiles };
-    let score = state.score;
-    let totalZombiesKilled = state.totalZombiesKilled;
     const loadout = state.loadout.map((slot) => ({
       ...slot,
       cooldownRemainingMs: Math.max(0, slot.cooldownRemainingMs - deltaMs),
@@ -758,13 +860,40 @@ export const useGameStore = create<GameStore>()((set, get) => ({
         z = moveZombie(z, deltaMs);
       }
 
-      // 8e. Check game-over: zombie reached the house
-      if (z.x <= -0.5) {
+      zombies[zombieId] = z;
+    }
+
+    // 8e. Check house breach: consume lane mower first, lose only after it is gone.
+    const breachedLanes = new Set(
+      Object.values(zombies)
+        .filter((zombie) => zombie.x <= LAWN_MOWER_TRIGGER_X)
+        .map((zombie) => zombie.lane)
+    );
+
+    for (const lane of breachedLanes) {
+      const mowerKey = lawnMowerId(lane);
+      const mower = lawnMowers[mowerKey];
+      if (mower?.state === "ready") {
+        lawnMowers = {
+          ...lawnMowers,
+          [mowerKey]: {
+            ...mower,
+            state: "active",
+            x: LAWN_MOWER_TRIGGER_X,
+            triggeredAtMs: newGameTimeMs,
+          },
+        };
+        const laneClear = clearZombiesByPredicate(
+          zombies,
+          (zombie) => zombie.lane === lane
+        );
+        zombies = laneClear.zombies;
+        score += laneClear.scoreDelta;
+        totalZombiesKilled += laneClear.killedCount;
+      } else {
         set({ status: "game-over" });
         return;
       }
-
-      zombies[zombieId] = z;
     }
 
     // -----------------------------------------------------------------------
@@ -838,6 +967,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
         nextSkyDropAtMs,
         plants,
         zombies,
+        lawnMowers,
         projectiles,
         loadout,
         score,
@@ -859,6 +989,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
       nextSkyDropAtMs,
       plants,
       zombies,
+      lawnMowers,
       projectiles,
       loadout,
       score,

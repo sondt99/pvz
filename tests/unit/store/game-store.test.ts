@@ -778,16 +778,68 @@ describe("tick — zombie movement", () => {
     expect(Object.keys(useGameStore.getState().zombies)).toHaveLength(0);
   });
 
-  it("sets status to game-over when a zombie reaches x <= -0.5", () => {
-    useGameStore.getState().queueZombie("NORMAL", 0, 0);
-    // tick(0): spawns the zombie (spawnAtMs=0 <= gameTimeMs=0) with no movement
-    useGameStore.getState().tick(0);
-    expect(Object.keys(useGameStore.getState().zombies)).toHaveLength(1);
+  it("uses the lane lawn mower on first breach and keeps the game alive", () => {
+    useGameStore.setState({
+      zombies: {
+        z1: makeZombie({ instanceId: "z1", lane: 0, x: -0.6 }),
+      },
+    });
 
-    // NORMAL speed is tuned near PvZ's 4.7 seconds per tile; 48 s crosses the house edge.
-    for (let i = 0; i < 48; i++) {
-      useGameStore.getState().tick(1000);
-    }
+    useGameStore.getState().tick(0);
+
+    const state = useGameStore.getState();
+    expect(state.status).toBe("playing");
+    expect(state.zombies.z1).toBeUndefined();
+    expect(state.lawnMowers["mower-0"]).toMatchObject({
+      state: "active",
+      lane: 0,
+    });
+    expect(state.totalZombiesKilled).toBe(1);
+  });
+
+  it("active lawn mower clears zombies as it rolls across its lane", () => {
+    useGameStore.setState({
+      lawnMowers: {
+        ...useGameStore.getState().lawnMowers,
+        "mower-0": {
+          ...useGameStore.getState().lawnMowers["mower-0"],
+          state: "active",
+          x: 1.5,
+          triggeredAtMs: 0,
+        },
+      },
+      zombies: {
+        z1: makeZombie({ instanceId: "z1", lane: 0, x: 2 }),
+        z2: makeZombie({ instanceId: "z2", lane: 1, x: 2 }),
+      },
+    });
+
+    useGameStore.getState().tick(100);
+
+    const state = useGameStore.getState();
+    expect(state.zombies.z1).toBeUndefined();
+    expect(state.zombies.z2).toBeDefined();
+    expect(state.status).toBe("playing");
+  });
+
+  it("sets status to game-over when a zombie breaches after its lane mower is spent", () => {
+    useGameStore.setState({
+      lawnMowers: {
+        ...useGameStore.getState().lawnMowers,
+        "mower-0": {
+          ...useGameStore.getState().lawnMowers["mower-0"],
+          state: "spent",
+          x: 10,
+          triggeredAtMs: 0,
+        },
+      },
+      zombies: {
+        z1: makeZombie({ instanceId: "z1", lane: 0, x: -0.6 }),
+      },
+    });
+
+    useGameStore.getState().tick(0);
+
     expect(useGameStore.getState().status).toBe("game-over");
   });
 });

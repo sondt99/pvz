@@ -56,6 +56,16 @@ describe("save/load serialization", () => {
           lifetimeMs: 10_000,
         },
       },
+      lawnMowers: {
+        "mower-1": {
+          instanceId: "mower-1",
+          lane: 1,
+          x: 3.5,
+          state: "active",
+          speedColsPerSec: 6,
+          triggeredAtMs: 9_000,
+        },
+      },
       currentSun: 125,
       cumulativeSun: 300,
       gameTimeMs: 10_000,
@@ -91,6 +101,7 @@ describe("save/load serialization", () => {
         zombieState: serialized.zombieState,
         projectileState: serialized.projectileState,
         sunDropState: serialized.sunDropState,
+        lawnMowerState: serialized.lawnMowerState,
         spawnQueueState: serialized.spawnQueueState,
         seedCooldowns: serialized.seedCooldowns,
         loadoutSnapshot: serialized.loadoutSnapshot,
@@ -114,6 +125,7 @@ describe("save/load serialization", () => {
 
     expect(serialized.projectileState).toHaveLength(1);
     expect(serialized.sunDropState).toHaveLength(1);
+    expect(serialized.lawnMowerState).toHaveLength(1);
     expect(serialized.spawnQueueState).toEqual(state.zombieSpawnQueue);
     expect(serialized.environmentState.nextSkyDropTimerMs).toBe(6_000);
 
@@ -129,6 +141,12 @@ describe("save/load serialization", () => {
       source: "plant",
       state: "landed",
       value: 25,
+    });
+    expect(restored.lawnMowers?.["mower-1"]).toMatchObject({
+      lane: 1,
+      x: 3.5,
+      state: "active",
+      triggeredAtMs: 9_000,
     });
     expect(restored.zombieSpawnQueue).toEqual(state.zombieSpawnQueue);
     expect(restored.grid?.[1][6]).toMatchObject({
@@ -175,6 +193,7 @@ describe("save/load serialization", () => {
       },
       projectiles: {},
       sunDrops: {},
+      lawnMowers: {},
       currentSun: 50,
       cumulativeSun: 0,
       gameTimeMs: 5_000,
@@ -203,6 +222,7 @@ describe("save/load serialization", () => {
         zombieState: serialized.zombieState,
         projectileState: serialized.projectileState,
         sunDropState: serialized.sunDropState,
+        lawnMowerState: serialized.lawnMowerState,
         spawnQueueState: serialized.spawnQueueState,
         seedCooldowns: serialized.seedCooldowns,
         loadoutSnapshot: serialized.loadoutSnapshot,

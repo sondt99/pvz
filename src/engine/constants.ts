@@ -16,6 +16,10 @@ export const FOG_START_COL = 5; // columns ≥ 5 are fogged
 
 export const ZOMBIE_SPAWN_X = 9.5; // tiles off-screen right
 
+export const LAWN_MOWER_READY_X = -0.78;
+export const LAWN_MOWER_TRIGGER_X = -0.5;
+export const LAWN_MOWER_SPEED_COLS_PER_SEC = 6;
+
 export const WAVE_INTERVAL_MS = 30_000;
 export const FINAL_WAVE_DELAY_MS = 10_000;
 

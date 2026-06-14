@@ -148,6 +148,17 @@ export interface RuntimeSunDrop {
   lifetimeMs: number;
 }
 
+export type RuntimeLawnMowerState = "ready" | "active" | "spent";
+
+export interface RuntimeLawnMower {
+  instanceId: string;
+  lane: number;
+  x: number;
+  state: RuntimeLawnMowerState;
+  speedColsPerSec: number;
+  triggeredAtMs: number | null;
+}
+
 export interface SeedPacketSlot {
   plantType: string;
   plantId: string;
@@ -166,6 +177,7 @@ export interface GameEngineState {
   zombies: Record<string, RuntimeZombie>;
   projectiles: Record<string, RuntimeProjectile>;
   sunDrops: Record<string, RuntimeSunDrop>;
+  lawnMowers: Record<string, RuntimeLawnMower>;
   currentSun: number;
   cumulativeSun: number;
   gameTimeMs: number;

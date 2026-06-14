@@ -6,6 +6,7 @@
 import type {
   GameEngineState,
   EnvironmentConfig,
+  RuntimeLawnMower,
   RuntimePlant,
   RuntimeProjectile,
   RuntimeSunDrop,
@@ -23,6 +24,7 @@ import type {
 import { generateGrid } from "@/engine/grid";
 import { getPlantDef } from "@/engine/entities/plant-defs";
 import { getZombieDef } from "@/engine/entities/zombie-defs";
+import { LAWN_MOWER_READY_X, LAWN_MOWER_SPEED_COLS_PER_SEC } from "@/engine/constants";
 import type { EnvironmentType } from "@/engine/types";
 
 // ---------------------------------------------------------------------------
@@ -37,6 +39,7 @@ interface SessionData {
   zombieState: unknown;
   projectileState: unknown;
   sunDropState: unknown;
+  lawnMowerState: unknown;
   spawnQueueState: unknown;
   seedCooldowns: unknown;
   loadoutSnapshot: unknown;
@@ -95,6 +98,7 @@ export function deserializeGameState(
   const zombieStateRaw = isZombieState(session.zombieState) ? session.zombieState : [];
   const projectileStateRaw = isProjectileState(session.projectileState) ? session.projectileState : [];
   const sunDropStateRaw = isSunDropState(session.sunDropState) ? session.sunDropState : [];
+  const lawnMowerStateRaw = isLawnMowerState(session.lawnMowerState) ? session.lawnMowerState : [];
   const spawnQueueStateRaw = isSpawnQueueState(session.spawnQueueState) ? session.spawnQueueState : [];
   const seedCooldownsRaw = isSeedCooldowns(session.seedCooldowns) ? session.seedCooldowns : {};
   const loadoutSnapshotRaw = isStringArray(session.loadoutSnapshot) ? session.loadoutSnapshot : [];
@@ -213,6 +217,9 @@ export function deserializeGameState(
   // --- Reconstruct volatile runtime records ---
   const projectiles = toRecordByInstanceId(projectileStateRaw);
   const sunDrops = toRecordByInstanceId(sunDropStateRaw);
+  const lawnMowers = lawnMowerStateRaw.length > 0
+    ? toRecordByInstanceId(lawnMowerStateRaw)
+    : createDefaultLawnMowers(env);
   const zombieSpawnQueue = spawnQueueStateRaw.map((entry) => ({ ...entry }));
 
   const nextSkyDropTimerMs = environmentState?.nextSkyDropTimerMs ?? 0;
@@ -256,6 +263,7 @@ export function deserializeGameState(
     zombies,
     projectiles,
     sunDrops,
+    lawnMowers,
     currentSun: session.currentSun,
     cumulativeSun: session.cumulativeSun,
     gameTimeMs: restoredGameTimeMs,
@@ -357,6 +365,21 @@ function isSunDropState(v: unknown): v is RuntimeSunDrop[] {
   });
 }
 
+function isLawnMowerState(v: unknown): v is RuntimeLawnMower[] {
+  return Array.isArray(v) && v.every((mower) => {
+    if (typeof mower !== "object" || mower === null || Array.isArray(mower)) return false;
+    const m = mower as Record<string, unknown>;
+    return (
+      typeof m.instanceId === "string" &&
+      typeof m.lane === "number" &&
+      typeof m.x === "number" &&
+      (m.state === "ready" || m.state === "active" || m.state === "spent") &&
+      typeof m.speedColsPerSec === "number" &&
+      (typeof m.triggeredAtMs === "number" || m.triggeredAtMs === null)
+    );
+  });
+}
+
 function isSpawnQueueState(v: unknown): v is SerializedSpawnQueue {
   return Array.isArray(v) && v.every((entry) => {
     if (typeof entry !== "object" || entry === null || Array.isArray(entry)) return false;
@@ -372,4 +395,23 @@ function isSpawnQueueState(v: unknown): v is SerializedSpawnQueue {
 
 function toRecordByInstanceId<T extends { instanceId: string }>(items: T[]): Record<string, T> {
   return Object.fromEntries(items.map((item) => [item.instanceId, { ...item }]));
+}
+
+function createDefaultLawnMowers(env: EnvironmentConfig): Record<string, RuntimeLawnMower> {
+  return Object.fromEntries(
+    Array.from({ length: env.gridRows }, (_, lane) => {
+      const instanceId = `mower-${lane}`;
+      return [
+        instanceId,
+        {
+          instanceId,
+          lane,
+          x: LAWN_MOWER_READY_X,
+          state: "ready",
+          speedColsPerSec: LAWN_MOWER_SPEED_COLS_PER_SEC,
+          triggeredAtMs: null,
+        } satisfies RuntimeLawnMower,
+      ];
+    })
+  );
 }
