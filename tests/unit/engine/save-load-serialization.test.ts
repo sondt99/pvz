@@ -101,6 +101,7 @@ describe("save/load serialization", () => {
       zombieSpawnQueue: [
         { zombieType: "CONEHEAD", lane: 1, spawnAtMs: 12_000, x: 9.5 },
       ],
+      lastPlacementFailure: null,
     };
 
     const serialized = serializeGameState(state);
@@ -281,6 +282,7 @@ describe("save/load serialization", () => {
       selectedSlot: null,
       nextSkyDropAtMs: 15_000,
       zombieSpawnQueue: [],
+      lastPlacementFailure: null,
     };
 
     const serialized = serializeGameState(state);
@@ -419,6 +421,7 @@ describe("save/load serialization", () => {
       selectedSlot: null,
       nextSkyDropAtMs: 15_000,
       zombieSpawnQueue: [],
+      lastPlacementFailure: null,
     };
 
     const serialized = serializeGameState(state);

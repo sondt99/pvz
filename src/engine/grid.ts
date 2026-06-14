@@ -1,4 +1,4 @@
-import type { EnvironmentConfig, RuntimeGridCell } from "./types";
+import type { EnvironmentConfig, PlacementFailureReason, RuntimeGridCell } from "./types";
 import { FOG_START_COL } from "./constants";
 
 export interface GraveCell {
@@ -140,6 +140,74 @@ export function canPlantHere(
   if (opts.isAquatic) return false;
   if (opts.requiresFlowerPot) return false;
   return cell.plantInstanceId === null;
+}
+
+/**
+ * Return the specific reason why a plant cannot be placed here, or null if it can.
+ * Mirrors the logic of canPlantHere but surfaces the first blocking condition.
+ */
+export function getPlacementFailureReason(
+  grid: RuntimeGridCell[][],
+  row: number,
+  col: number,
+  opts: {
+    isAquatic: boolean;
+    requiresLilyPad: boolean;
+    requiresFlowerPot: boolean;
+    isLilyPad?: boolean;
+    isFlowerPot?: boolean;
+    isPumpkin?: boolean;
+  }
+): PlacementFailureReason | null {
+  const cell = getCell(grid, row, col);
+  if (!cell) return "INVALID_CELL";
+  if (cell.graveId !== null) return "GRAVE_BLOCKING";
+  if (cell.craterExpiresAtMs !== null) return "CRATER_BLOCKING";
+
+  if (opts.isPumpkin) {
+    if (cell.pumpkinInstanceId !== null) return "OCCUPIED";
+    if (cell.isWater && cell.lilyPadInstanceId === null) return "NEEDS_LILY_PAD";
+    if (cell.isSlope && cell.flowerPotInstanceId === null) return "NEEDS_FLOWER_POT";
+    return null;
+  }
+
+  if (cell.isWater) {
+    if (opts.isFlowerPot) return "INVALID_TERRAIN";
+    if (opts.isLilyPad) {
+      if (cell.lilyPadInstanceId !== null || cell.plantInstanceId !== null) return "OCCUPIED";
+      return null;
+    }
+    if (opts.isAquatic) {
+      if (cell.lilyPadInstanceId !== null || cell.plantInstanceId !== null) return "OCCUPIED";
+      return null;
+    }
+    if (opts.requiresLilyPad || !opts.isAquatic) {
+      if (cell.lilyPadInstanceId === null) return "NEEDS_LILY_PAD";
+      if (cell.plantInstanceId !== null) return "OCCUPIED";
+      return null;
+    }
+    return "INVALID_TERRAIN";
+  }
+
+  if (opts.isLilyPad) return "INVALID_TERRAIN";
+  if (opts.requiresLilyPad) return "INVALID_TERRAIN";
+
+  if (cell.isSlope) {
+    if (opts.isFlowerPot) {
+      if (cell.flowerPotInstanceId !== null || cell.plantInstanceId !== null) return "OCCUPIED";
+      return null;
+    }
+    if (!opts.requiresFlowerPot) return "NEEDS_FLOWER_POT";
+    if (cell.flowerPotInstanceId === null) return "NEEDS_FLOWER_POT";
+    if (cell.plantInstanceId !== null) return "OCCUPIED";
+    return null;
+  }
+
+  if (opts.isFlowerPot) return "INVALID_TERRAIN";
+  if (opts.isAquatic) return "INVALID_TERRAIN";
+  if (opts.requiresFlowerPot) return "INVALID_TERRAIN";
+  if (cell.plantInstanceId !== null) return "OCCUPIED";
+  return null;
 }
 
 export function getRow(

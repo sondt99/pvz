@@ -1046,6 +1046,82 @@ describe("placePlant", () => {
   });
 });
 
+describe("placePlant — failure reasons in lastPlacementFailure", () => {
+  beforeEach(() => {
+    useGameStore.getState().initGame(DAY_ENV, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({ currentSun: 500 });
+  });
+
+  it("sets GAME_NOT_PLAYING when game is paused", () => {
+    useGameStore.getState().pauseGame();
+    useGameStore.getState().placePlant("PEASHOOTER", 0, 0);
+    expect(useGameStore.getState().lastPlacementFailure).toBe("GAME_NOT_PLAYING");
+  });
+
+  it("sets INVALID_PLANT_TYPE for unknown plant type", () => {
+    useGameStore.getState().placePlant("BANANA_TREE", 0, 0);
+    expect(useGameStore.getState().lastPlacementFailure).toBe("INVALID_PLANT_TYPE");
+  });
+
+  it("sets INSUFFICIENT_SUN when sun is too low", () => {
+    useGameStore.setState({ currentSun: 10 });
+    useGameStore.getState().placePlant("PEASHOOTER", 0, 0);
+    expect(useGameStore.getState().lastPlacementFailure).toBe("INSUFFICIENT_SUN");
+  });
+
+  it("sets ON_COOLDOWN when seed packet is on cooldown", () => {
+    useGameStore.setState({
+      loadout: useGameStore.getState().loadout.map((slot) =>
+        slot.plantType === "PEASHOOTER"
+          ? { ...slot, cooldownRemainingMs: 5000 }
+          : slot
+      ),
+    });
+    useGameStore.getState().placePlant("PEASHOOTER", 0, 0);
+    expect(useGameStore.getState().lastPlacementFailure).toBe("ON_COOLDOWN");
+  });
+
+  it("sets OCCUPIED when a plant already occupies the cell", () => {
+    useGameStore.getState().placePlant("PEASHOOTER", 0, 0);
+    // Use a different plant type so cooldown isn't a confound
+    useGameStore.getState().placePlant("SUNFLOWER", 0, 0);
+    expect(useGameStore.getState().lastPlacementFailure).toBe("OCCUPIED");
+  });
+
+  it("sets GRAVE_BLOCKING in a NIGHT environment with a grave in the cell", () => {
+    const NIGHT_ENV: EnvironmentConfig = {
+      type: "NIGHT", gridRows: 5, gridCols: 9,
+      waterLaneIndices: [], gravesEnabled: true, fogEnabled: false,
+      slopeEnabled: false, conveyorBelt: false, skyDropSun: false,
+    };
+    useGameStore.getState().initGame(NIGHT_ENV, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({ currentSun: 500 });
+    // Default graves are at cols 5,6,7 for rows 0,2,4
+    useGameStore.getState().placePlant("PEASHOOTER", 0, 5);
+    expect(useGameStore.getState().lastPlacementFailure).toBe("GRAVE_BLOCKING");
+  });
+
+  it("sets NEEDS_LILY_PAD when placing a non-aquatic plant on water without lily pad", () => {
+    useGameStore.getState().initGame(POOL_ENV, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({ currentSun: 500 });
+    // Lane 2 is water; placing Peashooter without a Lily Pad
+    useGameStore.getState().placePlant("PEASHOOTER", 2, 0);
+    expect(useGameStore.getState().lastPlacementFailure).toBe("NEEDS_LILY_PAD");
+  });
+
+  it("clears lastPlacementFailure on successful placement", () => {
+    // First trigger a failure
+    useGameStore.getState().placePlant("BANANA_TREE", 0, 0);
+    expect(useGameStore.getState().lastPlacementFailure).not.toBeNull();
+    // Then succeed
+    useGameStore.getState().placePlant("PEASHOOTER", 0, 0);
+    expect(useGameStore.getState().lastPlacementFailure).toBeNull();
+  });
+});
+
 describe("removePlant", () => {
   beforeEach(() => {
     useGameStore.getState().initGame(DAY_ENV, LOADOUT);

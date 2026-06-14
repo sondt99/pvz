@@ -2,6 +2,7 @@ import { create } from "zustand";
 import type {
   GameEngineState,
   EnvironmentConfig,
+  PlacementFailureReason,
   RuntimeLawnMower,
   RuntimePlant,
   RuntimeZombie,
@@ -11,6 +12,7 @@ import {
   generateGrid,
   getCell,
   canPlantHere,
+  getPlacementFailureReason,
   setFlowerPotOnCell,
   setLilyPadOnCell,
   setPlantOnCell,
@@ -675,6 +677,7 @@ const INITIAL_STATE: GameEngineState = {
   nextSkyDropAtMs: SKY_SUN_INTERVAL_MS,
   waveConfig: null,
   zombieSpawnQueue: [],
+  lastPlacementFailure: null,
 };
 
 interface InitGameOptions {
@@ -694,6 +697,7 @@ interface GameActions {
   queueZombie: (zombieType: string, lane: number, spawnAtMs: number) => void;
   tick: (deltaMs: number) => void;
   reset: () => void;
+  clearPlacementFailure: () => void;
 }
 
 export type GameStore = GameEngineState & GameActions;
@@ -738,19 +742,27 @@ export const useGameStore = create<GameStore>()((set, get) => ({
     if (get().status === "paused") set({ status: "playing" });
   },
 
+  clearPlacementFailure: () => set({ lastPlacementFailure: null }),
+
   placePlant: (plantType, row, col) => {
     const state = get();
-    if (state.status !== "playing") return false;
+
+    const fail = (reason: PlacementFailureReason): false => {
+      set({ lastPlacementFailure: reason });
+      return false;
+    };
+
+    if (state.status !== "playing") return fail("GAME_NOT_PLAYING");
 
     let def;
-    try { def = getPlantDef(plantType); } catch { return false; }
+    try { def = getPlantDef(plantType); } catch { return fail("INVALID_PLANT_TYPE"); }
 
     const cell = getCell(state.grid, row, col);
-    if (!cell) return false;
+    if (!cell) return fail("INVALID_CELL");
 
     const loadoutIndex = state.loadout.findIndex((slot) => slot.plantType === plantType);
     const loadoutSlot = loadoutIndex >= 0 ? state.loadout[loadoutIndex] : null;
-    if (loadoutSlot && loadoutSlot.cooldownRemainingMs > 0) return false;
+    if (loadoutSlot && loadoutSlot.cooldownRemainingMs > 0) return fail("ON_COOLDOWN");
 
     let loadout = state.loadout;
     const rechargeSeed = () => {
@@ -771,10 +783,10 @@ export const useGameStore = create<GameStore>()((set, get) => ({
           return false;
         }
       });
-      if (!target) return false;
+      if (!target) return fail("NO_SLEEPING_MUSHROOM");
 
       const newSun = spendSun(state.currentSun, def.sunCost);
-      if (newSun === null) return false;
+      if (newSun === null) return fail("INSUFFICIENT_SUN");
 
       const targetDef = getPlantDef(target.plantType);
       if (targetDef.isInstantUse) {
@@ -806,6 +818,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
           currentSun: newSun,
           loadout: rechargeSeed(),
           selectedSlot: null,
+          lastPlacementFailure: null,
         });
         return true;
       }
@@ -818,21 +831,25 @@ export const useGameStore = create<GameStore>()((set, get) => ({
         currentSun: newSun,
         loadout: rechargeSeed(),
         selectedSlot: null,
+        lastPlacementFailure: null,
       });
       return true;
     }
 
     const newSun = spendSun(state.currentSun, def.sunCost);
-    if (newSun === null) return false;
+    if (newSun === null) return fail("INSUFFICIENT_SUN");
 
-    if (!canPlantHere(state.grid, row, col, {
+    const placementOpts = {
       isAquatic: def.isAquatic,
       requiresLilyPad: cell.isWater && !def.isAquatic,
       requiresFlowerPot: cell.isSlope && !isFlowerPotPlant(plantType),
       isLilyPad: isLilyPadPlant(plantType),
       isFlowerPot: isFlowerPotPlant(plantType),
       isPumpkin: isPumpkinPlant(plantType),
-    })) return false;
+    };
+    if (!canPlantHere(state.grid, row, col, placementOpts)) {
+      return fail(getPlacementFailureReason(state.grid, row, col, placementOpts) ?? "OCCUPIED");
+    }
 
     loadout = rechargeSeed();
 
@@ -862,6 +879,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
         grid: newGrid,
         loadout,
         selectedSlot: null,
+        lastPlacementFailure: null,
       });
       return true;
     }
@@ -883,6 +901,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
         zombies: instantResult.zombies,
         score: instantResult.score,
         totalZombiesKilled: instantResult.totalZombiesKilled,
+        lastPlacementFailure: null,
         ...(instantResult.grid ? { grid: instantResult.grid } : {}),
       });
       return true;
@@ -919,6 +938,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
       grid: newGrid,
       loadout,
       selectedSlot: null,
+      lastPlacementFailure: null,
     });
     return true;
   },
@@ -1388,9 +1408,9 @@ export const useGameStore = create<GameStore>()((set, get) => ({
       if (z.zombieType === "CATAPULT" && !z.isEating && !z.isFrozen) {
         const timeSinceLastFire = newGameTimeMs - (z.catapultLastFireAtMs ?? 0);
         if (timeSinceLastFire >= CATAPULT_FIRE_INTERVAL_MS) {
-          // Find nearest plant ahead in the same lane within range
+          // Find nearest plant ahead (to the left, toward house) within range
           const catapultTarget = Object.values(plants).find(
-            (p) => p.row === z.lane && p.col > z.x - 0.5 && p.col <= z.x + CATAPULT_FIRE_RANGE_COLS
+            (p) => p.row === z.lane && p.col < z.x && p.col >= z.x - CATAPULT_FIRE_RANGE_COLS
           );
           if (catapultTarget) {
             const protected_ = isProtectedByUmbrellaLeaf(catapultTarget.col, catapultTarget.row, plants);
