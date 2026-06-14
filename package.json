@@ -39,7 +39,7 @@
     "@types/bcryptjs": "^2.4.6",
     "@types/ws": "^8.5.13",
     "vitest": "^2.1.0",
-    "@vitest/coverage-v8": "^2.1.0",
+    "@vitest/coverage-v8": "^4.1.8",
     "dotenv-cli": "^7.4.0",
     "ts-node": "^10.9.0",
     "@faker-js/faker": "^9.0.0"
