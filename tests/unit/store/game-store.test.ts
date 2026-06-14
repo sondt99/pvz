@@ -97,6 +97,7 @@ const EXTENDED_LOADOUT: SeedPacketSlot[] = [
   { plantType: "KERNEL_PULT", plantId: "kernel-pult", sunCost: 100, cooldownRemainingMs: 0, cooldownTotalMs: 7000, isSelected: false, slotIndex: 19 },
   { plantType: "STARFRUIT", plantId: "starfruit", sunCost: 125, cooldownRemainingMs: 0, cooldownTotalMs: 7000, isSelected: false, slotIndex: 20 },
   { plantType: "TALL_NUT", plantId: "tall-nut", sunCost: 125, cooldownRemainingMs: 0, cooldownTotalMs: 30000, isSelected: false, slotIndex: 21 },
+  { plantType: "MAGNET_SHROOM", plantId: "magnet-shroom", sunCost: 100, cooldownRemainingMs: 0, cooldownTotalMs: 30000, isSelected: false, slotIndex: 22 },
 ];
 
 function makeZombie(overrides: Partial<RuntimeZombie> = {}): RuntimeZombie {
@@ -1548,6 +1549,122 @@ describe("selectSlot", () => {
     useGameStore.getState().selectSlot(1);
     useGameStore.getState().selectSlot(null);
     expect(useGameStore.getState().selectedSlot).toBeNull();
+  });
+});
+
+describe("Magnet-shroom — strip magnetic armor", () => {
+  const NIGHT_ENV: EnvironmentConfig = {
+    type: "NIGHT", gridRows: 5, gridCols: 9,
+    waterLaneIndices: [], gravesEnabled: true, fogEnabled: false,
+    slopeEnabled: false, conveyorBelt: false, skyDropSun: false,
+  };
+
+  it("strips armorHealth from a Buckethead zombie in range after cooldown", () => {
+    useGameStore.getState().initGame(NIGHT_ENV, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({ currentSun: 500, nextWaveAtMs: Number.MAX_SAFE_INTEGER });
+
+    expect(useGameStore.getState().placePlant("MAGNET_SHROOM", 0, 4)).toBe(true);
+    const magnetId = Object.keys(useGameStore.getState().plants)[0];
+
+    // Force cooldown to have elapsed (lastAttackAtMs = 0, so any tick ≥ 3000 fires)
+    useGameStore.setState({
+      gameTimeMs: 3000,
+      zombies: {
+        z1: makeZombie({ instanceId: "z1", zombieType: "BUCKETHEAD", lane: 0, x: 5.5 }),
+      },
+    });
+    useGameStore.getState().tick(0);
+
+    const zombie = useGameStore.getState().zombies.z1;
+    expect(zombie).toBeDefined();
+    expect(zombie.armorHealth).toBe(0);
+    expect(useGameStore.getState().plants[magnetId].lastAttackAtMs).toBe(3000);
+  });
+
+  it("strips armor from Screen Door zombie in range", () => {
+    useGameStore.getState().initGame(NIGHT_ENV, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({ currentSun: 500, nextWaveAtMs: Number.MAX_SAFE_INTEGER });
+
+    expect(useGameStore.getState().placePlant("MAGNET_SHROOM", 0, 4)).toBe(true);
+    useGameStore.setState({
+      gameTimeMs: 3000,
+      zombies: {
+        z1: makeZombie({ instanceId: "z1", zombieType: "SCREEN_DOOR", lane: 0, x: 5.0 }),
+      },
+    });
+    useGameStore.getState().tick(0);
+
+    expect(useGameStore.getState().zombies.z1.armorHealth).toBe(0);
+  });
+
+  it("does NOT strip armor from a Conehead (non-magnetic) zombie", () => {
+    useGameStore.getState().initGame(NIGHT_ENV, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({ currentSun: 500, nextWaveAtMs: Number.MAX_SAFE_INTEGER });
+
+    expect(useGameStore.getState().placePlant("MAGNET_SHROOM", 0, 4)).toBe(true);
+    const coneArmorHealth = getZombieDef("CONEHEAD").armorHealth;
+    useGameStore.setState({
+      gameTimeMs: 3000,
+      zombies: {
+        z1: makeZombie({ instanceId: "z1", zombieType: "CONEHEAD", lane: 0, x: 5.0 }),
+      },
+    });
+    useGameStore.getState().tick(0);
+
+    expect(useGameStore.getState().zombies.z1.armorHealth).toBe(coneArmorHealth);
+  });
+
+  it("does NOT strip armor from a zombie out of range", () => {
+    useGameStore.getState().initGame(NIGHT_ENV, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({ currentSun: 500, nextWaveAtMs: Number.MAX_SAFE_INTEGER });
+
+    expect(useGameStore.getState().placePlant("MAGNET_SHROOM", 0, 4)).toBe(true);
+    const bucketArmor = getZombieDef("BUCKETHEAD").armorHealth;
+    useGameStore.setState({
+      gameTimeMs: 3000,
+      zombies: {
+        // x=8.5 is more than 2.5 cols away from plant.col=4
+        z1: makeZombie({ instanceId: "z1", zombieType: "BUCKETHEAD", lane: 0, x: 8.5 }),
+      },
+    });
+    useGameStore.getState().tick(0);
+
+    expect(useGameStore.getState().zombies.z1.armorHealth).toBe(bucketArmor);
+  });
+
+  it("does not fire again before cooldown resets", () => {
+    useGameStore.getState().initGame(NIGHT_ENV, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({ currentSun: 500, nextWaveAtMs: Number.MAX_SAFE_INTEGER });
+
+    expect(useGameStore.getState().placePlant("MAGNET_SHROOM", 0, 4)).toBe(true);
+    const magnetId = Object.keys(useGameStore.getState().plants)[0];
+
+    const bucketArmor = getZombieDef("BUCKETHEAD").armorHealth;
+    useGameStore.setState({
+      gameTimeMs: 3000,
+      zombies: {
+        z1: makeZombie({ instanceId: "z1", zombieType: "BUCKETHEAD", lane: 0, x: 5.0, armorHealth: bucketArmor }),
+      },
+    });
+    useGameStore.getState().tick(0);
+    // First tick: strips armor, lastAttackAtMs = 3000
+
+    // Second zombie with armor appears but cooldown hasn't reset (3000ms elapsed = lastAttackAtMs)
+    useGameStore.setState({
+      zombies: {
+        ...useGameStore.getState().zombies,
+        z2: makeZombie({ instanceId: "z2", zombieType: "BUCKETHEAD", lane: 0, x: 5.5, armorHealth: bucketArmor }),
+      },
+    });
+    useGameStore.getState().tick(1000); // gameTimeMs = 4000, cooldown ends at 3000+3000=6000
+
+    expect(useGameStore.getState().zombies.z2.armorHealth).toBe(bucketArmor);
+    expect(useGameStore.getState().plants[magnetId].lastAttackAtMs).toBe(3000);
   });
 });
 

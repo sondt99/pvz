@@ -56,4 +56,15 @@ export const DOOM_SHROOM_RADIUS_LANES = 2;
 export const DOOM_SHROOM_RADIUS_COLS = 3.5;
 export const DOOM_SHROOM_CRATER_MS = 180_000;
 
+export const MAGNET_SHROOM_RANGE_COLS = 2.5;
+export const MAGNET_SHROOM_RANGE_LANES = 1;
+// Zombie types whose armor is magnetic and can be stripped by Magnet-shroom.
+// Conehead is a traffic cone (plastic) and is NOT magnetic.
+export const MAGNETIC_ZOMBIE_TYPES = new Set([
+  "BUCKETHEAD",
+  "SCREEN_DOOR",
+  "FOOTBALL",
+  "LADDER",
+]);
+
 export const MAX_DELTA_MS = 100; // cap delta to avoid spiral-of-death
