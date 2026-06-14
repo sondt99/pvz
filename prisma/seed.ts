@@ -6,21 +6,9 @@ import {
   Prisma,
   ProjectileType,
 } from "@prisma/client";
+import { SEED_PLANT_CATALOG } from "../src/data/seed-catalog";
 
 const prisma = new PrismaClient();
-
-interface SeedPacketEntry {
-  plantId: string;
-  displayName: string;
-  plantType: PlantType;
-  sunCost: number;
-  rechargeTime: number;
-  stats: Prisma.InputJsonObject;
-  isNightOnly?: boolean;
-  isMushroomType?: boolean;
-  isAquatic?: boolean;
-  requiresLilyPad?: boolean;
-}
 
 function plantCategoryFor(plantType: PlantType): PlantCategory {
   switch (plantType) {
@@ -114,47 +102,6 @@ function environmentDefaults(environmentType: EnvironmentType) {
   };
 }
 
-const seedPackets: SeedPacketEntry[] = [
-  { plantId: "peashooter", displayName: "Peashooter", plantType: PlantType.PEASHOOTER, sunCost: 100, rechargeTime: 7, stats: { damage: 20, range: "full-lane" } },
-  { plantId: "sunflower", displayName: "Sunflower", plantType: PlantType.SUNFLOWER, sunCost: 50, rechargeTime: 7, stats: { sunProduction: 25 } },
-  { plantId: "cherry-bomb", displayName: "Cherry Bomb", plantType: PlantType.CHERRY_BOMB, sunCost: 150, rechargeTime: 50, stats: { damage: 1800, aoeRadius: 1 } },
-  { plantId: "wall-nut", displayName: "Wall-nut", plantType: PlantType.WALL_NUT, sunCost: 50, rechargeTime: 30, stats: { health: 4000 } },
-  { plantId: "potato-mine", displayName: "Potato Mine", plantType: PlantType.POTATO_MINE, sunCost: 25, rechargeTime: 30, stats: { damage: 1800, armTime: 14 } },
-  { plantId: "snow-pea", displayName: "Snow Pea", plantType: PlantType.SNOW_PEA, sunCost: 175, rechargeTime: 7, stats: { damage: 20, slows: true } },
-  { plantId: "chomper", displayName: "Chomper", plantType: PlantType.CHOMPER, sunCost: 150, rechargeTime: 7, stats: { damage: 1800, chewTime: 42 } },
-  { plantId: "repeater", displayName: "Repeater", plantType: PlantType.REPEATER, sunCost: 200, rechargeTime: 7, stats: { damage: 20, shotsPerCycle: 2 } },
-  { plantId: "puff-shroom", displayName: "Puff-shroom", plantType: PlantType.PUFF_SHROOM, sunCost: 0, rechargeTime: 7, isNightOnly: true, isMushroomType: true, stats: { health: 300, duration: 120 } },
-  { plantId: "sun-shroom", displayName: "Sun-shroom", plantType: PlantType.SUN_SHROOM, sunCost: 25, rechargeTime: 7, isNightOnly: true, isMushroomType: true, stats: { sunProduction: 15 } },
-  { plantId: "fume-shroom", displayName: "Fume-shroom", plantType: PlantType.FUME_SHROOM, sunCost: 75, rechargeTime: 7, isNightOnly: true, isMushroomType: true, stats: { damage: 20, piercing: true } },
-  { plantId: "scaredy-shroom", displayName: "Scaredy-shroom", plantType: PlantType.SCAREDY_SHROOM, sunCost: 25, rechargeTime: 7, isNightOnly: true, isMushroomType: true, stats: { damage: 20, hidesWhenNear: true } },
-  { plantId: "ice-shroom", displayName: "Ice-shroom", plantType: PlantType.ICE_SHROOM, sunCost: 75, rechargeTime: 50, isNightOnly: true, isMushroomType: true, stats: { freezeDuration: 5, aoe: true } },
-  { plantId: "doom-shroom", displayName: "Doom-shroom", plantType: PlantType.DOOM_SHROOM, sunCost: 125, rechargeTime: 50, isNightOnly: true, isMushroomType: true, stats: { damage: 1800, aoeRadius: 3, leavesHole: true } },
-  { plantId: "lily-pad", displayName: "Lily Pad", plantType: PlantType.LILY_PAD, sunCost: 25, rechargeTime: 7, isAquatic: true, stats: {} },
-  { plantId: "squash", displayName: "Squash", plantType: PlantType.SQUASH, sunCost: 50, rechargeTime: 30, stats: { damage: 1800 } },
-  { plantId: "threepeater", displayName: "Threepeater", plantType: PlantType.THREEPEATER, sunCost: 325, rechargeTime: 7, stats: { damage: 20, lanes: 3 } },
-  { plantId: "tangle-kelp", displayName: "Tangle Kelp", plantType: PlantType.TANGLE_KELP, sunCost: 25, rechargeTime: 30, isAquatic: true, stats: { damage: 1800 } },
-  { plantId: "jalapeno", displayName: "Jalapeno", plantType: PlantType.JALAPENO, sunCost: 125, rechargeTime: 50, stats: { damage: 1800, clearsLane: true } },
-  { plantId: "spikeweed", displayName: "Spikeweed", plantType: PlantType.SPIKEWEED, sunCost: 100, rechargeTime: 7, stats: { damage: 20, stopsVehicles: true } },
-  { plantId: "torchwood", displayName: "Torchwood", plantType: PlantType.TORCHWOOD, sunCost: 175, rechargeTime: 7, stats: { upgrades: "pea-to-fire" } },
-  { plantId: "tall-nut", displayName: "Tall-nut", plantType: PlantType.TALL_NUT, sunCost: 125, rechargeTime: 30, stats: { health: 8000, blocksAerial: true } },
-  { plantId: "sea-shroom", displayName: "Sea-shroom", plantType: PlantType.SEA_SHROOM, sunCost: 0, rechargeTime: 30, isAquatic: true, isMushroomType: true, stats: { damage: 20 } },
-  { plantId: "plantern", displayName: "Plantern", plantType: PlantType.PLANTERN, sunCost: 25, rechargeTime: 7, stats: { revealsFog: true, radius: 2 } },
-  { plantId: "cactus", displayName: "Cactus", plantType: PlantType.CACTUS, sunCost: 125, rechargeTime: 7, stats: { damage: 20, popsBalloons: true } },
-  { plantId: "blover", displayName: "Blover", plantType: PlantType.BLOVER, sunCost: 100, rechargeTime: 30, stats: { blowsFog: true, blowsBalloons: true } },
-  { plantId: "split-pea", displayName: "Split Pea", plantType: PlantType.SPLIT_PEA, sunCost: 125, rechargeTime: 7, stats: { shootsFront: true, shootsBack: true } },
-  { plantId: "starfruit", displayName: "Starfruit", plantType: PlantType.STARFRUIT, sunCost: 125, rechargeTime: 7, stats: { directions: 5 } },
-  { plantId: "pumpkin", displayName: "Pumpkin", plantType: PlantType.PUMPKIN, sunCost: 125, rechargeTime: 30, stats: { health: 4000, isArmor: true } },
-  { plantId: "magnet-shroom", displayName: "Magnet-shroom", plantType: PlantType.MAGNET_SHROOM, sunCost: 100, rechargeTime: 7, isMushroomType: true, stats: { removesArmor: true } },
-  { plantId: "cabbage-pult", displayName: "Cabbage-pult", plantType: PlantType.CABBAGE_PULT, sunCost: 100, rechargeTime: 7, stats: { damage: 40, lobbed: true } },
-  { plantId: "flower-pot", displayName: "Flower Pot", plantType: PlantType.FLOWER_POT, sunCost: 25, rechargeTime: 7, stats: { requiredForRoof: true } },
-  { plantId: "kernel-pult", displayName: "Kernel-pult", plantType: PlantType.KERNEL_PULT, sunCost: 100, rechargeTime: 7, stats: { damage: 20, butterDamage: 40, lobbed: true } },
-  { plantId: "coffee-bean", displayName: "Coffee Bean", plantType: PlantType.COFFEE_BEAN, sunCost: 75, rechargeTime: 7, stats: { wakesMushroom: true } },
-  { plantId: "garlic", displayName: "Garlic", plantType: PlantType.GARLIC, sunCost: 50, rechargeTime: 30, stats: { health: 400, divertsZombies: true } },
-  { plantId: "umbrella-leaf", displayName: "Umbrella Leaf", plantType: PlantType.UMBRELLA_LEAF, sunCost: 100, rechargeTime: 7, stats: { blocksLobbed: true, blocksBungee: true } },
-  { plantId: "marigold", displayName: "Marigold", plantType: PlantType.MARIGOLD, sunCost: 50, rechargeTime: 30, stats: { sunProduction: 150, duration: 120 } },
-  { plantId: "melon-pult", displayName: "Melon-pult", plantType: PlantType.MELON_PULT, sunCost: 300, rechargeTime: 7, stats: { damage: 80, aoeDamage: 40, lobbed: true } },
-];
-
 const levels = [
   { levelNumber: 1, name: "1-1", worldNumber: 1, stageNumber: 1, environmentType: EnvironmentType.DAY, unlockRequirement: { type: "noRequirement" } },
   { levelNumber: 2, name: "1-2", worldNumber: 1, stageNumber: 2, environmentType: EnvironmentType.DAY, unlockRequirement: { type: "completePrevious" } },
@@ -210,41 +157,43 @@ const levels = [
 
 async function main() {
   console.log("Seeding SeedPackets...");
-  for (const packet of seedPackets) {
+  for (const packet of SEED_PLANT_CATALOG) {
+    const plantType = packet.plantType as PlantType;
+    const stats = packet.stats as Prisma.InputJsonObject;
     await prisma.seedPacket.upsert({
       where: { plantId: packet.plantId },
       update: {
         displayName: packet.displayName,
-        plantType: packet.plantType,
-        category: plantCategoryFor(packet.plantType),
+        plantType,
+        category: plantCategoryFor(plantType),
         behaviorKey: packet.plantId,
-        projectileType: projectileTypeFor(packet.plantType),
+        projectileType: projectileTypeFor(plantType),
         sunCost: packet.sunCost,
         rechargeTime: packet.rechargeTime,
-        stats: packet.stats,
-        isNightOnly: packet.isNightOnly ?? false,
-        isMushroomType: packet.isMushroomType ?? false,
-        isAquatic: packet.isAquatic ?? false,
-        requiresLilyPad: packet.requiresLilyPad ?? false,
+        stats,
+        isNightOnly: packet.isNightOnly,
+        isMushroomType: packet.isMushroomType,
+        isAquatic: packet.isAquatic,
+        requiresLilyPad: packet.requiresLilyPad,
       },
       create: {
         plantId: packet.plantId,
         displayName: packet.displayName,
-        plantType: packet.plantType,
-        category: plantCategoryFor(packet.plantType),
+        plantType,
+        category: plantCategoryFor(plantType),
         behaviorKey: packet.plantId,
-        projectileType: projectileTypeFor(packet.plantType),
+        projectileType: projectileTypeFor(plantType),
         sunCost: packet.sunCost,
         rechargeTime: packet.rechargeTime,
-        stats: packet.stats,
-        isNightOnly: packet.isNightOnly ?? false,
-        isMushroomType: packet.isMushroomType ?? false,
-        isAquatic: packet.isAquatic ?? false,
-        requiresLilyPad: packet.requiresLilyPad ?? false,
+        stats,
+        isNightOnly: packet.isNightOnly,
+        isMushroomType: packet.isMushroomType,
+        isAquatic: packet.isAquatic,
+        requiresLilyPad: packet.requiresLilyPad,
       },
     });
   }
-  console.log(`Seeded ${seedPackets.length} seed packets.`);
+  console.log(`Seeded ${SEED_PLANT_CATALOG.length} seed packets.`);
 
   console.log("Seeding Levels...");
   for (const level of levels) {
