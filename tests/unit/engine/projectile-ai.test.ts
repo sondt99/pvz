@@ -52,6 +52,7 @@ function makePlant(overrides: Partial<RuntimePlant> = {}): RuntimePlant {
     isCharging: false,
     chargeEndsAtMs: 0,
     armedAtMs: null,
+    blocksAerial: false,
     ...overrides,
   };
 }

@@ -823,6 +823,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
         isCharging: false,
         chargeEndsAtMs: 0,
         armedAtMs: null,
+        blocksAerial: def.blocksAerial,
       };
       const newGrid = cloneGrid(state.grid);
       setPlantInCorrectSlot(newGrid, row, col, plantType, instanceId);
@@ -874,6 +875,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
       isCharging: plantType === "POTATO_MINE",
       chargeEndsAtMs: plantType === "POTATO_MINE" ? state.gameTimeMs + POTATO_MINE_ARM_MS : 0,
       armedAtMs: null,
+      blocksAerial: def.blocksAerial,
     };
 
     // Deep-clone the grid rows we need to mutate

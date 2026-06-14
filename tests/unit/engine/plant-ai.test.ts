@@ -25,6 +25,7 @@ function makePlant(overrides: Partial<RuntimePlant> = {}): RuntimePlant {
     health: 300, maxHealth: 300,
     lastAttackAtMs: 0, lastSunAtMs: 0,
     isSleeping: false, isCharging: false, chargeEndsAtMs: 0, armedAtMs: null,
+    blocksAerial: false,
     ...overrides,
   };
 }
