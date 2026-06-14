@@ -1,0 +1,475 @@
+// =============================================================================
+// Prisma Schema — Plants vs. Zombies Web (Phase 1)
+// Provider: Neon Postgres (Serverless) via @prisma/adapter-neon
+// =============================================================================
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// =============================================================================
+// ENUMS — all declared at schema-init to avoid non-transactional ALTER TYPE
+// =============================================================================
+
+enum EnvironmentType {
+  DAY
+  NIGHT
+  POOL
+  FOG
+  ROOF
+}
+
+enum LevelMode {
+  ADVENTURE
+  MINI_GAME
+  PUZZLE
+  SURVIVAL
+  ENDLESS
+}
+
+enum LevelStatus {
+  LOCKED
+  UNLOCKED
+  IN_PROGRESS
+  COMPLETED
+  STAR_RATED
+}
+
+enum SessionStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+  ABANDONED
+}
+
+enum EntityType {
+  PLANT
+  ZOMBIE
+  PROJECTILE
+}
+
+enum EntityLayer {
+  GROUND
+  WATER
+  SKY
+  GRAVE
+  RAIL
+}
+
+enum PlantCategory {
+  RESOURCE
+  SHOOTER
+  LOBBER
+  DEFENSE
+  MELEE
+  INSTANT
+  SUPPORT
+  AQUATIC
+  PLATFORM
+  CONTROL
+}
+
+enum ZombieCategory {
+  BASIC
+  ARMORED
+  FAST
+  BYPASSER
+  AQUATIC
+  AERIAL
+  BOSS
+  SPECIAL
+}
+
+enum ProjectileMotion {
+  STRAIGHT
+  LOBBED
+  ARCING
+  SPLASH
+  INSTANT
+  NONE
+}
+
+enum PlantType {
+  PEASHOOTER
+  SUNFLOWER
+  CHERRY_BOMB
+  WALL_NUT
+  POTATO_MINE
+  SNOW_PEA
+  CHOMPER
+  REPEATER
+  PUFF_SHROOM
+  SUN_SHROOM
+  FUME_SHROOM
+  SCAREDY_SHROOM
+  ICE_SHROOM
+  DOOM_SHROOM
+  LILY_PAD
+  SQUASH
+  THREEPEATER
+  TANGLE_KELP
+  JALAPENO
+  SPIKEWEED
+  TORCHWOOD
+  TALL_NUT
+  SEA_SHROOM
+  PLANTERN
+  CACTUS
+  BLOVER
+  SPLIT_PEA
+  STARFRUIT
+  PUMPKIN
+  MAGNET_SHROOM
+  CABBAGE_PULT
+  FLOWER_POT
+  KERNEL_PULT
+  COFFEE_BEAN
+  GARLIC
+  UMBRELLA_LEAF
+  MARIGOLD
+  MELON_PULT
+}
+
+enum ZombieType {
+  NORMAL
+  FLAG
+  CONEHEAD
+  BUCKETHEAD
+  NEWSPAPER
+  SCREEN_DOOR
+  FOOTBALL
+  DANCING
+  BACKUP_DANCER
+  DUCKY_TUBE
+  SNORKEL
+  ZOMBONI
+  BOBSLED
+  DOLPHIN_RIDER
+  JACK_IN_THE_BOX
+  BALLOON
+  DIGGER
+  POGO
+  YETI
+  BUNGEE
+  LADDER
+  CATAPULT
+  GARGANTUAR
+  IMP
+  DR_ZOMBIE
+  PEASHOOTER_ZOMBIE
+  WALL_NUT_ZOMBIE
+  JALAPENO_ZOMBIE
+  GATLING_PEA_ZOMBIE
+  SQUASH_ZOMBIE
+  TALL_NUT_ZOMBIE
+}
+
+enum ProjectileType {
+  PEA
+  SNOW_PEA_PROJECTILE
+  CABBAGE
+  MELON
+  KERNEL
+  BUTTER
+  STAR
+  SPIKE
+  FIRE_PEA
+  SPLIT_PEA_BACK
+}
+
+// =============================================================================
+// USER & AUTH
+// =============================================================================
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  displayName  String
+  avatarUrl    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  sessions     Session[]
+  userLevels   UserLevel[]
+  seedPackets  UserSeedPacket[]
+  gameSessions GameSession[]
+
+  @@index([email])
+  @@map("users")
+}
+
+model Session {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  userAgent String?
+  ipAddress String?
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+  revokedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@map("sessions")
+}
+
+// =============================================================================
+// LEVEL DEFINITIONS (seeded game data — not user-specific)
+// =============================================================================
+
+model Level {
+  levelNumber       Int             @id
+  name              String
+  gameMode          LevelMode       @default(ADVENTURE)
+  environmentType   EnvironmentType
+  worldNumber       Int
+  stageNumber       Int
+  difficulty        Int             @default(1)
+  gridRows          Int             @default(5)
+  gridCols          Int             @default(9)
+  waterLaneIndices  Int[]           @default([])
+  gravesEnabled     Boolean         @default(false)
+  fogEnabled        Boolean         @default(false)
+  slopeEnabled      Boolean         @default(false)
+  conveyorBelt      Boolean         @default(false)
+  skyDropSun        Boolean         @default(true)
+  startingSun       Int             @default(50)
+  seedSlots         Int             @default(6)
+  allowedPlantIds   String[]        @default([])
+  bannedPlantIds    String[]        @default([])
+  rewardPlantId     String?
+  unlockRequirement Json?
+  briefingText      String?
+  environmentConfig Json            @default("{}")
+  waveConfig        Json            @default("[]")
+  ruleConfig        Json            @default("{}")
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @default(now()) @updatedAt
+
+  rewardSeedPacket SeedPacket?   @relation("LevelRewardSeedPacket", fields: [rewardPlantId], references: [plantId], onDelete: SetNull)
+  userLevels       UserLevel[]
+  gameSessions     GameSession[]
+
+  @@index([worldNumber, stageNumber])
+  @@index([environmentType])
+  @@index([gameMode])
+  @@index([rewardPlantId])
+  @@map("levels")
+}
+
+// =============================================================================
+// USER LEVEL PROGRESS
+// =============================================================================
+
+model UserLevel {
+  id           String      @id @default(cuid())
+  userId       String
+  levelNumber  Int
+  status       LevelStatus @default(LOCKED)
+  stars        Int         @default(0)
+  bestScore    Int         @default(0)
+  bestTimeMs   Int?
+  attempts     Int         @default(0)
+  highestWave  Int         @default(0)
+  unlockedAt   DateTime?
+  lastPlayedAt DateTime?
+  completedAt  DateTime?
+  updatedAt    DateTime    @updatedAt
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  level Level @relation(fields: [levelNumber], references: [levelNumber], onDelete: Cascade)
+
+  @@unique([userId, levelNumber])
+  @@index([userId])
+  @@index([userId, status])
+  @@map("user_levels")
+}
+
+// =============================================================================
+// SEED PACKETS (master plant catalog)
+// =============================================================================
+
+model SeedPacket {
+  plantId           String          @id
+  displayName       String
+  plantType         PlantType?      @unique
+  category          PlantCategory   @default(SUPPORT)
+  behaviorKey       String?
+  projectileType    ProjectileType?
+  sunCost           Int
+  rechargeTime      Int
+  maxStack          Int             @default(1)
+  sortOrder         Int             @default(0)
+  unlockLevelNumber Int?
+  stats             Json?
+  placementRules    Json            @default("{}")
+  targetingRules    Json            @default("{}")
+  isNightOnly       Boolean         @default(false)
+  isMushroomType    Boolean         @default(false)
+  isAquatic         Boolean         @default(false)
+  requiresLilyPad   Boolean         @default(false)
+  requiresFlowerPot Boolean         @default(false)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @default(now()) @updatedAt
+
+  userPackets      UserSeedPacket[]
+  rewardedByLevels Level[]          @relation("LevelRewardSeedPacket")
+
+  @@index([category])
+  @@index([isNightOnly])
+  @@index([isAquatic])
+  @@map("seed_packets")
+}
+
+// =============================================================================
+// ZOMBIE & PROJECTILE CATALOGS (seeded game data, expandable beyond PvZ 1)
+// =============================================================================
+
+model ZombieDefinition {
+  zombieId         String         @id
+  displayName      String
+  zombieType       ZombieType?    @unique
+  category         ZombieCategory @default(BASIC)
+  baseHealth       Int
+  armorHealth      Int            @default(0)
+  speedColsPerSec  Float          @default(0.20)
+  eatDamagePerSec  Int            @default(100)
+  spawnWeight      Int            @default(1)
+  abilities        Json           @default("{}")
+  environmentRules Json           @default("{}")
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @default(now()) @updatedAt
+
+  @@index([category])
+  @@index([spawnWeight])
+  @@map("zombie_definitions")
+}
+
+model ProjectileDefinition {
+  projectileId     String           @id
+  displayName      String
+  projectileType   ProjectileType?  @unique
+  motionType       ProjectileMotion @default(STRAIGHT)
+  damage           Int              @default(20)
+  speedTilesPerSec Float            @default(5)
+  splashRadius     Float?
+  effects          Json             @default("{}")
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @default(now()) @updatedAt
+
+  @@index([motionType])
+  @@map("projectile_definitions")
+}
+
+// =============================================================================
+// USER SEED PACKET UNLOCKS + LOADOUT
+// =============================================================================
+
+model UserSeedPacket {
+  id           String    @id @default(cuid())
+  userId       String
+  plantId      String
+  unlockedAt   DateTime  @default(now())
+  unlockSource String?
+  isInLoadout  Boolean   @default(false)
+  loadoutSlot  Int?
+  usageCount   Int       @default(0)
+  lastUsedAt   DateTime?
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  seedPacket SeedPacket @relation(fields: [plantId], references: [plantId], onDelete: Cascade)
+
+  @@unique([userId, plantId])
+  @@unique([userId, loadoutSlot])
+  @@index([userId])
+  @@index([plantId])
+  @@index([userId, isInLoadout])
+  @@map("user_seed_packets")
+}
+
+// =============================================================================
+// GAME SESSION — the full pausable save state
+// =============================================================================
+
+model GameSession {
+  id          String @id @default(cuid())
+  userId      String
+  levelNumber Int?
+
+  // --- Lifecycle ---
+  status            SessionStatus @default(ACTIVE)
+  saveSchemaVersion Int           @default(1)
+  gameMode          LevelMode     @default(ADVENTURE)
+  startedAt         DateTime      @default(now())
+  lastSavedAt       DateTime      @default(now())
+  endedAt           DateTime?
+
+  // --- Environment (set at creation, immutable) ---
+  environmentType   EnvironmentType
+  gravesEnabled     Boolean         @default(false)
+  fogEnabled        Boolean         @default(false)
+  waterLaneIndices  Int[]           @default([])
+  slopeEnabled      Boolean         @default(false)
+  conveyorBelt      Boolean         @default(false)
+  skyDropSun        Boolean         @default(true)
+  gridRows          Int             @default(5)
+  gridCols          Int             @default(9)
+  startingSun       Int             @default(50)
+  rngSeed           String?
+  environmentConfig Json            @default("{}")
+
+  // --- Sun economy ---
+  currentSun    Int @default(50)
+  cumulativeSun Int @default(0)
+
+  // --- Score & wave progress ---
+  gameTimeMs         Int     @default(0)
+  score              Int     @default(0)
+  waveNumber         Int     @default(0)
+  nextWaveTimerMs    Int     @default(0)
+  currentFlagIndex   Int     @default(0)
+  totalZombiesKilled Int     @default(0)
+  finalFlagSpawned   Boolean @default(false)
+
+  // --- Volatile game state (written atomically on save/pause) ---
+  // environmentState: fog reveal map, active roof modifiers, pool lane overrides, etc.
+  environmentState Json @default("{}")
+  // graveState: GraveInstance[] with row/col, health, spawn timers, and blockers
+  graveState       Json @default("[]")
+  // gridState: GridCell[][] — each cell holds a stack of StackedEntity[]
+  gridState        Json @default("[]")
+  // zombieState: ZombieInstance[] — active zombies with fractional x positions
+  zombieState      Json @default("[]")
+  // projectileState: ProjectileInstance[] — straight and lobbed projectiles in flight
+  projectileState  Json @default("[]")
+  // sunDropState: SunDropInstance[] — falling, spawned, or collectible sun
+  sunDropState     Json @default("[]")
+  // lawnMowerState: LawnMowerInstance[] — one-shot row defenses and their positions
+  lawnMowerState   Json @default("[]")
+  // spawnQueueState: pending wave scheduler state for deterministic resumes
+  spawnQueueState  Json @default("[]")
+  // seedCooldowns: Record<plantId, remainingMs>
+  seedCooldowns    Json @default("{}")
+  // loadoutSnapshot: string[] — plant slug order at session start
+  loadoutSnapshot  Json @default("[]")
+
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  level Level? @relation(fields: [levelNumber], references: [levelNumber], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([userId, status])
+  @@index([userId, levelNumber])
+  @@index([status, lastSavedAt])
+  @@index([levelNumber])
+  @@map("game_sessions")
+}

@@ -1,0 +1,47 @@
+{
+  "name": "plants-vs-zombies",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:migrate:deploy": "prisma migrate deploy",
+    "db:seed": "prisma db seed",
+    "db:studio": "prisma studio",
+    "test": "dotenv -e .env.test -- vitest run",
+    "test:watch": "dotenv -e .env.test -- vitest",
+    "test:coverage": "dotenv -e .env.test -- vitest run --coverage"
+  },
+  "prisma": {
+    "seed": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
+  },
+  "dependencies": {
+    "next": "^15.0.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "@prisma/client": "^6.0.0",
+    "@prisma/adapter-neon": "^6.0.0",
+    "@neondatabase/serverless": "^0.10.0",
+    "ws": "^8.18.0",
+    "bcryptjs": "^2.4.3",
+    "zustand": "^5.0.0"
+  },
+  "devDependencies": {
+    "prisma": "^6.0.0",
+    "typescript": "^5.7.0",
+    "@types/node": "^22.0.0",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/ws": "^8.5.13",
+    "vitest": "^2.1.0",
+    "@vitest/coverage-v8": "^2.1.0",
+    "dotenv-cli": "^7.4.0",
+    "ts-node": "^10.9.0",
+    "@faker-js/faker": "^9.0.0"
+  }
+}

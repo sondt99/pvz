@@ -1,0 +1,26 @@
+# dependencies
+node_modules/
+
+# production build
+.next/
+out/
+
+# env files with real credentials (never commit)
+.env
+.env.local
+.env.test
+.env.*.local
+
+# testing artifacts
+coverage/
+*.tsbuildinfo
+
+# OS
+.DS_Store
+
+# logs
+*.log
+npm-debug.log*
+
+# prisma generated client (regenerated via prisma generate)
+node_modules/.prisma/
