@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { useGameStore } from "@/store/game-store";
-import type { EnvironmentConfig, RuntimeZombie, SeedPacketSlot } from "@/engine/types";
+import type { EnvironmentConfig, RuntimePlant, RuntimeZombie, SeedPacketSlot } from "@/engine/types";
 import {
   DIGGER_EMERGE_PAUSE_MS,
   DIGGER_EMERGE_X,
@@ -98,6 +98,7 @@ const EXTENDED_LOADOUT: SeedPacketSlot[] = [
   { plantType: "STARFRUIT", plantId: "starfruit", sunCost: 125, cooldownRemainingMs: 0, cooldownTotalMs: 7000, isSelected: false, slotIndex: 20 },
   { plantType: "TALL_NUT", plantId: "tall-nut", sunCost: 125, cooldownRemainingMs: 0, cooldownTotalMs: 30000, isSelected: false, slotIndex: 21 },
   { plantType: "MAGNET_SHROOM", plantId: "magnet-shroom", sunCost: 100, cooldownRemainingMs: 0, cooldownTotalMs: 30000, isSelected: false, slotIndex: 22 },
+  { plantType: "UMBRELLA_LEAF", plantId: "umbrella-leaf", sunCost: 100, cooldownRemainingMs: 0, cooldownTotalMs: 7000, isSelected: false, slotIndex: 23 },
 ];
 
 function makeZombie(overrides: Partial<RuntimeZombie> = {}): RuntimeZombie {
@@ -1665,6 +1666,155 @@ describe("Magnet-shroom — strip magnetic armor", () => {
 
     expect(useGameStore.getState().zombies.z2.armorHealth).toBe(bucketArmor);
     expect(useGameStore.getState().plants[magnetId].lastAttackAtMs).toBe(3000);
+  });
+});
+
+describe("Umbrella Leaf — Bungee and Catapult protection", () => {
+  function makePlantDirect(
+    plantType: string,
+    row: number,
+    col: number,
+    overrides: Partial<RuntimePlant> = {}
+  ): RuntimePlant {
+    return {
+      instanceId: `plant-${plantType}-${row}-${col}`,
+      plantType, row, col,
+      health: 300, maxHealth: 300,
+      lastAttackAtMs: 0, lastSunAtMs: 0,
+      isSleeping: false, isCharging: false, chargeEndsAtMs: 0, armedAtMs: null,
+      blocksAerial: false,
+      ...overrides,
+    };
+  }
+
+  it("Bungee zombie grabs plant at its position when unprotected", () => {
+    useGameStore.getState().initGame(DAY_ENV, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({ nextWaveAtMs: Number.MAX_SAFE_INTEGER });
+
+    const peashooter = makePlantDirect("PEASHOOTER", 0, 5);
+    // Bungee at col=5, grab fires at t=2000
+    const bungee: RuntimeZombie = {
+      ...makeZombie({ zombieType: "BUNGEE", lane: 0, x: 5, isAerial: true }),
+      bungeeGrabAtMs: 2_000,
+    };
+
+    useGameStore.setState({
+      gameTimeMs: 2_000,
+      plants: { [peashooter.instanceId]: peashooter },
+      zombies: { bungee1: bungee },
+    });
+    useGameStore.getState().tick(0);
+
+    // Plant removed, bungee retreated
+    expect(useGameStore.getState().plants[peashooter.instanceId]).toBeUndefined();
+    expect(useGameStore.getState().zombies.bungee1).toBeUndefined();
+  });
+
+  it("Umbrella Leaf blocks Bungee grab in the same cell", () => {
+    useGameStore.getState().initGame(DAY_ENV, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({ nextWaveAtMs: Number.MAX_SAFE_INTEGER });
+
+    const peashooter = makePlantDirect("PEASHOOTER", 0, 5);
+    const umbrella = makePlantDirect("UMBRELLA_LEAF", 0, 5);
+    const bungee: RuntimeZombie = {
+      ...makeZombie({ zombieType: "BUNGEE", lane: 0, x: 5, isAerial: true }),
+      bungeeGrabAtMs: 2_000,
+    };
+
+    useGameStore.setState({
+      gameTimeMs: 2_000,
+      plants: {
+        [peashooter.instanceId]: peashooter,
+        [umbrella.instanceId]: umbrella,
+      },
+      zombies: { bungee1: bungee },
+    });
+    useGameStore.getState().tick(0);
+
+    // Plant preserved (Umbrella Leaf blocked the grab)
+    expect(useGameStore.getState().plants[peashooter.instanceId]).toBeDefined();
+    // Bungee still retreats (blocked or not, it leaves)
+    expect(useGameStore.getState().zombies.bungee1).toBeUndefined();
+  });
+
+  it("Umbrella Leaf in adjacent lane protects against Bungee", () => {
+    useGameStore.getState().initGame(DAY_ENV, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({ nextWaveAtMs: Number.MAX_SAFE_INTEGER });
+
+    const peashooter = makePlantDirect("PEASHOOTER", 0, 5);
+    // Umbrella Leaf is 1 lane away (lane 1, col 5) — within protection radius
+    const umbrella = makePlantDirect("UMBRELLA_LEAF", 1, 5);
+    const bungee: RuntimeZombie = {
+      ...makeZombie({ zombieType: "BUNGEE", lane: 0, x: 5, isAerial: true }),
+      bungeeGrabAtMs: 2_000,
+    };
+
+    useGameStore.setState({
+      gameTimeMs: 2_000,
+      plants: {
+        [peashooter.instanceId]: peashooter,
+        [umbrella.instanceId]: umbrella,
+      },
+      zombies: { bungee1: bungee },
+    });
+    useGameStore.getState().tick(0);
+
+    expect(useGameStore.getState().plants[peashooter.instanceId]).toBeDefined();
+  });
+
+  it("Catapult deals damage to a plant ahead when unprotected", () => {
+    useGameStore.getState().initGame(DAY_ENV, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({ nextWaveAtMs: Number.MAX_SAFE_INTEGER });
+
+    const peashooter = makePlantDirect("PEASHOOTER", 0, 3, { health: 100, maxHealth: 100 });
+    const catapult: RuntimeZombie = {
+      ...makeZombie({ zombieType: "CATAPULT", lane: 0, x: 7 }),
+      catapultLastFireAtMs: 0,
+    };
+
+    useGameStore.setState({
+      gameTimeMs: 3_000,
+      plants: { [peashooter.instanceId]: peashooter },
+      zombies: { cat1: catapult },
+    });
+    useGameStore.getState().tick(0);
+
+    const remaining = useGameStore.getState().plants[peashooter.instanceId];
+    // Plant should have taken 40 damage (CATAPULT_BASKETBALL_DAMAGE) or be dead
+    if (remaining) {
+      expect(remaining.health).toBeLessThan(100);
+    } else {
+      expect(remaining).toBeUndefined(); // killed in one shot
+    }
+  });
+
+  it("Umbrella Leaf protects plant from Catapult basketball", () => {
+    useGameStore.getState().initGame(DAY_ENV, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({ nextWaveAtMs: Number.MAX_SAFE_INTEGER });
+
+    const peashooter = makePlantDirect("PEASHOOTER", 0, 3, { health: 100, maxHealth: 100 });
+    const umbrella = makePlantDirect("UMBRELLA_LEAF", 0, 3);
+    const catapult: RuntimeZombie = {
+      ...makeZombie({ zombieType: "CATAPULT", lane: 0, x: 7 }),
+      catapultLastFireAtMs: 0,
+    };
+
+    useGameStore.setState({
+      gameTimeMs: 3_000,
+      plants: {
+        [peashooter.instanceId]: peashooter,
+        [umbrella.instanceId]: umbrella,
+      },
+      zombies: { cat1: catapult },
+    });
+    useGameStore.getState().tick(0);
+
+    expect(useGameStore.getState().plants[peashooter.instanceId]?.health).toBe(100);
   });
 });
 

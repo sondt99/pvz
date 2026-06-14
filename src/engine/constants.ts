@@ -67,4 +67,14 @@ export const MAGNETIC_ZOMBIE_TYPES = new Set([
   "LADDER",
 ]);
 
+// Bungee zombie drops and grabs a plant 2 seconds after spawning.
+export const BUNGEE_GRAB_DELAY_MS = 2_000;
+// Umbrella Leaf protects a 3×3 area (plant tile ± 1 in each direction).
+export const UMBRELLA_LEAF_RADIUS_COLS = 1;
+export const UMBRELLA_LEAF_RADIUS_LANES = 1;
+// Catapult fires a basketball every 3 seconds when a plant is in range.
+export const CATAPULT_FIRE_INTERVAL_MS = 3_000;
+export const CATAPULT_FIRE_RANGE_COLS = 7; // max look-ahead distance
+export const CATAPULT_BASKETBALL_DAMAGE = 40;
+
 export const MAX_DELTA_MS = 100; // cap delta to avoid spiral-of-death
