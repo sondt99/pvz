@@ -3,12 +3,46 @@
 // Converts Zustand runtime GameEngineState → DB-ready columns for GameSession.
 // ---------------------------------------------------------------------------
 
-import type { GameEngineState, RuntimeZombie } from "@/engine/types";
+import type {
+  GameEngineState,
+  RuntimeProjectile,
+  RuntimeSunDrop,
+  RuntimeZombie,
+} from "@/engine/types";
 import type { GridCell, StackedEntity, ZombieInstance, SeedCooldowns } from "@/types/game";
 
+export interface SerializedGridCellEnvironment {
+  row: number;
+  col: number;
+  isWater: boolean;
+  isFog: boolean;
+  isSlope: boolean;
+  graveId: string | null;
+}
+
+export interface SerializedEnvironmentState {
+  gridCells: SerializedGridCellEnvironment[];
+  nextSkyDropTimerMs: number;
+}
+
+export interface SerializedGraveState {
+  row: number;
+  col: number;
+  graveId: string;
+}
+
+export type SerializedSpawnQueue = GameEngineState["zombieSpawnQueue"];
+
 export interface SerializedGameState {
+  gameTimeMs: number;
+  environmentState: SerializedEnvironmentState;
+  graveState: SerializedGraveState[];
   gridState: GridCell[][];
   zombieState: ZombieInstance[];
+  projectileState: RuntimeProjectile[];
+  sunDropState: RuntimeSunDrop[];
+  lawnMowerState: unknown[];
+  spawnQueueState: SerializedSpawnQueue;
   seedCooldowns: SeedCooldowns;
   loadoutSnapshot: string[];
   currentSun: number;
@@ -25,8 +59,15 @@ export interface SerializedGameState {
 
 export function serializeGameState(state: GameEngineState): SerializedGameState {
   return {
+    gameTimeMs: state.gameTimeMs,
+    environmentState: serializeEnvironmentState(state),
+    graveState: serializeGraves(state),
     gridState: serializeGrid(state),
     zombieState: serializeZombies(state),
+    projectileState: serializeProjectiles(state),
+    sunDropState: serializeSunDrops(state),
+    lawnMowerState: [],
+    spawnQueueState: serializeSpawnQueue(state),
     seedCooldowns: serializeSeedCooldowns(state),
     loadoutSnapshot: state.loadout.map((slot) => slot.plantType),
     currentSun: state.currentSun,
@@ -41,6 +82,33 @@ export function serializeGameState(state: GameEngineState): SerializedGameState 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+function serializeEnvironmentState(state: GameEngineState): SerializedEnvironmentState {
+  return {
+    gridCells: state.grid.flatMap((gridRow) =>
+      gridRow.map((cell) => ({
+        row: cell.row,
+        col: cell.col,
+        isWater: cell.isWater,
+        isFog: cell.isFog,
+        isSlope: cell.isSlope,
+        graveId: cell.graveId,
+      }))
+    ),
+    nextSkyDropTimerMs: Math.max(0, state.nextSkyDropAtMs - state.gameTimeMs),
+  };
+}
+
+function serializeGraves(state: GameEngineState): SerializedGraveState[] {
+  return state.grid
+    .flat()
+    .filter((cell) => cell.graveId !== null)
+    .map((cell) => ({
+      row: cell.row,
+      col: cell.col,
+      graveId: cell.graveId as string,
+    }));
+}
 
 function serializeGrid(state: GameEngineState): GridCell[][] {
   const { grid, plants } = state;
@@ -118,6 +186,18 @@ function serializeGrid(state: GameEngineState): GridCell[][] {
       } satisfies GridCell;
     })
   );
+}
+
+function serializeProjectiles(state: GameEngineState): RuntimeProjectile[] {
+  return Object.values(state.projectiles).map((projectile) => ({ ...projectile }));
+}
+
+function serializeSunDrops(state: GameEngineState): RuntimeSunDrop[] {
+  return Object.values(state.sunDrops).map((drop) => ({ ...drop }));
+}
+
+function serializeSpawnQueue(state: GameEngineState): SerializedSpawnQueue {
+  return state.zombieSpawnQueue.map((entry) => ({ ...entry }));
 }
 
 function serializeZombies(state: GameEngineState): ZombieInstance[] {

@@ -35,8 +35,14 @@ export async function GET(
 
     const runtimeState = deserializeGameState(
       {
+        gameTimeMs: session.gameTimeMs,
+        environmentState: session.environmentState,
+        graveState: session.graveState,
         gridState: session.gridState,
         zombieState: session.zombieState,
+        projectileState: session.projectileState,
+        sunDropState: session.sunDropState,
+        spawnQueueState: session.spawnQueueState,
         seedCooldowns: session.seedCooldowns,
         loadoutSnapshot: session.loadoutSnapshot,
         currentSun: session.currentSun,
