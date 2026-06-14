@@ -30,14 +30,15 @@ export function findStraightHits(
   const inRange = Object.entries(zombies).filter(([, z]) =>
     z.lane === proj.lane &&
     !z.isUnderground &&
-    z.x > proj.sourceCol &&
+    (!z.isAerial || proj.canHitAerial === true) &&
+    (proj.velX >= 0 ? z.x > proj.sourceCol : z.x < proj.sourceCol) &&
     Math.abs(z.x - proj.x) <= STRAIGHT_HIT_RADIUS
   );
 
   if (proj.piercing) return inRange.map(([id]) => id);
 
-  // Only the closest zombie
-  const sorted = inRange.sort(([, a], [, b]) => a.x - b.x);
+  // Only the closest zombie in the projectile's travel direction.
+  const sorted = inRange.sort(([, a], [, b]) => proj.velX >= 0 ? a.x - b.x : b.x - a.x);
   return sorted.length > 0 ? [sorted[0][0]] : [];
 }
 
@@ -53,7 +54,8 @@ export function findLobbedHits(
     .filter(([, z]) =>
       Math.abs(z.x - tgtCol) <= 1.5 &&
       Math.abs(z.lane - tgtLane) <= 1 &&
-      !z.isUnderground
+      !z.isUnderground &&
+      (!z.isAerial || proj.canHitAerial === true)
     )
     .map(([id]) => id);
 }

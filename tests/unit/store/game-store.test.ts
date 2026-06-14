@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { useGameStore } from "@/store/game-store";
-import type { EnvironmentConfig, SeedPacketSlot } from "@/engine/types";
-import { WAVE_INTERVAL_MS, SKY_SUN_INTERVAL_MS, ZOMBIE_SPAWN_X } from "@/engine/constants";
+import type { EnvironmentConfig, RuntimeZombie, SeedPacketSlot } from "@/engine/types";
+import { POTATO_MINE_ARM_MS, WAVE_INTERVAL_MS, ZOMBIE_SPAWN_X } from "@/engine/constants";
 import { getZombieDef } from "@/engine/entities/zombie-defs";
 
 const DAY_ENV: EnvironmentConfig = {
@@ -28,16 +28,73 @@ const POOL_ENV: EnvironmentConfig = {
   skyDropSun: true,
 };
 
+const FOG_ENV: EnvironmentConfig = {
+  type: "FOG",
+  gridRows: 6,
+  gridCols: 9,
+  waterLaneIndices: [2, 3],
+  gravesEnabled: false,
+  fogEnabled: true,
+  slopeEnabled: false,
+  conveyorBelt: false,
+  skyDropSun: false,
+};
+
+const ROOF_ENV: EnvironmentConfig = {
+  type: "ROOF",
+  gridRows: 5,
+  gridCols: 9,
+  waterLaneIndices: [],
+  gravesEnabled: false,
+  fogEnabled: false,
+  slopeEnabled: true,
+  conveyorBelt: false,
+  skyDropSun: true,
+};
+
 const LOADOUT: SeedPacketSlot[] = [
   { plantType: "PEASHOOTER", plantId: "peashooter", sunCost: 100, cooldownRemainingMs: 0, cooldownTotalMs: 7000, isSelected: false, slotIndex: 0 },
   { plantType: "SUNFLOWER",  plantId: "sunflower",  sunCost: 50,  cooldownRemainingMs: 0, cooldownTotalMs: 7000, isSelected: false, slotIndex: 1 },
   { plantType: "WALL_NUT",   plantId: "wall-nut",   sunCost: 50,  cooldownRemainingMs: 0, cooldownTotalMs: 30000, isSelected: false, slotIndex: 2 },
 ];
 
-function freshStore() {
-  const store = useGameStore.getState();
-  store.reset();
-  return useGameStore.getState;
+const EXTENDED_LOADOUT: SeedPacketSlot[] = [
+  { plantType: "PEASHOOTER", plantId: "peashooter", sunCost: 100, cooldownRemainingMs: 0, cooldownTotalMs: 7000, isSelected: false, slotIndex: 0 },
+  { plantType: "SUNFLOWER", plantId: "sunflower", sunCost: 50, cooldownRemainingMs: 0, cooldownTotalMs: 7000, isSelected: false, slotIndex: 1 },
+  { plantType: "LILY_PAD", plantId: "lily-pad", sunCost: 25, cooldownRemainingMs: 0, cooldownTotalMs: 7000, isSelected: false, slotIndex: 2 },
+  { plantType: "FLOWER_POT", plantId: "flower-pot", sunCost: 25, cooldownRemainingMs: 0, cooldownTotalMs: 7000, isSelected: false, slotIndex: 3 },
+  { plantType: "CABBAGE_PULT", plantId: "cabbage-pult", sunCost: 100, cooldownRemainingMs: 0, cooldownTotalMs: 7000, isSelected: false, slotIndex: 4 },
+  { plantType: "CHERRY_BOMB", plantId: "cherry-bomb", sunCost: 150, cooldownRemainingMs: 0, cooldownTotalMs: 50000, isSelected: false, slotIndex: 5 },
+  { plantType: "POTATO_MINE", plantId: "potato-mine", sunCost: 25, cooldownRemainingMs: 0, cooldownTotalMs: 30000, isSelected: false, slotIndex: 6 },
+  { plantType: "TANGLE_KELP", plantId: "tangle-kelp", sunCost: 25, cooldownRemainingMs: 0, cooldownTotalMs: 30000, isSelected: false, slotIndex: 7 },
+  { plantType: "SQUASH", plantId: "squash", sunCost: 50, cooldownRemainingMs: 0, cooldownTotalMs: 30000, isSelected: false, slotIndex: 8 },
+  { plantType: "PUFF_SHROOM", plantId: "puff-shroom", sunCost: 0, cooldownRemainingMs: 0, cooldownTotalMs: 7000, isSelected: false, slotIndex: 9 },
+  { plantType: "COFFEE_BEAN", plantId: "coffee-bean", sunCost: 75, cooldownRemainingMs: 0, cooldownTotalMs: 7000, isSelected: false, slotIndex: 10 },
+  { plantType: "CHOMPER", plantId: "chomper", sunCost: 150, cooldownRemainingMs: 0, cooldownTotalMs: 7000, isSelected: false, slotIndex: 11 },
+  { plantType: "SPIKEWEED", plantId: "spikeweed", sunCost: 100, cooldownRemainingMs: 0, cooldownTotalMs: 7000, isSelected: false, slotIndex: 12 },
+  { plantType: "SEA_SHROOM", plantId: "sea-shroom", sunCost: 0, cooldownRemainingMs: 0, cooldownTotalMs: 7000, isSelected: false, slotIndex: 13 },
+];
+
+function makeZombie(overrides: Partial<RuntimeZombie> = {}): RuntimeZombie {
+  const def = getZombieDef(overrides.zombieType ?? "NORMAL");
+  return {
+    instanceId: "z1",
+    zombieType: def.zombieType,
+    lane: 0,
+    x: ZOMBIE_SPAWN_X,
+    health: def.health,
+    maxHealth: def.health,
+    armorHealth: def.armorHealth,
+    speedColsPerSec: def.speedColsPerSec,
+    eatDamagePerSec: def.eatDamagePerSec,
+    isEating: false,
+    eatTargetId: null,
+    statusEffects: [],
+    isUnderground: def.isUnderground,
+    isAerial: def.isAerial,
+    isFrozen: false,
+    ...overrides,
+  };
 }
 
 beforeEach(() => {
@@ -192,6 +249,422 @@ describe("placePlant", () => {
   it("returns false for an unknown plant type", () => {
     const ok = useGameStore.getState().placePlant("BANANA_TREE", 0, 0);
     expect(ok).toBe(false);
+  });
+
+  it("rejects aquatic plants on land", () => {
+    useGameStore.getState().initGame(DAY_ENV, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({ currentSun: 500 });
+
+    expect(useGameStore.getState().placePlant("TANGLE_KELP", 0, 0)).toBe(false);
+    expect(useGameStore.getState().placePlant("SEA_SHROOM", 0, 0)).toBe(false);
+    expect(Object.keys(useGameStore.getState().plants)).toHaveLength(0);
+    expect(useGameStore.getState().currentSun).toBe(500);
+  });
+
+  it("puts Lily Pad in the water platform slot, then stacks Peashooter above it", () => {
+    useGameStore.getState().initGame(POOL_ENV, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({ currentSun: 500 });
+
+    expect(useGameStore.getState().placePlant("LILY_PAD", 2, 0)).toBe(true);
+    let cell = useGameStore.getState().grid[2][0];
+    expect(cell.lilyPadInstanceId).not.toBeNull();
+    expect(cell.plantInstanceId).toBeNull();
+
+    expect(useGameStore.getState().placePlant("PEASHOOTER", 2, 0)).toBe(true);
+    cell = useGameStore.getState().grid[2][0];
+    expect(cell.lilyPadInstanceId).not.toBeNull();
+    expect(cell.plantInstanceId).not.toBeNull();
+    expect(Object.values(useGameStore.getState().plants).map((p) => p.plantType)).toEqual(
+      expect.arrayContaining(["LILY_PAD", "PEASHOOTER"])
+    );
+  });
+
+  it("rejects Flower Pot on a Lily Pad water cell", () => {
+    useGameStore.getState().initGame(POOL_ENV, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({ currentSun: 500 });
+
+    expect(useGameStore.getState().placePlant("LILY_PAD", 2, 0)).toBe(true);
+    expect(useGameStore.getState().placePlant("FLOWER_POT", 2, 0)).toBe(false);
+    expect(useGameStore.getState().grid[2][0].flowerPotInstanceId).toBeNull();
+    expect(Object.values(useGameStore.getState().plants).map((plant) => plant.plantType)).toEqual(["LILY_PAD"]);
+  });
+
+  it("makes zombies eat the top plant before the Lily Pad platform underneath", () => {
+    useGameStore.getState().initGame(POOL_ENV, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({ currentSun: 500 });
+
+    expect(useGameStore.getState().placePlant("LILY_PAD", 2, 3)).toBe(true);
+    expect(useGameStore.getState().placePlant("PEASHOOTER", 2, 3)).toBe(true);
+
+    const peashooter = Object.values(useGameStore.getState().plants).find(
+      (plant) => plant.plantType === "PEASHOOTER"
+    );
+    const lilyPad = Object.values(useGameStore.getState().plants).find(
+      (plant) => plant.plantType === "LILY_PAD"
+    );
+    expect(peashooter).toBeDefined();
+    expect(lilyPad).toBeDefined();
+
+    useGameStore.setState({
+      zombies: {
+        z1: makeZombie({ instanceId: "z1", lane: 2, x: 3.2 }),
+      },
+    });
+    useGameStore.getState().tick(0);
+
+    expect(useGameStore.getState().zombies.z1.eatTargetId).toBe(peashooter!.instanceId);
+    expect(useGameStore.getState().zombies.z1.eatTargetId).not.toBe(lilyPad!.instanceId);
+  });
+
+  it("rejects planting on visible Night graves", () => {
+    const nightEnv: EnvironmentConfig = { ...DAY_ENV, type: "NIGHT", gravesEnabled: true, skyDropSun: false };
+    useGameStore.getState().initGame(nightEnv, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({ currentSun: 500 });
+
+    const graveCell = useGameStore.getState().grid.flat().find((cell) => cell.graveId !== null);
+    expect(graveCell).toBeDefined();
+    expect(useGameStore.getState().placePlant("SUNFLOWER", graveCell!.row, graveCell!.col)).toBe(false);
+  });
+
+  it("spawns grave ambush zombies from grave columns on every fifth wave", () => {
+    const nightEnv: EnvironmentConfig = { ...DAY_ENV, type: "NIGHT", gravesEnabled: true, skyDropSun: false };
+    useGameStore.getState().initGame(nightEnv, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    const graveXs = useGameStore.getState().grid
+      .flat()
+      .filter((cell) => cell.graveId !== null)
+      .map((cell) => cell.col);
+    useGameStore.setState({
+      waveNumber: 4,
+      nextWaveAtMs: 100,
+      zombieSpawnQueue: [],
+    });
+
+    useGameStore.getState().tick(100);
+    const zombies = Object.values(useGameStore.getState().zombies);
+    expect(zombies.some((zombie) => graveXs.some((graveX) => Math.abs(zombie.x - graveX) < 0.1))).toBe(true);
+  });
+
+  it("puts Flower Pot in the roof platform slot, then stacks a lobber above it", () => {
+    useGameStore.getState().initGame(ROOF_ENV, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({ currentSun: 500 });
+
+    expect(useGameStore.getState().placePlant("FLOWER_POT", 0, 0)).toBe(true);
+    let cell = useGameStore.getState().grid[0][0];
+    expect(cell.flowerPotInstanceId).not.toBeNull();
+    expect(cell.plantInstanceId).toBeNull();
+
+    expect(useGameStore.getState().placePlant("CABBAGE_PULT", 0, 0)).toBe(true);
+    cell = useGameStore.getState().grid[0][0];
+    expect(cell.flowerPotInstanceId).not.toBeNull();
+    expect(cell.plantInstanceId).not.toBeNull();
+  });
+
+  it("blocks a seed packet while its recharge cooldown is active", () => {
+    useGameStore.setState({ currentSun: 500 });
+
+    expect(useGameStore.getState().placePlant("SUNFLOWER", 0, 0)).toBe(true);
+    expect(useGameStore.getState().loadout[1].cooldownRemainingMs).toBe(7000);
+    expect(useGameStore.getState().placePlant("SUNFLOWER", 0, 1)).toBe(false);
+
+    useGameStore.getState().tick(7000);
+    expect(useGameStore.getState().loadout[1].cooldownRemainingMs).toBe(0);
+    expect(useGameStore.getState().placePlant("SUNFLOWER", 0, 1)).toBe(true);
+  });
+
+  it("lets Coffee Bean wake a sleeping daytime mushroom without occupying the cell", () => {
+    useGameStore.getState().initGame(DAY_ENV, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({ currentSun: 500 });
+
+    expect(useGameStore.getState().placePlant("PUFF_SHROOM", 0, 0)).toBe(true);
+    const mushroom = Object.values(useGameStore.getState().plants)[0];
+    expect(mushroom.isSleeping).toBe(true);
+
+    expect(useGameStore.getState().placePlant("COFFEE_BEAN", 0, 0)).toBe(true);
+    expect(useGameStore.getState().plants[mushroom.instanceId].isSleeping).toBe(false);
+    expect(useGameStore.getState().grid[0][0].plantInstanceId).toBe(mushroom.instanceId);
+    expect(Object.values(useGameStore.getState().plants).map((plant) => plant.plantType)).toEqual(["PUFF_SHROOM"]);
+  });
+
+  it("rejects Coffee Bean on an empty cell without spending sun", () => {
+    useGameStore.getState().initGame(DAY_ENV, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({ currentSun: 500 });
+
+    expect(useGameStore.getState().placePlant("COFFEE_BEAN", 0, 0)).toBe(false);
+    expect(useGameStore.getState().currentSun).toBe(500);
+  });
+
+  it("keeps mushrooms awake in Fog because it is a night-style environment", () => {
+    useGameStore.getState().initGame(FOG_ENV, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({ currentSun: 500 });
+
+    expect(useGameStore.getState().placePlant("PUFF_SHROOM", 0, 0)).toBe(true);
+    const mushroom = Object.values(useGameStore.getState().plants)[0];
+    expect(mushroom.isSleeping).toBe(false);
+  });
+
+  it("clears a 5x7 fog area around Plantern", () => {
+    useGameStore.getState().initGame(FOG_ENV, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({ currentSun: 500 });
+
+    expect(useGameStore.getState().grid[1][5].isFog).toBe(true);
+    expect(useGameStore.getState().placePlant("PLANTERN", 1, 5)).toBe(true);
+
+    expect(useGameStore.getState().grid[1][5].isFog).toBe(false);
+    expect(useGameStore.getState().grid[0][8].isFog).toBe(false);
+    expect(useGameStore.getState().grid[5][8].isFog).toBe(true);
+  });
+
+  it("lets Blover clear all fog and blow away Balloon zombies", () => {
+    useGameStore.getState().initGame(FOG_ENV, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({
+      currentSun: 500,
+      zombies: {
+        z1: makeZombie({ instanceId: "z1", zombieType: "BALLOON", lane: 0, x: 7, isAerial: true }),
+        z2: makeZombie({ instanceId: "z2", lane: 1, x: 7 }),
+      },
+    });
+
+    expect(useGameStore.getState().grid.flat().some((cell) => cell.isFog)).toBe(true);
+    expect(useGameStore.getState().placePlant("BLOVER", 0, 0)).toBe(true);
+    expect(useGameStore.getState().grid.flat().some((cell) => cell.isFog)).toBe(false);
+    expect(Object.keys(useGameStore.getState().zombies)).toEqual(["z2"]);
+  });
+
+  it("applies Cherry Bomb as an immediate 3x3 blast without leaving a plant behind", () => {
+    useGameStore.getState().initGame(DAY_ENV, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({
+      currentSun: 500,
+      zombies: {
+        z1: makeZombie({ instanceId: "z1", lane: 1, x: 3 }),
+        z2: makeZombie({ instanceId: "z2", lane: 2, x: 4.4 }),
+        z3: makeZombie({ instanceId: "z3", lane: 4, x: 3 }),
+      },
+    });
+
+    expect(useGameStore.getState().placePlant("CHERRY_BOMB", 1, 3)).toBe(true);
+    expect(useGameStore.getState().grid[1][3].plantInstanceId).toBeNull();
+    expect(Object.keys(useGameStore.getState().plants)).toHaveLength(0);
+    expect(Object.keys(useGameStore.getState().zombies)).toEqual(["z3"]);
+    expect(useGameStore.getState().score).toBe(200);
+    expect(useGameStore.getState().totalZombiesKilled).toBe(2);
+  });
+
+  it("arms Potato Mine after its canonical delay, then spends itself on contact", () => {
+    useGameStore.getState().initGame(DAY_ENV, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({ currentSun: 500 });
+
+    expect(useGameStore.getState().placePlant("POTATO_MINE", 0, 3)).toBe(true);
+    const mineId = Object.keys(useGameStore.getState().plants)[0];
+    expect(useGameStore.getState().plants[mineId].isCharging).toBe(true);
+
+    useGameStore.setState({
+      zombies: {
+        z1: makeZombie({ instanceId: "z1", lane: 0, x: 3.2 }),
+      },
+    });
+
+    useGameStore.getState().tick(POTATO_MINE_ARM_MS - 1);
+    expect(useGameStore.getState().plants[mineId]).toBeDefined();
+    expect(useGameStore.getState().zombies.z1).toBeDefined();
+
+    useGameStore.getState().tick(1);
+    expect(useGameStore.getState().plants[mineId]).toBeUndefined();
+    expect(useGameStore.getState().grid[0][3].plantInstanceId).toBeNull();
+    expect(useGameStore.getState().zombies.z1).toBeUndefined();
+    expect(useGameStore.getState().score).toBe(100);
+  });
+
+  it("keeps Tangle Kelp planted until a water-lane zombie reaches it", () => {
+    useGameStore.getState().initGame(POOL_ENV, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({ currentSun: 500 });
+
+    expect(useGameStore.getState().placePlant("TANGLE_KELP", 2, 3)).toBe(true);
+    const kelpId = Object.keys(useGameStore.getState().plants)[0];
+    expect(useGameStore.getState().grid[2][3].plantInstanceId).toBe(kelpId);
+
+    useGameStore.getState().tick(1000);
+    expect(useGameStore.getState().plants[kelpId]).toBeDefined();
+
+    useGameStore.setState({
+      zombies: {
+        z1: makeZombie({ instanceId: "z1", lane: 2, x: 3.1 }),
+      },
+    });
+    useGameStore.getState().tick(0);
+
+    expect(useGameStore.getState().plants[kelpId]).toBeUndefined();
+    expect(useGameStore.getState().grid[2][3].plantInstanceId).toBeNull();
+    expect(useGameStore.getState().zombies.z1).toBeUndefined();
+  });
+
+  it("treats Squash as a planted contact-trigger plant instead of an instant click effect", () => {
+    useGameStore.getState().initGame(DAY_ENV, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({ currentSun: 500 });
+
+    expect(useGameStore.getState().placePlant("SQUASH", 0, 3)).toBe(true);
+    const squashId = Object.keys(useGameStore.getState().plants)[0];
+    expect(useGameStore.getState().plants[squashId]).toBeDefined();
+
+    useGameStore.setState({
+      zombies: {
+        z1: makeZombie({ instanceId: "z1", lane: 0, x: 4.1 }),
+      },
+    });
+    useGameStore.getState().tick(0);
+
+    expect(useGameStore.getState().plants[squashId]).toBeUndefined();
+    expect(useGameStore.getState().zombies.z1).toBeUndefined();
+  });
+
+  it("makes Chomper eat a nearby zombie and then chew before acting again", () => {
+    useGameStore.getState().initGame(DAY_ENV, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({ currentSun: 500, nextWaveAtMs: Number.MAX_SAFE_INTEGER });
+
+    expect(useGameStore.getState().placePlant("CHOMPER", 0, 3)).toBe(true);
+    const chomperId = Object.keys(useGameStore.getState().plants)[0];
+
+    useGameStore.setState({
+      zombies: {
+        z1: makeZombie({ instanceId: "z1", lane: 0, x: 4.1 }),
+      },
+    });
+    useGameStore.getState().tick(0);
+
+    expect(useGameStore.getState().zombies.z1).toBeUndefined();
+    expect(useGameStore.getState().plants[chomperId]).toMatchObject({ isCharging: true });
+    expect(useGameStore.getState().score).toBe(100);
+
+    useGameStore.getState().tick(42_000);
+    expect(useGameStore.getState().plants[chomperId].isCharging).toBe(false);
+  });
+
+  it("lets Spikeweed damage zombies that walk over it without being eaten", () => {
+    useGameStore.getState().initGame(DAY_ENV, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({ currentSun: 500, nextWaveAtMs: Number.MAX_SAFE_INTEGER });
+
+    expect(useGameStore.getState().placePlant("SPIKEWEED", 0, 3)).toBe(true);
+    const spikeweedId = Object.keys(useGameStore.getState().plants)[0];
+
+    useGameStore.setState({
+      zombies: {
+        z1: makeZombie({ instanceId: "z1", lane: 0, x: 3.1 }),
+      },
+    });
+    useGameStore.getState().tick(0);
+    expect(useGameStore.getState().zombies.z1.isEating).toBe(false);
+    expect(useGameStore.getState().zombies.z1.eatTargetId).toBeNull();
+
+    useGameStore.setState({
+      zombies: {
+        z1: makeZombie({ instanceId: "z1", lane: 0, x: 3.1, health: 20, maxHealth: 20 }),
+      },
+    });
+    useGameStore.getState().tick(1000);
+
+    expect(useGameStore.getState().zombies.z1).toBeUndefined();
+    expect(useGameStore.getState().plants[spikeweedId]).toBeDefined();
+    expect(useGameStore.getState().grid[0][3].plantInstanceId).toBe(spikeweedId);
+  });
+
+  it("fires two projectiles for Repeater in a real tick", () => {
+    useGameStore.getState().initGame(DAY_ENV, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({ currentSun: 500, nextWaveAtMs: Number.MAX_SAFE_INTEGER });
+
+    expect(useGameStore.getState().placePlant("REPEATER", 0, 1)).toBe(true);
+    useGameStore.setState({
+      gameTimeMs: 1400,
+      zombies: {
+        z1: makeZombie({ instanceId: "z1", lane: 0, x: 7 }),
+      },
+    });
+
+    useGameStore.getState().tick(100);
+    expect(Object.values(useGameStore.getState().projectiles)).toHaveLength(2);
+  });
+
+  it("fires Threepeater projectiles into the covered lanes", () => {
+    useGameStore.getState().initGame(DAY_ENV, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({ currentSun: 500, nextWaveAtMs: Number.MAX_SAFE_INTEGER });
+
+    expect(useGameStore.getState().placePlant("THREEPEATER", 2, 1)).toBe(true);
+    useGameStore.setState({
+      gameTimeMs: 1400,
+      zombies: {
+        z1: makeZombie({ instanceId: "z1", lane: 1, x: 7 }),
+      },
+    });
+
+    useGameStore.getState().tick(100);
+    expect(Object.values(useGameStore.getState().projectiles).map((projectile) => projectile.lane)).toEqual([1, 2, 3]);
+  });
+
+  it("fires Split Pea rear projectiles backward when a zombie is behind it", () => {
+    useGameStore.getState().initGame(DAY_ENV, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({ currentSun: 500, nextWaveAtMs: Number.MAX_SAFE_INTEGER });
+
+    expect(useGameStore.getState().placePlant("SPLIT_PEA", 0, 3)).toBe(true);
+    useGameStore.setState({
+      gameTimeMs: 1400,
+      zombies: {
+        z1: makeZombie({ instanceId: "z1", lane: 0, x: 0.5 }),
+      },
+    });
+
+    useGameStore.getState().tick(100);
+    const projectiles = Object.values(useGameStore.getState().projectiles);
+    expect(projectiles).toHaveLength(2);
+    expect(projectiles.every((projectile) => projectile.velX < 0)).toBe(true);
+  });
+
+  it("does not let Peashooter fire at Balloon, while Cactus does", () => {
+    useGameStore.getState().initGame(DAY_ENV, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({ currentSun: 500, nextWaveAtMs: Number.MAX_SAFE_INTEGER });
+
+    expect(useGameStore.getState().placePlant("PEASHOOTER", 0, 1)).toBe(true);
+    useGameStore.setState({
+      gameTimeMs: 1400,
+      zombies: {
+        z1: makeZombie({ instanceId: "z1", zombieType: "BALLOON", lane: 0, x: 7, isAerial: true }),
+      },
+    });
+    useGameStore.getState().tick(100);
+    expect(Object.values(useGameStore.getState().projectiles)).toHaveLength(0);
+
+    useGameStore.getState().reset();
+    useGameStore.getState().initGame(DAY_ENV, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({ currentSun: 500, nextWaveAtMs: Number.MAX_SAFE_INTEGER, gameTimeMs: 1400 });
+    expect(useGameStore.getState().placePlant("CACTUS", 0, 1)).toBe(true);
+    useGameStore.setState({
+      zombies: {
+        z1: makeZombie({ instanceId: "z1", zombieType: "BALLOON", lane: 0, x: 7, isAerial: true }),
+      },
+    });
+    useGameStore.getState().tick(100);
+    expect(Object.values(useGameStore.getState().projectiles)).toHaveLength(1);
+    expect(Object.values(useGameStore.getState().projectiles)[0].canHitAerial).toBe(true);
   });
 });
 

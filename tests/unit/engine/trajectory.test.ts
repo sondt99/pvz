@@ -176,6 +176,12 @@ describe("createStraightProjectile", () => {
     expect(p.x).toBeCloseTo(4.8);
   });
 
+  it("can create a backward projectile for Split Pea rear shots", () => {
+    const p = createStraightProjectile("p1", "PEA", 0, 4, 20, { direction: "backward" });
+    expect(p.x).toBeLessThan(4);
+    expect(p.velX).toBeLessThan(0);
+  });
+
   it("applies slowFactor opt", () => {
     const p = createStraightProjectile("p1", "FROZEN_PEA", 0, 0, 20, { slowFactor: 0.5 });
     expect(p.slowFactor).toBe(0.5);

@@ -94,6 +94,27 @@ describe("findStraightHits", () => {
     const hits = findStraightHits(proj, zombies);
     expect(hits).toHaveLength(2);
   });
+
+  it("uses projectile direction when choosing a backward hit", () => {
+    const proj = makeStr({ lane: 0, x: 3, sourceCol: 5, velX: -8 });
+    const zombies = {
+      z1: makeZombie("z1", { lane: 0, x: 2.9 }),
+      z2: makeZombie("z2", { lane: 0, x: 3.2 }),
+    };
+    expect(findStraightHits(proj, zombies)).toEqual(["z2"]);
+  });
+
+  it("does not let normal peas hit aerial zombies", () => {
+    const proj = makeStr({ lane: 0, x: 5, sourceCol: 2 });
+    const zombies = { z1: makeZombie("z1", { lane: 0, x: 5, isAerial: true }) };
+    expect(findStraightHits(proj, zombies)).toHaveLength(0);
+  });
+
+  it("allows aerial hits when the projectile supports it", () => {
+    const proj = makeStr({ lane: 0, x: 5, sourceCol: 2, canHitAerial: true });
+    const zombies = { z1: makeZombie("z1", { lane: 0, x: 5, isAerial: true }) };
+    expect(findStraightHits(proj, zombies)).toEqual(["z1"]);
+  });
 });
 
 describe("findLobbedHits", () => {

@@ -183,7 +183,7 @@ export function SeedPacketBar() {
       {loadout.map((slot) => (
         <SlotCard
           key={slot.slotIndex}
-          slot={slot}
+          slot={{ ...slot, isSelected: slot.slotIndex === selectedSlot }}
           currentSun={currentSun}
           onSelect={handleSelect}
         />

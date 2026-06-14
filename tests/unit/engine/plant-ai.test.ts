@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import {
+  findNearestZombieBehindInLane,
   findNearestZombieInLane,
   shouldPlantAttack,
   plantFire,
@@ -44,12 +45,38 @@ describe("findNearestZombieInLane", () => {
       z3: makeZombie({ instanceId: "z3", lane: 1, x: 8 }),
     };
     const result = findNearestZombieInLane(0, zombies);
-    expect(result?.instanceId).toBe("z1"); // highest x in lane 0
+    expect(result?.instanceId).toBe("z2");
+  });
+
+  it("ignores zombies behind the source column", () => {
+    const zombies = {
+      z1: makeZombie({ lane: 0, x: 1.5 }),
+      z2: makeZombie({ instanceId: "z2", lane: 0, x: 5 }),
+    };
+    const result = findNearestZombieInLane(0, zombies, 2);
+    expect(result?.instanceId).toBe("z2");
   });
 
   it("ignores underground zombies", () => {
     const zombies = { z1: makeZombie({ isUnderground: true }) };
     expect(findNearestZombieInLane(0, zombies)).toBeNull();
+  });
+
+  it("ignores aerial zombies unless explicitly requested", () => {
+    const zombies = { z1: makeZombie({ isAerial: true }) };
+    expect(findNearestZombieInLane(0, zombies)).toBeNull();
+    expect(findNearestZombieInLane(0, zombies, -Infinity, { includeAerial: true })).not.toBeNull();
+  });
+});
+
+describe("findNearestZombieBehindInLane", () => {
+  it("returns the closest zombie behind the source column", () => {
+    const zombies = {
+      z1: makeZombie({ lane: 0, x: 0.5 }),
+      z2: makeZombie({ instanceId: "z2", lane: 0, x: 1.8 }),
+      z3: makeZombie({ instanceId: "z3", lane: 0, x: 5 }),
+    };
+    expect(findNearestZombieBehindInLane(0, zombies, 2)?.instanceId).toBe("z2");
   });
 });
 
@@ -84,6 +111,33 @@ describe("shouldPlantAttack", () => {
     const plant = makePlant({ plantType: "SUNFLOWER" });
     const zombies = { z1: makeZombie({ lane: 0, x: 7 }) };
     expect(shouldPlantAttack(plant, sfDef, 5000, zombies)).toBe(false);
+  });
+
+  it("lets Threepeater attack when a zombie is in an adjacent covered lane", () => {
+    const def = getPlantDef("THREEPEATER");
+    const plant = makePlant({ plantType: "THREEPEATER", row: 2, col: 2 });
+    const zombies = { z1: makeZombie({ lane: 1, x: 7 }) };
+    expect(shouldPlantAttack(plant, def, 5000, zombies, 5)).toBe(true);
+  });
+
+  it("lets Split Pea attack zombies behind it", () => {
+    const def = getPlantDef("SPLIT_PEA");
+    const plant = makePlant({ plantType: "SPLIT_PEA", row: 0, col: 3 });
+    const zombies = { z1: makeZombie({ lane: 0, x: 1.8 }) };
+    expect(shouldPlantAttack(plant, def, 5000, zombies)).toBe(true);
+  });
+
+  it("does not let Peashooter attack a Balloon zombie", () => {
+    const plant = makePlant({ plantType: "PEASHOOTER" });
+    const zombies = { z1: makeZombie({ lane: 0, x: 7, isAerial: true }) };
+    expect(shouldPlantAttack(plant, def, 5000, zombies)).toBe(false);
+  });
+
+  it("lets Cactus attack a Balloon zombie", () => {
+    const cactusDef = getPlantDef("CACTUS");
+    const plant = makePlant({ plantType: "CACTUS" });
+    const zombies = { z1: makeZombie({ lane: 0, x: 7, isAerial: true }) };
+    expect(shouldPlantAttack(plant, cactusDef, 5000, zombies)).toBe(true);
   });
 });
 
@@ -121,6 +175,48 @@ describe("plantFire", () => {
     const zombies = { z1: makeZombie({ lane: 0, x: 7 }) };
     const { projectile } = plantFire(plant, def, 5000, zombies);
     expect(projectile?.slowFactor).toBe(0.5);
+  });
+
+  it("Repeater creates two forward pea projectiles per volley", () => {
+    const plant = makePlant({ plantType: "REPEATER", col: 2 });
+    const def = getPlantDef("REPEATER");
+    const zombies = { z1: makeZombie({ lane: 0, x: 7 }) };
+    const { projectiles } = plantFire(plant, def, 5000, zombies);
+    expect(projectiles).toHaveLength(2);
+    expect(projectiles.every((proj) => proj.velX > 0)).toBe(true);
+  });
+
+  it("Threepeater creates projectiles for its row and adjacent rows", () => {
+    const plant = makePlant({ plantType: "THREEPEATER", row: 2, col: 2 });
+    const def = getPlantDef("THREEPEATER");
+    const zombies = { z1: makeZombie({ lane: 1, x: 7 }) };
+    const { projectiles } = plantFire(plant, def, 5000, zombies, 5);
+    expect(projectiles.map((proj) => proj.lane)).toEqual([1, 2, 3]);
+  });
+
+  it("Threepeater omits out-of-bounds lanes on top row", () => {
+    const plant = makePlant({ plantType: "THREEPEATER", row: 0, col: 2 });
+    const def = getPlantDef("THREEPEATER");
+    const zombies = { z1: makeZombie({ lane: 1, x: 7 }) };
+    const { projectiles } = plantFire(plant, def, 5000, zombies, 5);
+    expect(projectiles.map((proj) => proj.lane)).toEqual([0, 1]);
+  });
+
+  it("Split Pea creates two backward peas when a zombie is behind it", () => {
+    const plant = makePlant({ plantType: "SPLIT_PEA", row: 0, col: 3 });
+    const def = getPlantDef("SPLIT_PEA");
+    const zombies = { z1: makeZombie({ lane: 0, x: 1.8 }) };
+    const { projectiles } = plantFire(plant, def, 5000, zombies);
+    expect(projectiles).toHaveLength(2);
+    expect(projectiles.every((proj) => proj.velX < 0)).toBe(true);
+  });
+
+  it("Cactus projectiles can hit aerial zombies", () => {
+    const plant = makePlant({ plantType: "CACTUS" });
+    const def = getPlantDef("CACTUS");
+    const zombies = { z1: makeZombie({ lane: 0, x: 7, isAerial: true }) };
+    const { projectile } = plantFire(plant, def, 5000, zombies);
+    expect(projectile?.canHitAerial).toBe(true);
   });
 });
 

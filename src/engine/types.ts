@@ -130,6 +130,7 @@ export interface RuntimeProjectile {
   slowFactor?: number;
   isFire?: boolean;
   piercing?: boolean;
+  canHitAerial?: boolean;
   sourceCol: number;
   targetCol?: number;
   targetLane?: number;
@@ -179,5 +180,6 @@ export interface GameEngineState {
     zombieType: string;
     lane: number;
     spawnAtMs: number;
+    x?: number;
   }>;
 }

@@ -59,20 +59,34 @@ export function createStraightProjectile(
   lane: number,
   sourceCol: number,
   damage: number,
-  opts: { slowFactor?: number; isFire?: boolean; piercing?: boolean } = {}
+  opts: {
+    slowFactor?: number;
+    isFire?: boolean;
+    piercing?: boolean;
+    canHitAerial?: boolean;
+    direction?: "forward" | "backward";
+    xOffset?: number;
+  } = {}
 ): RuntimeProjectile {
+  const direction = opts.direction ?? "forward";
+  const speed = direction === "backward" ? -STRAIGHT_SPEED_COLS_PER_SEC : STRAIGHT_SPEED_COLS_PER_SEC;
+  const xOffset = opts.xOffset ?? (direction === "backward" ? -0.25 : 0.8);
+
   return {
     instanceId,
     projectileType,
     lane,
-    x: sourceCol + 0.8,
+    x: sourceCol + xOffset,
     y: 0,
-    velX: STRAIGHT_SPEED_COLS_PER_SEC,
+    velX: speed,
     velY: 0,
     damage,
     trajectory: "straight",
     sourceCol,
-    ...opts,
+    slowFactor: opts.slowFactor,
+    isFire: opts.isFire,
+    piercing: opts.piercing,
+    canHitAerial: opts.canHitAerial,
   };
 }
 

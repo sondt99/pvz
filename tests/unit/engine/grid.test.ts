@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   generateGrid,
+  getDefaultGraveCells,
   getCell,
   getCellKey,
   isWaterCell,
@@ -116,6 +117,17 @@ describe("generateGrid", () => {
     expect(grid.flat().every((c) => c.isSlope)).toBe(true);
   });
 
+  it("marks default grave cells when graves are enabled", () => {
+    const nightEnv: EnvironmentConfig = { ...DAY_ENV, type: "NIGHT", gravesEnabled: true, skyDropSun: false };
+    const grid = generateGrid(nightEnv);
+    const graves = getDefaultGraveCells(nightEnv);
+
+    expect(graves).toHaveLength(3);
+    for (const grave of graves) {
+      expect(grid[grave.row][grave.col].graveId).toBe(grave.graveId);
+    }
+  });
+
   it("all cells start with null plant / lilyPad / flowerPot / grave slots", () => {
     const grid = generateGrid(DAY_ENV);
     for (const cell of grid.flat()) {
@@ -213,6 +225,55 @@ describe("canPlantHere", () => {
     ).toBe(true);
   });
 
+  it("allows a standard land plant on water once a lily pad occupies the platform slot", () => {
+    const grid = generateGrid(POOL_ENV);
+    setLilyPadOnCell(grid, 2, 0, "lilypad-1");
+    expect(
+      canPlantHere(grid, 2, 0, { isAquatic: false, requiresLilyPad: false, requiresFlowerPot: false })
+    ).toBe(true);
+  });
+
+  it("allows Lily Pad only in an empty water platform slot", () => {
+    const grid = generateGrid(POOL_ENV);
+    expect(
+      canPlantHere(grid, 2, 0, {
+        isAquatic: true,
+        requiresLilyPad: false,
+        requiresFlowerPot: false,
+        isLilyPad: true,
+      })
+    ).toBe(true);
+
+    setLilyPadOnCell(grid, 2, 0, "lilypad-1");
+    expect(
+      canPlantHere(grid, 2, 0, {
+        isAquatic: true,
+        requiresLilyPad: false,
+        requiresFlowerPot: false,
+        isLilyPad: true,
+      })
+    ).toBe(false);
+  });
+
+  it("rejects Lily Pad on land", () => {
+    const grid = generateGrid(DAY_ENV);
+    expect(
+      canPlantHere(grid, 0, 0, {
+        isAquatic: true,
+        requiresLilyPad: false,
+        requiresFlowerPot: false,
+        isLilyPad: true,
+      })
+    ).toBe(false);
+  });
+
+  it("rejects aquatic plants on land", () => {
+    const grid = generateGrid(DAY_ENV);
+    expect(
+      canPlantHere(grid, 0, 0, { isAquatic: true, requiresLilyPad: false, requiresFlowerPot: false })
+    ).toBe(false);
+  });
+
   it("rejects plant with requiresLilyPad on water without a lily pad", () => {
     const grid = generateGrid(POOL_ENV);
     expect(
@@ -233,6 +294,51 @@ describe("canPlantHere", () => {
     expect(
       canPlantHere(grid, 0, 0, { isAquatic: false, requiresLilyPad: false, requiresFlowerPot: true })
     ).toBe(true);
+  });
+
+  it("allows Flower Pot in an empty roof platform slot", () => {
+    const grid = generateGrid(ROOF_ENV);
+    expect(
+      canPlantHere(grid, 0, 0, {
+        isAquatic: false,
+        requiresLilyPad: false,
+        requiresFlowerPot: false,
+        isFlowerPot: true,
+      })
+    ).toBe(true);
+  });
+
+  it("rejects Flower Pot on water even if a Lily Pad exists there", () => {
+    const grid = generateGrid(POOL_ENV);
+    setLilyPadOnCell(grid, 2, 0, "lilypad-1");
+    expect(
+      canPlantHere(grid, 2, 0, {
+        isAquatic: false,
+        requiresLilyPad: true,
+        requiresFlowerPot: false,
+        isFlowerPot: true,
+      })
+    ).toBe(false);
+  });
+
+  it("rejects Flower Pot on normal land", () => {
+    const grid = generateGrid(DAY_ENV);
+    expect(
+      canPlantHere(grid, 0, 0, {
+        isAquatic: false,
+        requiresLilyPad: false,
+        requiresFlowerPot: false,
+        isFlowerPot: true,
+      })
+    ).toBe(false);
+  });
+
+  it("rejects planting on graves", () => {
+    const grid = generateGrid(DAY_ENV);
+    grid[0][0].graveId = "grave-1";
+    expect(
+      canPlantHere(grid, 0, 0, { isAquatic: false, requiresLilyPad: false, requiresFlowerPot: false })
+    ).toBe(false);
   });
 
   it("returns false for out-of-bounds coordinates", () => {

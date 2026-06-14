@@ -133,7 +133,7 @@ export const PLANT_DEFINITIONS: Record<string, PlantDefinition> = {
     attackDamage: 1800, attackCooldownMs: null, attackRange: "lane",
     projectileType: null, trajectory: null,
     isAquatic: false, requiresLilyPad: false, requiresFlowerPot: false,
-    isInstantUse: true, produceSun: false, sunProduceIntervalMs: null, sunProduceAmount: null,
+    isInstantUse: false, produceSun: false, sunProduceIntervalMs: null, sunProduceAmount: null,
     isNightOnly: false, isMushroomType: false, blocksAerial: false, revealsFog: false, divertsZombies: false,
   },
   THREEPEATER: {
@@ -149,7 +149,7 @@ export const PLANT_DEFINITIONS: Record<string, PlantDefinition> = {
     attackDamage: 1800, attackCooldownMs: null, attackRange: "lane",
     projectileType: null, trajectory: null,
     isAquatic: true, requiresLilyPad: false, requiresFlowerPot: false,
-    isInstantUse: true, produceSun: false, sunProduceIntervalMs: null, sunProduceAmount: null,
+    isInstantUse: false, produceSun: false, sunProduceIntervalMs: null, sunProduceAmount: null,
     isNightOnly: false, isMushroomType: false, blocksAerial: false, revealsFog: false, divertsZombies: false,
   },
   JALAPENO: {

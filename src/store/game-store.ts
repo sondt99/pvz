@@ -6,11 +6,11 @@ import type {
   RuntimeZombie,
   SeedPacketSlot,
 } from "../engine/types";
-import { generateGrid, getCell, canPlantHere, setPlantOnCell } from "../engine/grid";
+import { generateGrid, getCell, canPlantHere, setFlowerPotOnCell, setLilyPadOnCell, setPlantOnCell } from "../engine/grid";
 import { getInitialSun, tickSkySun, spendSun, collectSun, createSkySunDrop, advanceSunDrop, isSunDropExpired } from "../engine/sun";
 import { getPlantDef } from "../engine/entities/plant-defs";
 import { getZombieDef } from "../engine/entities/zombie-defs";
-import { SKY_SUN_INTERVAL_MS, SKY_SUN_FALL_SPEED_PER_MS, SUN_PRODUCER_INITIAL_DELAY_MS, WAVE_INTERVAL_MS, ZOMBIE_SPAWN_X } from "../engine/constants";
+import { POTATO_MINE_ARM_MS, SKY_SUN_INTERVAL_MS, SKY_SUN_FALL_SPEED_PER_MS, SUN_PRODUCER_INITIAL_DELAY_MS, WAVE_INTERVAL_MS, ZOMBIE_SPAWN_X } from "../engine/constants";
 import { resetPlantAiCounters, shouldPlantAttack, plantFire, plantProduceSun } from "../engine/ai/plant-ai";
 import {
   tickStatusEffects,
@@ -28,7 +28,7 @@ import {
   applyProjectileHits,
 } from "../engine/ai/projectile-ai";
 import { generateWave } from "../engine/wave-generator";
-import { isPlantDead } from "../engine/physics/collision";
+import { applyProjectileDamage, isPlantDead, isZombieDead } from "../engine/physics/collision";
 
 // ---------------------------------------------------------------------------
 // Module-level counters give stable deterministic IDs within a session.
@@ -46,6 +46,136 @@ function nextZombieId(type: string): string {
 }
 function nextSunId(): string {
   return `sun-${++_sunDropCounter}`;
+}
+
+function isLilyPadPlant(plantType: string): boolean {
+  return plantType === "LILY_PAD";
+}
+
+function isFlowerPotPlant(plantType: string): boolean {
+  return plantType === "FLOWER_POT";
+}
+
+function getZombieEatPriority(plantType: string): number {
+  if (isLilyPadPlant(plantType) || isFlowerPotPlant(plantType)) return 0;
+  if (plantType === "PUMPKIN") return 2;
+  return 1;
+}
+
+function chooseZombieEatTarget(
+  zombie: RuntimeZombie,
+  plants: Record<string, RuntimePlant>
+): RuntimePlant | null {
+  let target: RuntimePlant | null = null;
+  for (const plant of Object.values(plants)) {
+    if (plant.plantType === "SPIKEWEED") continue;
+    if (!isZombieEatingPlant(zombie, plant)) continue;
+    if (target === null) {
+      target = plant;
+      continue;
+    }
+    if (getZombieEatPriority(plant.plantType) > getZombieEatPriority(target.plantType)) {
+      target = plant;
+    }
+  }
+  return target;
+}
+
+function setPlantInCorrectSlot(
+  grid: GameEngineState["grid"],
+  row: number,
+  col: number,
+  plantType: string,
+  instanceId: string | null
+): void {
+  if (isLilyPadPlant(plantType)) {
+    setLilyPadOnCell(grid, row, col, instanceId);
+    return;
+  }
+  if (isFlowerPotPlant(plantType)) {
+    setFlowerPotOnCell(grid, row, col, instanceId);
+    return;
+  }
+  setPlantOnCell(grid, row, col, instanceId);
+}
+
+function clearFogAround(
+  grid: GameEngineState["grid"],
+  row: number,
+  col: number
+): void {
+  for (const gridRow of grid) {
+    for (const cell of gridRow) {
+      if (Math.abs(cell.row - row) <= 2 && Math.abs(cell.col - col) <= 3) {
+        cell.isFog = false;
+      }
+    }
+  }
+}
+
+function clearAllFog(grid: GameEngineState["grid"]): void {
+  for (const row of grid) {
+    for (const cell of row) {
+      cell.isFog = false;
+    }
+  }
+}
+
+function scoreKilledZombie(zombie: RuntimeZombie): number {
+  try {
+    return getZombieDef(zombie.zombieType).scoreValue;
+  } catch {
+    return 0;
+  }
+}
+
+function damageZombiesInArea(
+  zombies: Record<string, RuntimeZombie>,
+  predicate: (zombie: RuntimeZombie) => boolean,
+  damage: number
+): {
+  zombies: Record<string, RuntimeZombie>;
+  scoreDelta: number;
+  killedCount: number;
+} {
+  let updated = { ...zombies };
+  let scoreDelta = 0;
+  let killedCount = 0;
+
+  for (const [id, zombie] of Object.entries(updated)) {
+    if (zombie.isUnderground || !predicate(zombie)) continue;
+    const damaged = applyProjectileDamage(zombie, damage);
+    if (isZombieDead(damaged)) {
+      scoreDelta += scoreKilledZombie(zombie);
+      killedCount += 1;
+      const { [id]: _killed, ...rest } = updated;
+      updated = rest;
+    } else {
+      updated[id] = damaged;
+    }
+  }
+
+  return { zombies: updated, scoreDelta, killedCount };
+}
+
+function freezeAllZombies(
+  zombies: Record<string, RuntimeZombie>,
+  gameTimeMs: number
+): Record<string, RuntimeZombie> {
+  const updated: Record<string, RuntimeZombie> = {};
+  for (const [id, zombie] of Object.entries(zombies)) {
+    updated[id] = {
+      ...zombie,
+      isEating: false,
+      eatTargetId: null,
+      isFrozen: true,
+      statusEffects: [
+        ...zombie.statusEffects.filter((effect) => effect.type !== "FROZEN"),
+        { type: "FROZEN", expiresAtMs: gameTimeMs + 4000 },
+      ],
+    };
+  }
+  return updated;
 }
 
 // ---------------------------------------------------------------------------
@@ -137,16 +267,116 @@ export const useGameStore = create<GameStore>()((set, get) => ({
     let def;
     try { def = getPlantDef(plantType); } catch { return false; }
 
-    if (!getCell(state.grid, row, col)) return false;
+    const cell = getCell(state.grid, row, col);
+    if (!cell) return false;
+
+    const loadoutIndex = state.loadout.findIndex((slot) => slot.plantType === plantType);
+    const loadoutSlot = loadoutIndex >= 0 ? state.loadout[loadoutIndex] : null;
+    if (loadoutSlot && loadoutSlot.cooldownRemainingMs > 0) return false;
+
+    let loadout = state.loadout;
+    const rechargeSeed = () => {
+      if (!loadoutSlot) return loadout;
+      return state.loadout.map((slot, index) =>
+        index === loadoutIndex
+          ? { ...slot, cooldownRemainingMs: slot.cooldownTotalMs }
+          : slot
+      );
+    };
+
+    if (plantType === "COFFEE_BEAN") {
+      const target = Object.values(state.plants).find((plant) => {
+        if (plant.row !== row || plant.col !== col || !plant.isSleeping) return false;
+        try {
+          return getPlantDef(plant.plantType).isMushroomType;
+        } catch {
+          return false;
+        }
+      });
+      if (!target) return false;
+
+      const newSun = spendSun(state.currentSun, def.sunCost);
+      if (newSun === null) return false;
+
+      set({
+        plants: {
+          ...state.plants,
+          [target.instanceId]: { ...target, isSleeping: false },
+        },
+        currentSun: newSun,
+        loadout: rechargeSeed(),
+        selectedSlot: null,
+      });
+      return true;
+    }
 
     const newSun = spendSun(state.currentSun, def.sunCost);
     if (newSun === null) return false;
 
     if (!canPlantHere(state.grid, row, col, {
       isAquatic: def.isAquatic,
-      requiresLilyPad: def.requiresLilyPad,
-      requiresFlowerPot: def.requiresFlowerPot,
+      requiresLilyPad: cell.isWater && !def.isAquatic,
+      requiresFlowerPot: cell.isSlope && !isFlowerPotPlant(plantType),
+      isLilyPad: isLilyPadPlant(plantType),
+      isFlowerPot: isFlowerPotPlant(plantType),
     })) return false;
+
+    loadout = rechargeSeed();
+
+    if (def.isInstantUse) {
+      let zombies = state.zombies;
+      let score = state.score;
+      let totalZombiesKilled = state.totalZombiesKilled;
+      let newGrid: GameEngineState["grid"] | null = null;
+
+      if (plantType === "CHERRY_BOMB") {
+        const result = damageZombiesInArea(
+          zombies,
+          (zombie) => Math.abs(zombie.lane - row) <= 1 && Math.abs(zombie.x - col) <= 1.5,
+          def.attackDamage ?? 1800
+        );
+        zombies = result.zombies;
+        score += result.scoreDelta;
+        totalZombiesKilled += result.killedCount;
+      } else if (plantType === "JALAPENO") {
+        const result = damageZombiesInArea(
+          zombies,
+          (zombie) => zombie.lane === row,
+          def.attackDamage ?? 1800
+        );
+        zombies = result.zombies;
+        score += result.scoreDelta;
+        totalZombiesKilled += result.killedCount;
+      } else if (plantType === "ICE_SHROOM") {
+        zombies = freezeAllZombies(zombies, state.gameTimeMs);
+      } else if (plantType === "BLOVER") {
+        const remaining: Record<string, RuntimeZombie> = {};
+        for (const [id, zombie] of Object.entries(zombies)) {
+          if (zombie.isAerial) {
+            score += scoreKilledZombie(zombie);
+            totalZombiesKilled += 1;
+          } else {
+            remaining[id] = zombie;
+          }
+        }
+        zombies = remaining;
+        if (state.environment.fogEnabled) {
+          newGrid = state.grid.map((r) => r.map((c) => ({ ...c })));
+          clearAllFog(newGrid);
+        }
+      }
+
+      set({
+        currentSun: newSun,
+        loadout,
+        selectedSlot: null,
+        zombies,
+        score,
+        totalZombiesKilled,
+        ...(newGrid ? { grid: newGrid } : {}),
+      });
+      return true;
+    }
 
     const instanceId = nextPlantId(plantType, row, col);
     const initialSunClock =
@@ -159,18 +389,25 @@ export const useGameStore = create<GameStore>()((set, get) => ({
       health: def.health, maxHealth: def.health,
       lastAttackAtMs: 0,
       lastSunAtMs: initialSunClock,
-      isSleeping: def.isMushroomType && state.environment.type !== "NIGHT",
-      isCharging: false, chargeEndsAtMs: 0, armedAtMs: null,
+      isSleeping: def.isMushroomType && state.environment.skyDropSun,
+      isCharging: plantType === "POTATO_MINE",
+      chargeEndsAtMs: plantType === "POTATO_MINE" ? state.gameTimeMs + POTATO_MINE_ARM_MS : 0,
+      armedAtMs: null,
     };
 
     // Deep-clone the grid rows we need to mutate
     const newGrid = state.grid.map((r) => r.map((c) => ({ ...c })));
-    setPlantOnCell(newGrid, row, col, instanceId);
+    setPlantInCorrectSlot(newGrid, row, col, plantType, instanceId);
+    if (plantType === "PLANTERN") {
+      clearFogAround(newGrid, row, col);
+    }
 
     set({
       plants: { ...state.plants, [instanceId]: plant },
       currentSun: newSun,
       grid: newGrid,
+      loadout,
+      selectedSlot: null,
     });
     return true;
   },
@@ -181,7 +418,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
     if (!plant) return;
 
     const newGrid = state.grid.map((r) => r.map((c) => ({ ...c })));
-    setPlantOnCell(newGrid, plant.row, plant.col, null);
+    setPlantInCorrectSlot(newGrid, plant.row, plant.col, plant.plantType, null);
 
     const { [instanceId]: _removed, ...rest } = state.plants;
     set({ plants: rest, grid: newGrid });
@@ -238,6 +475,18 @@ export const useGameStore = create<GameStore>()((set, get) => ({
         spawnAtMs: newGameTimeMs + entry.spawnAtMs,
       }));
       zombieSpawnQueue = [...zombieSpawnQueue, ...newEntries];
+      if (env.gravesEnabled && newWaveNumber % 5 === 0) {
+        const graveAmbushes = state.grid
+          .flat()
+          .filter((cell) => cell.graveId !== null)
+          .map((cell, index) => ({
+            zombieType: "NORMAL",
+            lane: cell.row,
+            x: cell.col,
+            spawnAtMs: newGameTimeMs + index * 500,
+          }));
+        zombieSpawnQueue = [...zombieSpawnQueue, ...graveAmbushes];
+      }
       waveNumber = newWaveNumber;
       nextWaveAtMs = nextWaveAtMs + WAVE_INTERVAL_MS;
     }
@@ -256,7 +505,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
         instanceId: id,
         zombieType: entry.zombieType,
         lane: entry.lane,
-        x: ZOMBIE_SPAWN_X,
+        x: entry.x ?? ZOMBIE_SPAWN_X,
         health: def.health, maxHealth: def.health,
         armorHealth: def.armorHealth,
         speedColsPerSec: def.speedColsPerSec,
@@ -299,11 +548,41 @@ export const useGameStore = create<GameStore>()((set, get) => ({
     // -----------------------------------------------------------------------
     let plants = { ...state.plants };
     let projectiles = { ...state.projectiles };
+    let score = state.score;
+    let totalZombiesKilled = state.totalZombiesKilled;
+    const loadout = state.loadout.map((slot) => ({
+      ...slot,
+      cooldownRemainingMs: Math.max(0, slot.cooldownRemainingMs - deltaMs),
+    }));
 
     for (const [plantId, plant] of Object.entries(plants)) {
       let currentPlant = plant;
       let def;
       try { def = getPlantDef(currentPlant.plantType); } catch { continue; }
+
+      if (
+        currentPlant.plantType === "POTATO_MINE" &&
+        currentPlant.isCharging &&
+        newGameTimeMs >= currentPlant.chargeEndsAtMs
+      ) {
+        currentPlant = {
+          ...currentPlant,
+          isCharging: false,
+          armedAtMs: currentPlant.chargeEndsAtMs,
+        };
+      }
+
+      if (
+        currentPlant.plantType === "CHOMPER" &&
+        currentPlant.isCharging &&
+        newGameTimeMs >= currentPlant.chargeEndsAtMs
+      ) {
+        currentPlant = {
+          ...currentPlant,
+          isCharging: false,
+          chargeEndsAtMs: 0,
+        };
+      }
 
       // 7b. Sun production
       const sunResult = plantProduceSun(currentPlant, def, newGameTimeMs);
@@ -313,10 +592,15 @@ export const useGameStore = create<GameStore>()((set, get) => ({
       }
 
       // 7c. Attack
-      if (shouldPlantAttack(currentPlant, def, newGameTimeMs, zombies)) {
-        const fireResult = plantFire(currentPlant, def, newGameTimeMs, zombies);
-        if (fireResult.projectile) {
-          projectiles = { ...projectiles, [fireResult.projectile.instanceId]: fireResult.projectile };
+      if (shouldPlantAttack(currentPlant, def, newGameTimeMs, zombies, env.gridRows)) {
+        const fireResult = plantFire(currentPlant, def, newGameTimeMs, zombies, env.gridRows);
+        if (fireResult.projectiles.length > 0) {
+          projectiles = {
+            ...projectiles,
+            ...Object.fromEntries(
+              fireResult.projectiles.map((projectile) => [projectile.instanceId, projectile])
+            ),
+          };
           currentPlant = fireResult.updatedPlant;
         }
       }
@@ -325,11 +609,103 @@ export const useGameStore = create<GameStore>()((set, get) => ({
     }
 
     // -----------------------------------------------------------------------
+    // 7d. Contact-trigger plants and melee plants
+    // -----------------------------------------------------------------------
+    let gridChanged = false;
+    let newGrid = state.grid;
+
+    for (const [plantId, plant] of Object.entries(plants)) {
+      if (plant.plantType === "CHOMPER") {
+        if (plant.isCharging) continue;
+        const trigger = Object.entries(zombies).find(([, zombie]) => {
+          if (zombie.isUnderground || zombie.isAerial) return false;
+          if (zombie.lane !== plant.row) return false;
+          return zombie.x >= plant.col - 0.2 && zombie.x <= plant.col + 1.5;
+        });
+        if (!trigger) continue;
+
+        const [zombieId, zombie] = trigger;
+        const def = getPlantDef("CHOMPER");
+        score += scoreKilledZombie(zombie);
+        totalZombiesKilled += 1;
+        const { [zombieId]: _eatenZombie, ...remainingZombies } = zombies;
+        zombies = remainingZombies;
+        plants[plantId] = {
+          ...plant,
+          isCharging: true,
+          chargeEndsAtMs: newGameTimeMs + (def.attackCooldownMs ?? 42_000),
+        };
+        continue;
+      }
+
+      if (plant.plantType === "SPIKEWEED") {
+        const def = getPlantDef("SPIKEWEED");
+        if (def.attackCooldownMs === null || newGameTimeMs - plant.lastAttackAtMs < def.attackCooldownMs) {
+          continue;
+        }
+        const hasTarget = Object.values(zombies).some((zombie) =>
+          zombie.lane === plant.row &&
+          !zombie.isUnderground &&
+          !zombie.isAerial &&
+          zombie.x >= plant.col - 0.45 &&
+          zombie.x <= plant.col + 0.45
+        );
+        if (!hasTarget) continue;
+
+        const result = damageZombiesInArea(
+          zombies,
+          (zombie) =>
+            zombie.lane === plant.row &&
+            !zombie.isAerial &&
+            zombie.x >= plant.col - 0.45 &&
+            zombie.x <= plant.col + 0.45,
+          def.attackDamage ?? 20
+        );
+        zombies = result.zombies;
+        score += result.scoreDelta;
+        totalZombiesKilled += result.killedCount;
+        plants[plantId] = { ...plant, lastAttackAtMs: newGameTimeMs };
+        continue;
+      }
+
+      if (
+        plant.plantType !== "POTATO_MINE" &&
+        plant.plantType !== "TANGLE_KELP" &&
+        plant.plantType !== "SQUASH"
+      ) {
+        continue;
+      }
+      if (plant.plantType === "POTATO_MINE" && plant.isCharging) continue;
+
+      const trigger = Object.entries(zombies).find(([, zombie]) => {
+        if (zombie.isUnderground || zombie.isAerial) return false;
+        if (zombie.lane !== plant.row) return false;
+        if (plant.plantType === "SQUASH") {
+          return zombie.x >= plant.col - 1 && zombie.x <= plant.col + 1.5;
+        }
+        return zombie.x >= plant.col - 0.35 && zombie.x <= plant.col + 0.65;
+      });
+      if (!trigger) continue;
+
+      const [zombieId, zombie] = trigger;
+      score += scoreKilledZombie(zombie);
+      totalZombiesKilled += 1;
+      const { [zombieId]: _killedZombie, ...remainingZombies } = zombies;
+      zombies = remainingZombies;
+
+      if (!gridChanged) {
+        newGrid = state.grid.map((r) => r.map((c) => ({ ...c })));
+        gridChanged = true;
+      }
+      setPlantInCorrectSlot(newGrid, plant.row, plant.col, plant.plantType, null);
+      const { [plantId]: _spentPlant, ...remainingPlants } = plants;
+      plants = remainingPlants;
+    }
+
+    // -----------------------------------------------------------------------
     // 8. Zombie AI loop
     // -----------------------------------------------------------------------
     // We may need to update the grid if a plant dies from eating
-    let gridChanged = false;
-    let newGrid = state.grid;
 
     for (const [zombieId, zombie] of Object.entries(zombies)) {
       // 8a. Tick status effects
@@ -349,7 +725,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
               newGrid = state.grid.map((r) => r.map((c) => ({ ...c })));
               gridChanged = true;
             }
-            setPlantOnCell(newGrid, damagedPlant.row, damagedPlant.col, null);
+            setPlantInCorrectSlot(newGrid, damagedPlant.row, damagedPlant.col, damagedPlant.plantType, null);
             const { [z.eatTargetId]: _dead, ...remainingPlants } = plants;
             plants = remainingPlants;
             z = stopEating(z);
@@ -361,7 +737,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
               newGrid = state.grid.map((r) => r.map((c) => ({ ...c })));
               gridChanged = true;
             }
-            setPlantOnCell(newGrid, targetPlant.row, targetPlant.col, null);
+            setPlantInCorrectSlot(newGrid, targetPlant.row, targetPlant.col, targetPlant.plantType, null);
             const { [z.eatTargetId]: _dead, ...remainingPlants } = plants;
             plants = remainingPlants;
           }
@@ -371,13 +747,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
 
       // 8c. If not eating, check if zombie should start eating a plant
       if (!z.isEating) {
-        let foundEatTarget: RuntimePlant | null = null;
-        for (const plant of Object.values(plants)) {
-          if (isZombieEatingPlant(z, plant)) {
-            foundEatTarget = plant;
-            break;
-          }
-        }
+        const foundEatTarget = chooseZombieEatTarget(z, plants);
         if (foundEatTarget) {
           z = startEating(z, foundEatTarget.instanceId);
         }
@@ -400,8 +770,6 @@ export const useGameStore = create<GameStore>()((set, get) => ({
     // -----------------------------------------------------------------------
     // 9. Projectile AI loop
     // -----------------------------------------------------------------------
-    let score = state.score;
-    let totalZombiesKilled = state.totalZombiesKilled;
     const updatedProjectiles: typeof projectiles = {};
 
     for (const [projId, proj] of Object.entries(projectiles)) {
@@ -415,21 +783,18 @@ export const useGameStore = create<GameStore>()((set, get) => ({
 
       // 9c. Apply hits
       const hitResult = applyProjectileHits(advanced, zombies, hitIds);
-      zombies = hitResult.updatedZombies;
 
       // 9d. Score killed zombies
       for (const killedId of hitResult.killedZombieIds) {
-        const killedZombie = zombies[killedId];
+        const killedZombie = hitResult.updatedZombies[killedId] ?? zombies[killedId];
         if (killedZombie) {
-          try {
-            const zombieDef = getZombieDef(killedZombie.zombieType);
-            score += zombieDef.scoreValue;
-          } catch { /* unknown zombie type */ }
+          score += scoreKilledZombie(killedZombie);
           totalZombiesKilled += 1;
         }
       }
 
       // 9e. Remove dead zombies
+      zombies = hitResult.updatedZombies;
       for (const killedId of hitResult.killedZombieIds) {
         const { [killedId]: _killed, ...rest } = zombies;
         zombies = rest;
@@ -452,7 +817,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
           newGrid = state.grid.map((r) => r.map((c) => ({ ...c })));
           gridChanged = true;
         }
-        setPlantOnCell(newGrid, plant.row, plant.col, null);
+        setPlantInCorrectSlot(newGrid, plant.row, plant.col, plant.plantType, null);
         const { [plantId]: _dead, ...remainingPlants } = plants;
         plants = remainingPlants;
       }
@@ -474,6 +839,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
         plants,
         zombies,
         projectiles,
+        loadout,
         score,
         totalZombiesKilled,
         ...(gridChanged ? { grid: newGrid } : {}),
@@ -494,6 +860,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
       plants,
       zombies,
       projectiles,
+      loadout,
       score,
       totalZombiesKilled,
       ...(gridChanged ? { grid: newGrid } : {}),

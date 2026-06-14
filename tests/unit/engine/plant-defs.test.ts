@@ -52,6 +52,13 @@ describe("getPlantDef", () => {
     expect(def.attackDamage).toBe(1800);
   });
 
+  it("SQUASH is planted first, then triggers on nearby zombies", () => {
+    const def = getPlantDef("SQUASH");
+    expect(def.isInstantUse).toBe(false);
+    expect(def.attackRange).toBe("lane");
+    expect(def.attackDamage).toBe(1800);
+  });
+
   it("WALL_NUT has high health and no attack", () => {
     const def = getPlantDef("WALL_NUT");
     expect(def.health).toBe(4000);
@@ -158,7 +165,7 @@ describe("getPlantsByCategory", () => {
     const instants = getPlantsByCategory({ isInstantUse: true });
     const types = instants.map((d) => d.plantType);
     expect(types).toContain("CHERRY_BOMB");
-    expect(types).toContain("SQUASH");
     expect(types).toContain("JALAPENO");
+    expect(types).not.toContain("SQUASH");
   });
 });

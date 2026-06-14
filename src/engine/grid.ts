@@ -1,12 +1,36 @@
 import type { EnvironmentConfig, RuntimeGridCell } from "./types";
 import { FOG_START_COL } from "./constants";
 
+export interface GraveCell {
+  row: number;
+  col: number;
+  graveId: string;
+}
+
+export function getDefaultGraveCells(env: EnvironmentConfig): GraveCell[] {
+  if (!env.gravesEnabled) return [];
+
+  const rows = env.gridRows === 5 ? [0, 2, 4] : [1, 3, 5];
+  const cols = [env.gridCols - 4, env.gridCols - 3, env.gridCols - 2];
+  return rows
+    .filter((row) => row >= 0 && row < env.gridRows)
+    .map((row, index) => {
+      const col = cols[index % cols.length];
+      return { row, col, graveId: `grave-${row}-${col}` };
+    })
+    .filter((grave) => grave.col >= 0 && grave.col < env.gridCols);
+}
+
 /**
  * Generate a fresh empty grid for the given environment.
  * Water, fog, and slope flags derive from the environment config.
  */
 export function generateGrid(env: EnvironmentConfig): RuntimeGridCell[][] {
   const grid: RuntimeGridCell[][] = [];
+  const graveByCell = new Map(
+    getDefaultGraveCells(env).map((grave) => [`${grave.row}:${grave.col}`, grave.graveId])
+  );
+
   for (let row = 0; row < env.gridRows; row++) {
     const gridRow: RuntimeGridCell[] = [];
     for (let col = 0; col < env.gridCols; col++) {
@@ -19,7 +43,7 @@ export function generateGrid(env: EnvironmentConfig): RuntimeGridCell[][] {
         plantInstanceId: null,
         lilyPadInstanceId: null,
         flowerPotInstanceId: null,
-        graveId: null,
+        graveId: graveByCell.get(`${row}:${col}`) ?? null,
       });
     }
     grid.push(gridRow);
@@ -68,26 +92,42 @@ export function canPlantHere(
     isAquatic: boolean;
     requiresLilyPad: boolean;
     requiresFlowerPot: boolean;
+    isLilyPad?: boolean;
+    isFlowerPot?: boolean;
   }
 ): boolean {
   const cell = getCell(grid, row, col);
   if (!cell) return false;
+  if (cell.graveId !== null) return false;
 
   if (cell.isWater) {
+    if (opts.isFlowerPot) return false;
+    if (opts.isLilyPad) {
+      return cell.lilyPadInstanceId === null && cell.plantInstanceId === null;
+    }
     if (opts.isAquatic) {
       return cell.lilyPadInstanceId === null && cell.plantInstanceId === null;
     }
-    if (opts.requiresLilyPad) {
+    if (opts.requiresLilyPad || !opts.isAquatic) {
       return cell.lilyPadInstanceId !== null && cell.plantInstanceId === null;
     }
     return false;
   }
 
+  if (opts.isLilyPad) return false;
+  if (opts.requiresLilyPad) return false;
+
   if (cell.isSlope) {
+    if (opts.isFlowerPot) {
+      return cell.flowerPotInstanceId === null && cell.plantInstanceId === null;
+    }
     if (!opts.requiresFlowerPot) return false;
     return cell.flowerPotInstanceId !== null && cell.plantInstanceId === null;
   }
 
+  if (opts.isFlowerPot) return false;
+  if (opts.isAquatic) return false;
+  if (opts.requiresFlowerPot) return false;
   return cell.plantInstanceId === null;
 }
 

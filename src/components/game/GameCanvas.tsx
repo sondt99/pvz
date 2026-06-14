@@ -7,6 +7,7 @@ import type {
   EnvironmentType,
   RuntimePlant,
   RuntimeProjectile,
+  RuntimeGridCell,
   RuntimeSunDrop,
   RuntimeZombie,
 } from "@/engine/types";
@@ -232,6 +233,7 @@ function drawBoard(
   gridRows: number,
   gridCols: number,
   waterLaneIndices: number[],
+  grid: RuntimeGridCell[][],
 ): void {
   const palette = PALETTES[envType];
   const x = HOUSE_W;
@@ -287,16 +289,14 @@ function drawBoard(
   }
 
   if (envType === "NIGHT") {
-    drawGraves(ctx, gridRows, gridCols);
+    drawGraves(ctx, grid);
   }
 }
 
-function drawGraves(ctx: CanvasRenderingContext2D, gridRows: number, gridCols: number): void {
-  const graveRows = gridRows === 5 ? [0, 2, 4] : [1, 3, 5];
-  const graveCols = [gridCols - 4, gridCols - 3, gridCols - 2];
-  for (let i = 0; i < graveRows.length; i++) {
-    const row = graveRows[i];
-    const col = graveCols[i % graveCols.length];
+function drawGraves(ctx: CanvasRenderingContext2D, grid: RuntimeGridCell[][]): void {
+  for (const cell of grid.flat()) {
+    if (!cell.graveId) continue;
+    const { row, col } = cell;
     const cx = tileX(col) + CELL_W / 2;
     const baseY = tileY(row) + CELL_H * 0.72;
     ctx.fillStyle = "#60686a";
@@ -653,19 +653,23 @@ function drawSunDrop(ctx: CanvasRenderingContext2D, drop: RuntimeSunDrop): void 
   ctx.restore();
 }
 
-function drawFogOverlay(ctx: CanvasRenderingContext2D, gridRows: number, gridCols: number): void {
-  const startX = tileX(FOG_START_COL) - 28;
-  const fog = ctx.createLinearGradient(startX, 0, canvasW(gridCols), 0);
-  fog.addColorStop(0, "rgba(205, 220, 190, 0.1)");
-  fog.addColorStop(0.35, "rgba(204, 220, 194, 0.62)");
-  fog.addColorStop(1, "rgba(226, 234, 219, 0.88)");
-  ctx.fillStyle = fog;
-  ctx.fillRect(startX, TOP_PAD, canvasW(gridCols) - startX, boardH(gridRows));
+function drawFogOverlay(ctx: CanvasRenderingContext2D, grid: RuntimeGridCell[][], gridRows: number, gridCols: number): void {
+  if (!grid.flat().some((cell) => cell.isFog)) return;
+
+  for (const cell of grid.flat()) {
+    if (!cell.isFog) continue;
+    const x = tileX(cell.col);
+    const y = tileY(cell.row);
+    const opacity = cell.col <= FOG_START_COL ? 0.38 : Math.min(0.88, 0.5 + (cell.col - FOG_START_COL) * 0.12);
+    ctx.fillStyle = `rgba(220, 230, 210, ${opacity})`;
+    ctx.fillRect(x, y, CELL_W, CELL_H);
+  }
 
   ctx.fillStyle = "rgba(255,255,255,0.16)";
   for (let i = 0; i < 10; i++) {
-    const x = startX + 26 + i * 74;
+    const x = tileX(FOG_START_COL) + 26 + i * 74;
     const y = TOP_PAD + 26 + (i % 4) * 71;
+    if (x > canvasW(gridCols) || y > TOP_PAD + boardH(gridRows)) continue;
     ctx.beginPath();
     ctx.ellipse(x, y, 76, 18, 0.12, 0, Math.PI * 2);
     ctx.fill();
@@ -699,7 +703,7 @@ export function GameCanvas({ onCellClick }: GameCanvasProps) {
       const { environment: env, plants, zombies, projectiles, sunDrops } = state;
 
       drawSceneBackdrop(ctx, env.type, env.gridRows, env.gridCols);
-      drawBoard(ctx, env.type, env.gridRows, env.gridCols, env.waterLaneIndices);
+      drawBoard(ctx, env.type, env.gridRows, env.gridCols, env.waterLaneIndices, state.grid);
 
       for (const plant of Object.values(plants)) {
         drawPlant(ctx, plant);
@@ -714,7 +718,7 @@ export function GameCanvas({ onCellClick }: GameCanvasProps) {
       }
 
       if (env.fogEnabled) {
-        drawFogOverlay(ctx, env.gridRows, env.gridCols);
+        drawFogOverlay(ctx, state.grid, env.gridRows, env.gridCols);
       }
 
       for (const drop of Object.values(sunDrops)) {
