@@ -64,6 +64,7 @@ export function createStraightProjectile(
     isFire?: boolean;
     piercing?: boolean;
     canHitAerial?: boolean;
+    maxTravelDistanceCols?: number;
     direction?: "forward" | "backward";
     xOffset?: number;
   } = {}
@@ -87,6 +88,7 @@ export function createStraightProjectile(
     isFire: opts.isFire,
     piercing: opts.piercing,
     canHitAerial: opts.canHitAerial,
+    maxTravelDistanceCols: opts.maxTravelDistanceCols,
   };
 }
 

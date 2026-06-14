@@ -61,6 +61,10 @@ describe("shouldRemoveProjectile", () => {
     expect(shouldRemoveProjectile(makeStr({ x: 5 }), 9)).toBe(false);
   });
 
+  it("removes straight projectile after its max travel distance", () => {
+    expect(shouldRemoveProjectile(makeStr({ sourceCol: 2, x: 6, maxTravelDistanceCols: 4 }), 9)).toBe(true);
+  });
+
   it("removes lobbed projectile when it reaches targetCol", () => {
     expect(shouldRemoveProjectile(makeLob({ x: 7, targetCol: 7 }), 9)).toBe(true);
   });
@@ -93,6 +97,15 @@ describe("findStraightHits", () => {
     };
     const hits = findStraightHits(proj, zombies);
     expect(hits).toHaveLength(2);
+  });
+
+  it("does not hit zombies beyond a straight projectile max travel distance", () => {
+    const proj = makeStr({ lane: 0, x: 6.2, sourceCol: 2, piercing: true, maxTravelDistanceCols: 4 });
+    const zombies = {
+      z1: makeZombie("z1", { lane: 0, x: 6 }),
+      z2: makeZombie("z2", { lane: 0, x: 6.2 }),
+    };
+    expect(findStraightHits(proj, zombies)).toEqual(["z1"]);
   });
 
   it("uses projectile direction when choosing a backward hit", () => {
