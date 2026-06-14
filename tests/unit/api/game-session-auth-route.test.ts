@@ -128,6 +128,76 @@ describe("game session API authentication and ownership", () => {
     expect(session.userId).toBe(owner.id);
   });
 
+  it("copies level waveConfig and rngSeed into created sessions", async () => {
+    const owner = await seedUser("level-wave-owner@example.com");
+    const token = await createAuthToken(owner.id, "level-wave-create-token");
+    const waveConfig = {
+      finalWaveNumber: 1,
+      waves: [
+        {
+          waveNumber: 1,
+          entries: [{ zombieType: "CONEHEAD", lane: 2, spawnAtMs: 0 }],
+          final: true,
+        },
+      ],
+    };
+    await prisma.level.upsert({
+      where: { levelNumber: 9101 },
+      update: {
+        name: "Test Wave Config Level",
+        environmentType: "NIGHT",
+        worldNumber: 91,
+        stageNumber: 1,
+        gravesEnabled: true,
+        skyDropSun: false,
+        waveConfig,
+      },
+      create: {
+        levelNumber: 9101,
+        name: "Test Wave Config Level",
+        environmentType: "NIGHT",
+        worldNumber: 91,
+        stageNumber: 1,
+        gravesEnabled: true,
+        skyDropSun: false,
+        waveConfig,
+      },
+    });
+
+    const response = await createGameSession(
+      new Request("http://localhost/api/game/sessions", {
+        method: "POST",
+        headers: { "content-type": "application/json", ...authHeaders(token) },
+        body: JSON.stringify({
+          levelNumber: 9101,
+          environmentType: "DAY",
+          loadout: ["PEASHOOTER", "SUNFLOWER"],
+        }),
+      })
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(201);
+
+    const session = await prisma.gameSession.findUniqueOrThrow({
+      where: { id: body.sessionId },
+    });
+    expect(session.environmentType).toBe("NIGHT");
+    expect(session.gravesEnabled).toBe(true);
+    expect(session.skyDropSun).toBe(false);
+    expect(session.rngSeed).toContain("level:9101");
+    expect(session.environmentConfig).toMatchObject({ waveConfig });
+
+    const loadResponse = await loadGameSession(
+      new Request(`http://localhost/api/game/sessions/${session.id}`, {
+        headers: authHeaders(token),
+      }),
+      { params: Promise.resolve({ id: session.id }) }
+    );
+    const loaded = await loadResponse.json();
+    expect(loaded.state.waveConfig).toMatchObject(waveConfig);
+  });
+
   it("lists only sessions owned by the authenticated user", async () => {
     const owner = await seedUser("list-owner@example.com");
     const other = await seedUser("list-other@example.com");

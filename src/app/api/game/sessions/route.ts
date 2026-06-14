@@ -42,23 +42,31 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   try {
     // Validate level exists if levelNumber provided
+    let level: Awaited<ReturnType<typeof prisma.level.findUnique>> = null;
     if (levelNumber !== undefined) {
-      const level = await prisma.level.findUnique({ where: { levelNumber } });
+      level = await prisma.level.findUnique({ where: { levelNumber } });
       if (!level) {
         return NextResponse.json({ error: "Level not found" }, { status: 404 });
       }
     }
 
     // Determine environment defaults based on type
-    const envType = environmentType as EnvironmentType;
+    const envType = (level?.environmentType ?? environmentType) as EnvironmentType;
     const isWaterEnvironment = envType === "POOL" || envType === "FOG";
     const isNightLike = envType === "NIGHT" || envType === "FOG";
-    const waterLaneIndices = isWaterEnvironment ? [2, 3] : [];
-    const fogEnabled = envType === "FOG";
-    const slopeEnabled = envType === "ROOF";
-    const gravesEnabled = envType === "NIGHT";
-    const gridRows = isWaterEnvironment ? 6 : 5;
-    const skyDropSun = !isNightLike;
+    const waterLaneIndices = level?.waterLaneIndices ?? (isWaterEnvironment ? [2, 3] : []);
+    const fogEnabled = level?.fogEnabled ?? (envType === "FOG");
+    const slopeEnabled = level?.slopeEnabled ?? (envType === "ROOF");
+    const gravesEnabled = level?.gravesEnabled ?? (envType === "NIGHT");
+    const gridRows = level?.gridRows ?? (isWaterEnvironment ? 6 : 5);
+    const gridCols = level?.gridCols ?? 9;
+    const skyDropSun = level?.skyDropSun ?? !isNightLike;
+    const startingSun = level?.startingSun ?? 50;
+    const levelEnvironmentConfig = toPlainObject(level?.environmentConfig);
+    const waveConfig = level?.waveConfig ?? [];
+    const rngSeed = level
+      ? `level:${level.levelNumber}:wave:${JSON.stringify(waveConfig)}`
+      : `environment:${envType}:loadout:${loadout.join(",")}`;
 
     const session = await prisma.gameSession.create({
       data: {
@@ -71,15 +79,18 @@ export async function POST(request: Request): Promise<NextResponse> {
         gravesEnabled,
         skyDropSun,
         gridRows,
-        gridCols: 9,
-        startingSun: 50,
+        gridCols,
+        startingSun,
+        rngSeed,
         environmentConfig: {
+          ...levelEnvironmentConfig,
           timeOfDay: isNightLike ? "night" : "day",
           hasPool: isWaterEnvironment,
           hasFog: fogEnabled,
           hasRoofSlope: slopeEnabled,
           skyDropSun,
           waterLaneIndices,
+          waveConfig,
         },
         loadoutSnapshot: loadout,
         seedCooldowns: {},
@@ -140,4 +151,10 @@ export async function GET(request: Request): Promise<NextResponse> {
     console.error("[GET /api/game/sessions]", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
+}
+
+function toPlainObject(value: unknown): Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
 }

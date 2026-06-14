@@ -1148,6 +1148,38 @@ describe("tick — zombie movement", () => {
     expect(zombies[0].lane).toBe(2);
   });
 
+  it("uses configured deterministic level waves when provided", () => {
+    const waveConfig = {
+      finalWaveNumber: 1,
+      waves: [
+        {
+          waveNumber: 1,
+          entries: [
+            { zombieType: "BUCKETHEAD", lane: 4, spawnAtMs: 0 },
+            { zombieType: "CONEHEAD", lane: 1, spawnAtMs: 500 },
+          ],
+          final: true,
+        },
+      ],
+    };
+    useGameStore.getState().initGame(DAY_ENV, EXTENDED_LOADOUT, {
+      rngSeed: "configured-store-wave",
+      waveConfig,
+    });
+    useGameStore.getState().startGame();
+
+    useGameStore.getState().tick(WAVE_INTERVAL_MS);
+
+    const zombies = Object.values(useGameStore.getState().zombies);
+    expect(zombies).toHaveLength(1);
+    expect(zombies[0]).toMatchObject({ zombieType: "BUCKETHEAD", lane: 4 });
+    expect(useGameStore.getState().zombieSpawnQueue).toEqual([
+      { zombieType: "CONEHEAD", lane: 1, spawnAtMs: WAVE_INTERVAL_MS + 500 },
+      expect.objectContaining({ zombieType: "FLAG", spawnAtMs: WAVE_INTERVAL_MS + 1000 }),
+    ]);
+    expect(useGameStore.getState().waveNumber).toBe(1);
+  });
+
   it("routes aquatic zombies to Pool water lanes when queued on land", () => {
     useGameStore.getState().initGame(POOL_ENV, EXTENDED_LOADOUT);
     useGameStore.getState().startGame();
