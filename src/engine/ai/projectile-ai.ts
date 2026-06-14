@@ -8,6 +8,12 @@ import {
 import { applyProjectileDamage, isZombieDead } from "../physics/collision";
 
 const STRAIGHT_HIT_RADIUS = 0.5;
+const LOBBED_HIT_RADIUS = 1.5;
+const LOBBED_SPLASH_LANES = 1;
+
+function hasLobbedSplash(proj: RuntimeProjectile): boolean {
+  return proj.projectileType === "MELON";
+}
 
 export function advanceProjectile(proj: RuntimeProjectile, deltaMs: number): RuntimeProjectile {
   return proj.trajectory === "straight"
@@ -42,7 +48,7 @@ export function findStraightHits(
   return sorted.length > 0 ? [sorted[0][0]] : [];
 }
 
-/** Find zombie IDs in AoE radius of a lobbed projectile's target. */
+/** Find zombie IDs hit at a lobbed projectile's target. Melons splash; other lobbers hit one. */
 export function findLobbedHits(
   proj: RuntimeProjectile,
   zombies: Record<string, RuntimeZombie>
@@ -50,14 +56,24 @@ export function findLobbedHits(
   if (proj.trajectory !== "lobbed" || !hasLobbedLanded(proj)) return [];
   const tgtCol = proj.targetCol ?? proj.x;
   const tgtLane = proj.targetLane ?? proj.lane;
-  return Object.entries(zombies)
-    .filter(([, z]) =>
-      Math.abs(z.x - tgtCol) <= 1.5 &&
-      Math.abs(z.lane - tgtLane) <= 1 &&
+
+  const candidates = Object.entries(zombies).filter(([, z]) =>
       !z.isUnderground &&
-      (!z.isAerial || proj.canHitAerial === true)
-    )
-    .map(([id]) => id);
+      (!z.isAerial || proj.canHitAerial === true) &&
+      Math.abs(z.x - tgtCol) <= LOBBED_HIT_RADIUS
+  );
+
+  if (hasLobbedSplash(proj)) {
+    return candidates
+      .filter(([, z]) => Math.abs(z.lane - tgtLane) <= LOBBED_SPLASH_LANES)
+      .map(([id]) => id);
+  }
+
+  const sameLane = candidates
+    .filter(([, z]) => z.lane === tgtLane)
+    .sort(([, a], [, b]) => Math.abs(a.x - tgtCol) - Math.abs(b.x - tgtCol));
+
+  return sameLane.length > 0 ? [sameLane[0][0]] : [];
 }
 
 export interface HitResult {
