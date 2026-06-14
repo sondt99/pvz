@@ -1,4 +1,4 @@
-import type { RuntimePlant, RuntimeZombie, RuntimeProjectile, RuntimeSunDrop } from "../types";
+import type { EnvironmentConfig, RuntimePlant, RuntimeZombie, RuntimeProjectile, RuntimeSunDrop } from "../types";
 import type { PlantDefinition } from "../types";
 import {
   createStraightProjectile,
@@ -11,6 +11,7 @@ import {
   KERNEL_PULT_BUTTER_DAMAGE,
   KERNEL_PULT_BUTTER_STUN_MS,
   PUFF_SHROOM_RANGE_COLS,
+  ROOF_STRAIGHT_PROJECTILE_BLOCKED_COLS,
   SCAREDY_SHROOM_COWER_COLS,
   SCAREDY_SHROOM_COWER_LANES,
   SEA_SHROOM_RANGE_COLS,
@@ -125,6 +126,18 @@ function isZombieInStarfruitLine(plant: RuntimePlant, zombie: RuntimeZombie): bo
   return false;
 }
 
+function isStraightShotBlockedByRoofSlope(
+  plant: RuntimePlant,
+  def: PlantDefinition,
+  env?: Pick<EnvironmentConfig, "slopeEnabled">
+): boolean {
+  return (
+    env?.slopeEnabled === true &&
+    def.trajectory === "straight" &&
+    plant.col < ROOF_STRAIGHT_PROJECTILE_BLOCKED_COLS
+  );
+}
+
 function hasStarfruitTarget(
   plant: RuntimePlant,
   zombies: Record<string, RuntimeZombie>
@@ -149,12 +162,14 @@ export function shouldPlantAttack(
   def: PlantDefinition,
   gameTimeMs: number,
   zombies: Record<string, RuntimeZombie>,
-  gridRows = 5
+  gridRows = 5,
+  env?: Pick<EnvironmentConfig, "slopeEnabled">
 ): boolean {
   if (plant.isSleeping || plant.isCharging) return false;
   if (def.attackDamage === null || def.attackCooldownMs === null) return false;
   if (def.projectileType === null || def.trajectory === null) return false;
   if (def.attackRange === "none") return false;
+  if (isStraightShotBlockedByRoofSlope(plant, def, env)) return false;
   if (isScaredyShroomCowering(plant, zombies)) return false;
   if (gameTimeMs - plant.lastAttackAtMs < def.attackCooldownMs) return false;
   const includeAerial = def.plantType === "CACTUS";
@@ -193,8 +208,13 @@ export function plantFire(
   gameTimeMs: number,
   zombies: Record<string, RuntimeZombie>,
   gridRows = 5,
-  random: () => number = Math.random
+  random: () => number = Math.random,
+  env?: Pick<EnvironmentConfig, "slopeEnabled">
 ): { projectile: RuntimeProjectile | null; projectiles: RuntimeProjectile[]; updatedPlant: RuntimePlant } {
+  if (isStraightShotBlockedByRoofSlope(plant, def, env)) {
+    return { projectile: null, projectiles: [], updatedPlant: plant };
+  }
+
   if (isScaredyShroomCowering(plant, zombies)) {
     return { projectile: null, projectiles: [], updatedPlant: plant };
   }
