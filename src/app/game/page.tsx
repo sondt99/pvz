@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useGameStore } from "@/store/game-store";
 import { useGameLoop } from "@/hooks/useGameLoop";
@@ -11,7 +11,9 @@ import { GRID_COLS, GRID_ROWS_POOL, GRID_ROWS_STANDARD } from "@/engine/constant
 import type { EnvironmentConfig, EnvironmentType, SeedPacketSlot } from "@/engine/types";
 import { serializeGameState } from "@/lib/game-serializer";
 import {
+  completeGameSession,
   createGameSession,
+  fetchLevelConfig,
   listGameSessions,
   loadGameSession,
   saveGameSession,
@@ -139,6 +141,13 @@ function makeLoadout(envType: EnvironmentType): SeedPacketSlot[] {
   }));
 }
 
+function parseLevelParam(): number | null {
+  if (typeof window === "undefined") return null;
+  const raw = new URLSearchParams(window.location.search).get("level");
+  const n = Number(raw);
+  return raw && Number.isInteger(n) && n > 0 ? n : null;
+}
+
 function parseEnvironmentParam(): EnvironmentType {
   if (typeof window === "undefined") return "DAY";
   const raw = new URLSearchParams(window.location.search).get("env")?.toUpperCase();
@@ -150,10 +159,18 @@ function parseSessionIdParam(): string | null {
   return new URLSearchParams(window.location.search).get("sessionId");
 }
 
-function updateGameUrl(envType: EnvironmentType, sessionId: string | null): void {
+function updateGameUrl(
+  envType: EnvironmentType,
+  sessionId: string | null,
+  levelNumber: number | null
+): void {
   if (typeof window === "undefined") return;
   const params = new URLSearchParams();
-  params.set("env", envType);
+  if (levelNumber !== null) {
+    params.set("level", String(levelNumber));
+  } else {
+    params.set("env", envType);
+  }
   if (sessionId) params.set("sessionId", sessionId);
   window.history.replaceState(null, "", `/game?${params.toString()}`);
 }
@@ -172,15 +189,20 @@ const PERSISTENCE_LABELS: Record<PersistenceState, string> = {
 
 export default function GamePage() {
   const [activeEnvironment, setActiveEnvironment] = useState<EnvironmentType>("DAY");
+  const [activeLevelNumber, setActiveLevelNumber] = useState<number | null>(null);
+  const [rewardPlantId, setRewardPlantId] = useState<string | null>(null);
   const [routeReady, setRouteReady] = useState(false);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [persistenceState, setPersistenceState] = useState<PersistenceState>("connecting");
+  const victoryHandled = useRef(false);
   const status = useGameStore((s) => s.status);
   const selectedSlot = useGameStore((s) => s.selectedSlot);
   const loadout = useGameStore((s) => s.loadout);
 
   useEffect(() => {
-    setActiveEnvironment(parseEnvironmentParam());
+    const levelNum = parseLevelParam();
+    setActiveLevelNumber(levelNum);
+    if (!levelNum) setActiveEnvironment(parseEnvironmentParam());
     setRouteReady(true);
   }, []);
 
@@ -191,20 +213,55 @@ export default function GamePage() {
         forceNew?: boolean;
         preferredSessionId?: string | null;
         isCancelled?: () => boolean;
+        levelNumber?: number | null;
       } = {}
     ) => {
       const isCancelled = options.isCancelled ?? (() => false);
-      const env = ENVIRONMENTS[envType];
-      const slots = makeLoadout(envType);
+      const levelNum = options.levelNumber ?? null;
 
       setPersistenceState("connecting");
+      victoryHandled.current = false;
 
       try {
+        // Fetch level config from DB when a level number is provided
+        let env: EnvironmentConfig;
+        let slots: SeedPacketSlot[];
+        let levelRewardPlantId: string | null = null;
+
+        if (levelNum !== null) {
+          const levelConfig = await fetchLevelConfig(levelNum);
+          if (isCancelled()) return;
+
+          const lvl = levelConfig.level;
+          env = {
+            type: lvl.environmentType,
+            gridRows: lvl.gridRows,
+            gridCols: lvl.gridCols,
+            waterLaneIndices: lvl.waterLaneIndices,
+            gravesEnabled: lvl.gravesEnabled,
+            fogEnabled: lvl.fogEnabled,
+            slopeEnabled: lvl.slopeEnabled,
+            conveyorBelt: lvl.conveyorBelt,
+            skyDropSun: lvl.skyDropSun,
+          };
+          slots = levelConfig.loadout;
+          levelRewardPlantId = lvl.rewardPlantId;
+          setRewardPlantId(levelRewardPlantId);
+          setActiveEnvironment(lvl.environmentType);
+        } else {
+          env = ENVIRONMENTS[envType];
+          slots = makeLoadout(envType);
+          setRewardPlantId(null);
+        }
+
         let sessionId = options.forceNew ? null : options.preferredSessionId ?? null;
         if (!sessionId) {
           const sessions = await listGameSessions();
+          // For level sessions, find by levelNumber; for env sessions, find by env type
           sessionId =
-            sessions.find((session) => session.environmentType === envType)?.id ?? null;
+            levelNum !== null
+              ? sessions.find((s) => s.levelNumber === levelNum)?.id ?? null
+              : sessions.find((s) => s.environmentType === envType && s.levelNumber === null)?.id ?? null;
         }
 
         if (isCancelled()) return;
@@ -221,14 +278,15 @@ export default function GamePage() {
           });
           setCurrentSessionId(loaded.session.id);
           setPersistenceState(loaded.session.status === "PAUSED" ? "loaded" : "db");
-          if (loadedEnv !== envType) setActiveEnvironment(loadedEnv);
-          updateGameUrl(loadedEnv, loaded.session.id);
+          if (loadedEnv !== activeEnvironment) setActiveEnvironment(loadedEnv);
+          updateGameUrl(loadedEnv, loaded.session.id, levelNum);
           return;
         }
 
         const created = await createGameSession(
-          envType,
-          slots.map((slot) => slot.plantType)
+          env.type,
+          slots.map((slot) => slot.plantType),
+          levelNum !== null ? { levelNumber: levelNum } : undefined
         );
         if (isCancelled()) return;
 
@@ -237,33 +295,54 @@ export default function GamePage() {
         store.startGame();
         setCurrentSessionId(created.sessionId);
         setPersistenceState("db");
-        updateGameUrl(envType, created.sessionId);
+        updateGameUrl(env.type, created.sessionId, levelNum);
       } catch (err) {
         console.warn("[GamePage] Falling back to local session", err);
         if (isCancelled()) return;
 
+        const env = ENVIRONMENTS[envType];
+        const slots = makeLoadout(envType);
         const store = useGameStore.getState();
         store.initGame(env, slots);
         store.startGame();
         setCurrentSessionId(null);
         setPersistenceState("local");
-        updateGameUrl(envType, null);
+        updateGameUrl(envType, null, null);
       }
     },
-    []
+    [activeEnvironment]
   );
 
   useEffect(() => {
     if (!routeReady) return;
     let cancelled = false;
-    void startSession(activeEnvironment, {
+    void startSession(activeLevelNumber ? "DAY" : activeEnvironment, {
       preferredSessionId: parseSessionIdParam(),
       isCancelled: () => cancelled,
+      levelNumber: activeLevelNumber,
     });
     return () => {
       cancelled = true;
     };
-  }, [activeEnvironment, routeReady, startSession]);
+  }, [activeEnvironment, activeLevelNumber, routeReady, startSession]);
+
+  // Handle victory: mark session complete and unlock reward plant
+  useEffect(() => {
+    if (status !== "victory" || victoryHandled.current) return;
+    victoryHandled.current = true;
+
+    if (!currentSessionId) return;
+
+    const gameState = useGameStore.getState();
+    void completeGameSession(currentSessionId, {
+      score: gameState.score,
+      totalZombiesKilled: gameState.totalZombiesKilled,
+      waveNumber: gameState.waveNumber,
+      gameTimeMs: gameState.gameTimeMs,
+    }).catch((err) => {
+      console.warn("[GamePage] Failed to record victory", err);
+    });
+  }, [status, currentSessionId]);
 
   useGameLoop();
 
@@ -318,17 +397,18 @@ export default function GamePage() {
   }
 
   function switchEnvironment(envType: EnvironmentType) {
-    if (envType === activeEnvironment) return;
+    if (envType === activeEnvironment || activeLevelNumber !== null) return;
     setCurrentSessionId(null);
     setPersistenceState("connecting");
     setActiveEnvironment(envType);
-    updateGameUrl(envType, null);
+    updateGameUrl(envType, null, null);
   }
 
   const isGameOver = status === "game-over";
   const isVictory = status === "victory";
   const showOverlay = isGameOver || isVictory;
-  const selectedPlant = selectedSlot !== null ? loadout[selectedSlot]?.plantType.replace(/_/g, " ") : activeEnvironment;
+  const selectedPlant =
+    selectedSlot !== null ? loadout[selectedSlot]?.plantType.replace(/_/g, " ") : activeEnvironment;
 
   return (
     <main
@@ -360,41 +440,43 @@ export default function GamePage() {
           overflow: "auto",
         }}
       >
-        <div
-          style={{
-            display: "flex",
-            gap: 6,
-            alignItems: "center",
-            justifyContent: "center",
-            flexWrap: "wrap",
-            width: "min(100%, 1080px)",
-          }}
-        >
-          {ENVIRONMENT_ORDER.map((envType) => {
-            const selected = envType === activeEnvironment;
-            return (
-              <button
-                key={envType}
-                onClick={() => switchEnvironment(envType)}
-                style={{
-                  minWidth: 84,
-                  height: 34,
-                  border: selected ? "2px solid #ffe56a" : "1px solid rgba(218, 245, 176, 0.28)",
-                  borderRadius: 7,
-                  background: selected ? "rgba(255, 213, 74, 0.22)" : "rgba(20, 48, 22, 0.72)",
-                  color: selected ? "#fff5a6" : "#cfeab8",
-                  fontWeight: 800,
-                  fontSize: 12,
-                  letterSpacing: 0,
-                  cursor: "pointer",
-                  boxShadow: selected ? "0 0 16px rgba(255, 220, 74, 0.2)" : "none",
-                }}
-              >
-                {envType}
-              </button>
-            );
-          })}
-        </div>
+        {activeLevelNumber === null && (
+          <div
+            style={{
+              display: "flex",
+              gap: 6,
+              alignItems: "center",
+              justifyContent: "center",
+              flexWrap: "wrap",
+              width: "min(100%, 1080px)",
+            }}
+          >
+            {ENVIRONMENT_ORDER.map((envType) => {
+              const selected = envType === activeEnvironment;
+              return (
+                <button
+                  key={envType}
+                  onClick={() => switchEnvironment(envType)}
+                  style={{
+                    minWidth: 84,
+                    height: 34,
+                    border: selected ? "2px solid #ffe56a" : "1px solid rgba(218, 245, 176, 0.28)",
+                    borderRadius: 7,
+                    background: selected ? "rgba(255, 213, 74, 0.22)" : "rgba(20, 48, 22, 0.72)",
+                    color: selected ? "#fff5a6" : "#cfeab8",
+                    fontWeight: 800,
+                    fontSize: 12,
+                    letterSpacing: 0,
+                    cursor: "pointer",
+                    boxShadow: selected ? "0 0 16px rgba(255, 220, 74, 0.2)" : "none",
+                  }}
+                >
+                  {envType}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         <div
           style={{
@@ -445,10 +527,19 @@ export default function GamePage() {
                 {isVictory ? "YOU WIN!" : "GAME OVER"}
               </h1>
 
+              {isVictory && rewardPlantId && (
+                <p style={{ color: "#adffa0", fontSize: 18, margin: 0 }}>
+                  Unlocked: {rewardPlantId.replace(/_/g, " ")}
+                </p>
+              )}
+
               <div style={{ display: "flex", gap: 16 }}>
                 <button
                   onClick={() => {
-                    void startSession(activeEnvironment, { forceNew: true });
+                    void startSession(activeEnvironment, {
+                      forceNew: true,
+                      levelNumber: activeLevelNumber,
+                    });
                   }}
                   style={{
                     background: "#2a7a2a",

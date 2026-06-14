@@ -1,5 +1,5 @@
 import type { SerializedGameState } from "@/lib/game-serializer";
-import type { GameEngineState, EnvironmentType } from "@/engine/types";
+import type { GameEngineState, EnvironmentType, SeedPacketSlot } from "@/engine/types";
 
 export const CLIENT_SESSION_TOKEN_STORAGE_KEY = "pvz_session_token";
 
@@ -49,8 +49,31 @@ export async function listGameSessions(fetcher: Fetcher = fetch): Promise<GameSe
 export async function createGameSession(
   environmentType: EnvironmentType,
   loadout: string[],
-  fetcher: Fetcher = fetch
+  fetcher?: Fetcher | number,
+  _unused?: Fetcher
+): Promise<CreateGameSessionResult>;
+export async function createGameSession(
+  environmentType: EnvironmentType,
+  loadout: string[],
+  options?: { levelNumber?: number },
+  fetcher?: Fetcher
+): Promise<CreateGameSessionResult>;
+export async function createGameSession(
+  environmentType: EnvironmentType,
+  loadout: string[],
+  fetcherOrOptions?: Fetcher | number | { levelNumber?: number },
+  maybeFetcher?: Fetcher
 ): Promise<CreateGameSessionResult> {
+  let levelNumber: number | undefined;
+  let fetcher: Fetcher = fetch;
+
+  if (typeof fetcherOrOptions === "function") {
+    fetcher = fetcherOrOptions;
+  } else if (typeof fetcherOrOptions === "object" && fetcherOrOptions !== null) {
+    levelNumber = fetcherOrOptions.levelNumber;
+    if (maybeFetcher) fetcher = maybeFetcher;
+  }
+
   const response = await fetcher("/api/game/sessions", {
     method: "POST",
     credentials: "include",
@@ -58,7 +81,7 @@ export async function createGameSession(
       "content-type": "application/json",
       ...authHeaders(),
     },
-    body: JSON.stringify({ environmentType, loadout }),
+    body: JSON.stringify({ environmentType, loadout, levelNumber }),
   });
   return parseJsonResponse<CreateGameSessionResult>(response);
 }
@@ -90,6 +113,62 @@ export async function saveGameSession(
     body: JSON.stringify(payload),
   });
   return parseJsonResponse<{ ok: true; savedAt: string }>(response);
+}
+
+export interface LevelConfigResult {
+  level: {
+    levelNumber: number;
+    name: string;
+    environmentType: EnvironmentType;
+    gridRows: number;
+    gridCols: number;
+    waterLaneIndices: number[];
+    gravesEnabled: boolean;
+    fogEnabled: boolean;
+    slopeEnabled: boolean;
+    conveyorBelt: boolean;
+    skyDropSun: boolean;
+    startingSun: number;
+    seedSlots: number;
+    rewardPlantId: string | null;
+    waveConfig: unknown;
+  };
+  loadout: SeedPacketSlot[];
+}
+
+export interface CompleteSessionResult {
+  ok: boolean;
+  rewardUnlocked?: boolean;
+  alreadyCompleted?: boolean;
+}
+
+export async function fetchLevelConfig(
+  levelNumber: number,
+  fetcher: Fetcher = fetch
+): Promise<LevelConfigResult> {
+  const response = await fetcher(`/api/game/level-config?levelNumber=${levelNumber}`, {
+    method: "GET",
+    credentials: "include",
+    headers: authHeaders(),
+  });
+  return parseJsonResponse<LevelConfigResult>(response);
+}
+
+export async function completeGameSession(
+  sessionId: string,
+  payload: { score: number; totalZombiesKilled: number; waveNumber: number; gameTimeMs: number },
+  fetcher: Fetcher = fetch
+): Promise<CompleteSessionResult> {
+  const response = await fetcher(`/api/game/sessions/${sessionId}/complete`, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "content-type": "application/json",
+      ...authHeaders(),
+    },
+    body: JSON.stringify(payload),
+  });
+  return parseJsonResponse<CompleteSessionResult>(response);
 }
 
 async function parseJsonResponse<T>(response: Response): Promise<T> {
