@@ -74,6 +74,21 @@ describe("POST /api/game/sessions/:id/save", () => {
     });
 
     const payload: SerializedGameState = {
+      gameTimeMs: 12_000,
+      environmentState: {
+        gridCells: [
+          {
+            row: 0,
+            col: 0,
+            isWater: false,
+            isFog: false,
+            isSlope: false,
+            graveId: "grave-1",
+          },
+        ],
+        nextSkyDropTimerMs: 4_500,
+      },
+      graveState: [{ row: 0, col: 0, graveId: "grave-1" }],
       gridState: [
         [
           {
@@ -113,6 +128,35 @@ describe("POST /api/game/sessions/:id/save", () => {
           },
         },
       ],
+      projectileState: [
+        {
+          instanceId: "projectile-pea-1",
+          projectileType: "PEA",
+          lane: 0,
+          x: 2.5,
+          y: 0,
+          velX: 5,
+          velY: 0,
+          damage: 20,
+          trajectory: "straight",
+          sourceCol: 0,
+        },
+      ],
+      sunDropState: [
+        {
+          instanceId: "sun-sky-1",
+          x: 4.5,
+          y: 1.25,
+          targetY: 3,
+          value: 25,
+          source: "sky",
+          state: "falling",
+          spawnedAtMs: 10_000,
+          lifetimeMs: 10_000,
+        },
+      ],
+      lawnMowerState: [],
+      spawnQueueState: [{ zombieType: "CONEHEAD", lane: 1, spawnAtMs: 15_000, x: 9.5 }],
       seedCooldowns: {
         peashooter: 1234,
         sunflower: 0,
@@ -137,8 +181,14 @@ describe("POST /api/game/sessions/:id/save", () => {
     });
 
     expect(saved.status).toBe("PAUSED");
+    expect(saved.gameTimeMs).toBe(12_000);
+    expect(saved.environmentState).toEqual(payload.environmentState);
+    expect(saved.graveState).toEqual(payload.graveState);
     expect(Array.isArray(saved.gridState)).toBe(true);
     expect(Array.isArray(saved.zombieState)).toBe(true);
+    expect(saved.projectileState).toEqual(payload.projectileState);
+    expect(saved.sunDropState).toEqual(payload.sunDropState);
+    expect(saved.spawnQueueState).toEqual(payload.spawnQueueState);
     expect(typeof saved.seedCooldowns).toBe("object");
     expect(Array.isArray(saved.loadoutSnapshot)).toBe(true);
     expect(saved.gridState).toEqual(payload.gridState);
@@ -169,11 +219,31 @@ describe("POST /api/game/sessions/:id/save", () => {
       x: 7.25,
       health: 180,
     });
+    expect(loaded.state.projectiles["projectile-pea-1"]).toMatchObject({
+      projectileType: "PEA",
+      lane: 0,
+      x: 2.5,
+      damage: 20,
+    });
+    expect(loaded.state.sunDrops["sun-sky-1"]).toMatchObject({
+      source: "sky",
+      state: "falling",
+      value: 25,
+    });
+    expect(loaded.state.zombieSpawnQueue).toEqual([
+      { zombieType: "CONEHEAD", lane: 1, spawnAtMs: 15_000, x: 9.5 },
+    ]);
     expect(loaded.state.loadout[0]).toMatchObject({
       plantType: "PEASHOOTER",
       cooldownRemainingMs: 1234,
     });
     expect(loaded.state.currentSun).toBe(75);
-    expect(loaded.state.nextWaveAtMs).toBe(8500);
+    expect(loaded.state.gameTimeMs).toBe(12_000);
+    expect(loaded.state.nextWaveAtMs).toBe(20_500);
+    expect(loaded.state.nextSkyDropAtMs).toBe(16_500);
+    expect(loaded.state.grid[0][0]).toMatchObject({
+      isFog: false,
+      graveId: "grave-1",
+    });
   });
 });

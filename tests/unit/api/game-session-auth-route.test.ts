@@ -68,8 +68,18 @@ async function createDayGameSession(userId: string) {
 
 function createSavePayload(): SerializedGameState {
   return {
+    gameTimeMs: 1_000,
+    environmentState: {
+      gridCells: [],
+      nextSkyDropTimerMs: 0,
+    },
+    graveState: [],
     gridState: [],
     zombieState: [],
+    projectileState: [],
+    sunDropState: [],
+    lawnMowerState: [],
+    spawnQueueState: [],
     seedCooldowns: {},
     loadoutSnapshot: ["PEASHOOTER"],
     currentSun: 999,

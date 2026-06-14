@@ -3,9 +3,23 @@
 // Converts DB GameSession columns → Partial<GameEngineState> for store merge.
 // ---------------------------------------------------------------------------
 
-import type { GameEngineState, EnvironmentConfig, RuntimePlant, RuntimeZombie, RuntimeStatusEffect, SeedPacketSlot } from "@/engine/types";
+import type {
+  GameEngineState,
+  EnvironmentConfig,
+  RuntimePlant,
+  RuntimeProjectile,
+  RuntimeSunDrop,
+  RuntimeZombie,
+  RuntimeStatusEffect,
+  SeedPacketSlot,
+} from "@/engine/types";
 import type { GridCell, ZombieInstance, SeedCooldowns } from "@/types/game";
 import { isGridState, isZombieState } from "@/types/game";
+import type {
+  SerializedEnvironmentState,
+  SerializedGraveState,
+  SerializedSpawnQueue,
+} from "@/lib/game-serializer";
 import { generateGrid } from "@/engine/grid";
 import { getPlantDef } from "@/engine/entities/plant-defs";
 import { getZombieDef } from "@/engine/entities/zombie-defs";
@@ -16,8 +30,14 @@ import type { EnvironmentType } from "@/engine/types";
 // ---------------------------------------------------------------------------
 
 interface SessionData {
+  gameTimeMs: number;
+  environmentState: unknown;
+  graveState: unknown;
   gridState: unknown;
   zombieState: unknown;
+  projectileState: unknown;
+  sunDropState: unknown;
+  spawnQueueState: unknown;
   seedCooldowns: unknown;
   loadoutSnapshot: unknown;
   currentSun: number;
@@ -44,6 +64,10 @@ export function deserializeGameState(
   session: SessionData,
   currentGameTimeMs: number
 ): Partial<GameEngineState> {
+  const restoredGameTimeMs = Number.isFinite(session.gameTimeMs)
+    ? session.gameTimeMs
+    : currentGameTimeMs;
+
   // --- Environment ---
   const env: EnvironmentConfig = {
     type: session.environmentType as EnvironmentType,
@@ -61,10 +85,38 @@ export function deserializeGameState(
   const grid = generateGrid(env);
 
   // --- Parse JSON columns ---
+  const environmentState = isSerializedEnvironmentState(session.environmentState)
+    ? session.environmentState
+    : null;
+  const graveState = isSerializedGraveState(session.graveState)
+    ? session.graveState
+    : [];
   const gridState = isGridState(session.gridState) ? session.gridState : ([] as GridCell[][]);
   const zombieStateRaw = isZombieState(session.zombieState) ? session.zombieState : [];
+  const projectileStateRaw = isProjectileState(session.projectileState) ? session.projectileState : [];
+  const sunDropStateRaw = isSunDropState(session.sunDropState) ? session.sunDropState : [];
+  const spawnQueueStateRaw = isSpawnQueueState(session.spawnQueueState) ? session.spawnQueueState : [];
   const seedCooldownsRaw = isSeedCooldowns(session.seedCooldowns) ? session.seedCooldowns : {};
   const loadoutSnapshotRaw = isStringArray(session.loadoutSnapshot) ? session.loadoutSnapshot : [];
+
+  // --- Restore environment mutations like fog reveal and graves ---
+  if (environmentState) {
+    for (const cellState of environmentState.gridCells) {
+      const gridCell = grid[cellState.row]?.[cellState.col];
+      if (!gridCell) continue;
+
+      gridCell.isWater = cellState.isWater;
+      gridCell.isFog = cellState.isFog;
+      gridCell.isSlope = cellState.isSlope;
+      gridCell.graveId = cellState.graveId;
+    }
+  }
+
+  for (const grave of graveState) {
+    const gridCell = grid[grave.row]?.[grave.col];
+    if (!gridCell) continue;
+    gridCell.graveId = grave.graveId;
+  }
 
   // --- Reconstruct plants from gridState entities ---
   const plants: Record<string, RuntimePlant> = {};
@@ -134,7 +186,7 @@ export function deserializeGameState(
       type: effect.type,
       expiresAtMs: effect.remainingMs >= 999999
         ? Infinity
-        : currentGameTimeMs + effect.remainingMs,
+        : restoredGameTimeMs + effect.remainingMs,
     }));
 
     const zombie: RuntimeZombie = {
@@ -157,6 +209,13 @@ export function deserializeGameState(
 
     zombies[z.instanceId] = zombie;
   }
+
+  // --- Reconstruct volatile runtime records ---
+  const projectiles = toRecordByInstanceId(projectileStateRaw);
+  const sunDrops = toRecordByInstanceId(sunDropStateRaw);
+  const zombieSpawnQueue = spawnQueueStateRaw.map((entry) => ({ ...entry }));
+
+  const nextSkyDropTimerMs = environmentState?.nextSkyDropTimerMs ?? 0;
 
   // --- Reconstruct loadout ---
   const loadout: SeedPacketSlot[] = loadoutSnapshotRaw.map((plantType, index) => {
@@ -195,16 +254,19 @@ export function deserializeGameState(
     grid,
     plants,
     zombies,
-    projectiles: {},
-    sunDrops: {},
+    projectiles,
+    sunDrops,
     currentSun: session.currentSun,
     cumulativeSun: session.cumulativeSun,
+    gameTimeMs: restoredGameTimeMs,
     score: session.score,
     waveNumber: session.waveNumber,
-    nextWaveAtMs: currentGameTimeMs + session.nextWaveTimerMs,
+    nextWaveAtMs: restoredGameTimeMs + session.nextWaveTimerMs,
     totalZombiesKilled: session.totalZombiesKilled,
     loadout,
     selectedSlot: null,
+    nextSkyDropAtMs: restoredGameTimeMs + nextSkyDropTimerMs,
+    zombieSpawnQueue,
   };
 }
 
@@ -219,4 +281,95 @@ function isSeedCooldowns(v: unknown): v is SeedCooldowns {
 
 function isStringArray(v: unknown): v is string[] {
   return Array.isArray(v) && (v as unknown[]).every((item) => typeof item === "string");
+}
+
+function isSerializedEnvironmentState(v: unknown): v is SerializedEnvironmentState {
+  if (typeof v !== "object" || v === null || Array.isArray(v)) return false;
+  const state = v as Record<string, unknown>;
+  return (
+    typeof state.nextSkyDropTimerMs === "number" &&
+    Array.isArray(state.gridCells) &&
+    state.gridCells.every(isSerializedGridCellEnvironment)
+  );
+}
+
+function isSerializedGridCellEnvironment(v: unknown): boolean {
+  if (typeof v !== "object" || v === null || Array.isArray(v)) return false;
+  const cell = v as Record<string, unknown>;
+  return (
+    typeof cell.row === "number" &&
+    typeof cell.col === "number" &&
+    typeof cell.isWater === "boolean" &&
+    typeof cell.isFog === "boolean" &&
+    typeof cell.isSlope === "boolean" &&
+    (typeof cell.graveId === "string" || cell.graveId === null)
+  );
+}
+
+function isSerializedGraveState(v: unknown): v is SerializedGraveState[] {
+  return Array.isArray(v) && v.every((grave) => {
+    if (typeof grave !== "object" || grave === null || Array.isArray(grave)) return false;
+    const g = grave as Record<string, unknown>;
+    return (
+      typeof g.row === "number" &&
+      typeof g.col === "number" &&
+      typeof g.graveId === "string"
+    );
+  });
+}
+
+function isProjectileState(v: unknown): v is RuntimeProjectile[] {
+  return Array.isArray(v) && v.every((projectile) => {
+    if (typeof projectile !== "object" || projectile === null || Array.isArray(projectile)) {
+      return false;
+    }
+    const p = projectile as Record<string, unknown>;
+    return (
+      typeof p.instanceId === "string" &&
+      typeof p.projectileType === "string" &&
+      typeof p.lane === "number" &&
+      typeof p.x === "number" &&
+      typeof p.y === "number" &&
+      typeof p.velX === "number" &&
+      typeof p.velY === "number" &&
+      typeof p.damage === "number" &&
+      (p.trajectory === "straight" || p.trajectory === "lobbed") &&
+      typeof p.sourceCol === "number"
+    );
+  });
+}
+
+function isSunDropState(v: unknown): v is RuntimeSunDrop[] {
+  return Array.isArray(v) && v.every((drop) => {
+    if (typeof drop !== "object" || drop === null || Array.isArray(drop)) return false;
+    const d = drop as Record<string, unknown>;
+    return (
+      typeof d.instanceId === "string" &&
+      typeof d.x === "number" &&
+      typeof d.y === "number" &&
+      typeof d.targetY === "number" &&
+      typeof d.value === "number" &&
+      (d.source === "sky" || d.source === "plant") &&
+      (d.state === "falling" || d.state === "landed" || d.state === "collected") &&
+      typeof d.spawnedAtMs === "number" &&
+      typeof d.lifetimeMs === "number"
+    );
+  });
+}
+
+function isSpawnQueueState(v: unknown): v is SerializedSpawnQueue {
+  return Array.isArray(v) && v.every((entry) => {
+    if (typeof entry !== "object" || entry === null || Array.isArray(entry)) return false;
+    const q = entry as Record<string, unknown>;
+    return (
+      typeof q.zombieType === "string" &&
+      typeof q.lane === "number" &&
+      typeof q.spawnAtMs === "number" &&
+      (typeof q.x === "number" || q.x === undefined)
+    );
+  });
+}
+
+function toRecordByInstanceId<T extends { instanceId: string }>(items: T[]): Record<string, T> {
+  return Object.fromEntries(items.map((item) => [item.instanceId, { ...item }]));
 }
