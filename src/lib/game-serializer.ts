@@ -19,6 +19,7 @@ export interface SerializedGridCellEnvironment {
   isFog: boolean;
   isSlope: boolean;
   graveId: string | null;
+  craterExpiresAtMs?: number | null;
 }
 
 export interface SerializedEnvironmentState {
@@ -94,6 +95,7 @@ function serializeEnvironmentState(state: GameEngineState): SerializedEnvironmen
         isFog: cell.isFog,
         isSlope: cell.isSlope,
         graveId: cell.graveId,
+        craterExpiresAtMs: cell.craterExpiresAtMs,
       }))
     ),
     nextSkyDropTimerMs: Math.max(0, state.nextSkyDropAtMs - state.gameTimeMs),

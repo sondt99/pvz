@@ -44,6 +44,7 @@ export function generateGrid(env: EnvironmentConfig): RuntimeGridCell[][] {
         lilyPadInstanceId: null,
         flowerPotInstanceId: null,
         graveId: graveByCell.get(`${row}:${col}`) ?? null,
+        craterExpiresAtMs: null,
       });
     }
     grid.push(gridRow);
@@ -99,6 +100,7 @@ export function canPlantHere(
   const cell = getCell(grid, row, col);
   if (!cell) return false;
   if (cell.graveId !== null) return false;
+  if (cell.craterExpiresAtMs !== null) return false;
 
   if (cell.isWater) {
     if (opts.isFlowerPot) return false;

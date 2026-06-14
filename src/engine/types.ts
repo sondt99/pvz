@@ -69,6 +69,7 @@ export interface RuntimeGridCell {
   lilyPadInstanceId: string | null;
   flowerPotInstanceId: string | null;
   graveId: string | null;
+  craterExpiresAtMs: number | null;
 }
 
 export type StatusEffectType =

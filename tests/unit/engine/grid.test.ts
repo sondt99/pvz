@@ -135,6 +135,7 @@ describe("generateGrid", () => {
       expect(cell.lilyPadInstanceId).toBeNull();
       expect(cell.flowerPotInstanceId).toBeNull();
       expect(cell.graveId).toBeNull();
+      expect(cell.craterExpiresAtMs).toBeNull();
     }
   });
 
@@ -336,6 +337,14 @@ describe("canPlantHere", () => {
   it("rejects planting on graves", () => {
     const grid = generateGrid(DAY_ENV);
     grid[0][0].graveId = "grave-1";
+    expect(
+      canPlantHere(grid, 0, 0, { isAquatic: false, requiresLilyPad: false, requiresFlowerPot: false })
+    ).toBe(false);
+  });
+
+  it("rejects planting on Doom-shroom craters", () => {
+    const grid = generateGrid(DAY_ENV);
+    grid[0][0].craterExpiresAtMs = 180_000;
     expect(
       canPlantHere(grid, 0, 0, { isAquatic: false, requiresLilyPad: false, requiresFlowerPot: false })
     ).toBe(false);

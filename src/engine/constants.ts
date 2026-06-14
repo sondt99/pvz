@@ -31,5 +31,8 @@ export const SUNSHROOM_MEDIUM_VALUE = 25;
 export const SUNSHROOM_LARGE_VALUE = 50;
 
 export const POTATO_MINE_ARM_MS = 14_000;
+export const DOOM_SHROOM_RADIUS_LANES = 2;
+export const DOOM_SHROOM_RADIUS_COLS = 3.5;
+export const DOOM_SHROOM_CRATER_MS = 180_000;
 
 export const MAX_DELTA_MS = 100; // cap delta to avoid spiral-of-death

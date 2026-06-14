@@ -12,6 +12,9 @@ import { getInitialSun, tickSkySun, spendSun, collectSun, createSkySunDrop, adva
 import { getPlantDef } from "../engine/entities/plant-defs";
 import { getZombieDef } from "../engine/entities/zombie-defs";
 import {
+  DOOM_SHROOM_CRATER_MS,
+  DOOM_SHROOM_RADIUS_COLS,
+  DOOM_SHROOM_RADIUS_LANES,
   LAWN_MOWER_READY_X,
   LAWN_MOWER_SPEED_COLS_PER_SEC,
   LAWN_MOWER_TRIGGER_X,
@@ -272,6 +275,98 @@ function freezeAllZombies(
   return updated;
 }
 
+function cloneGrid(grid: GameEngineState["grid"]): GameEngineState["grid"] {
+  return grid.map((r) => r.map((c) => ({ ...c })));
+}
+
+function isNightStyleMushroomEnvironment(env: EnvironmentConfig): boolean {
+  return env.type === "NIGHT" || env.type === "FOG";
+}
+
+function shouldMushroomSleep(
+  def: { isMushroomType: boolean },
+  env: EnvironmentConfig
+): boolean {
+  return def.isMushroomType && !isNightStyleMushroomEnvironment(env);
+}
+
+function applyInstantPlantEffect(
+  plantType: string,
+  row: number,
+  col: number,
+  state: Pick<
+    GameEngineState,
+    "environment" | "gameTimeMs" | "grid" | "zombies" | "score" | "totalZombiesKilled"
+  >
+): {
+  zombies: Record<string, RuntimeZombie>;
+  score: number;
+  totalZombiesKilled: number;
+  grid: GameEngineState["grid"] | null;
+} {
+  const def = getPlantDef(plantType);
+  let zombies = state.zombies;
+  let score = state.score;
+  let totalZombiesKilled = state.totalZombiesKilled;
+  let grid: GameEngineState["grid"] | null = null;
+
+  if (plantType === "CHERRY_BOMB") {
+    const result = damageZombiesInArea(
+      zombies,
+      (zombie) => Math.abs(zombie.lane - row) <= 1 && Math.abs(zombie.x - col) <= 1.5,
+      def.attackDamage ?? 1800
+    );
+    zombies = result.zombies;
+    score += result.scoreDelta;
+    totalZombiesKilled += result.killedCount;
+  } else if (plantType === "JALAPENO") {
+    const result = damageZombiesInArea(
+      zombies,
+      (zombie) => zombie.lane === row,
+      def.attackDamage ?? 1800
+    );
+    zombies = result.zombies;
+    score += result.scoreDelta;
+    totalZombiesKilled += result.killedCount;
+  } else if (plantType === "ICE_SHROOM") {
+    zombies = freezeAllZombies(zombies, state.gameTimeMs);
+  } else if (plantType === "DOOM_SHROOM") {
+    const result = damageZombiesInArea(
+      zombies,
+      (zombie) =>
+        Math.abs(zombie.lane - row) <= DOOM_SHROOM_RADIUS_LANES &&
+        Math.abs(zombie.x - col) <= DOOM_SHROOM_RADIUS_COLS,
+      def.attackDamage ?? 1800
+    );
+    zombies = result.zombies;
+    score += result.scoreDelta;
+    totalZombiesKilled += result.killedCount;
+
+    grid = cloneGrid(state.grid);
+    const craterCell = grid[row]?.[col];
+    if (craterCell) {
+      craterCell.craterExpiresAtMs = state.gameTimeMs + DOOM_SHROOM_CRATER_MS;
+    }
+  } else if (plantType === "BLOVER") {
+    const remaining: Record<string, RuntimeZombie> = {};
+    for (const [id, zombie] of Object.entries(zombies)) {
+      if (zombie.isAerial) {
+        score += scoreKilledZombie(zombie);
+        totalZombiesKilled += 1;
+      } else {
+        remaining[id] = zombie;
+      }
+    }
+    zombies = remaining;
+    if (state.environment.fogEnabled) {
+      grid = cloneGrid(state.grid);
+      clearAllFog(grid);
+    }
+  }
+
+  return { zombies, score, totalZombiesKilled, grid };
+}
+
 // ---------------------------------------------------------------------------
 
 const EMPTY_ENV: EnvironmentConfig = {
@@ -394,6 +489,40 @@ export const useGameStore = create<GameStore>()((set, get) => ({
       const newSun = spendSun(state.currentSun, def.sunCost);
       if (newSun === null) return false;
 
+      const targetDef = getPlantDef(target.plantType);
+      if (targetDef.isInstantUse) {
+        const gridWithoutInstantPlant = cloneGrid(state.grid);
+        setPlantInCorrectSlot(
+          gridWithoutInstantPlant,
+          target.row,
+          target.col,
+          target.plantType,
+          null
+        );
+
+        const { [target.instanceId]: _spentInstantPlant, ...remainingPlants } = state.plants;
+        const instantResult = applyInstantPlantEffect(target.plantType, target.row, target.col, {
+          environment: state.environment,
+          gameTimeMs: state.gameTimeMs,
+          grid: gridWithoutInstantPlant,
+          zombies: state.zombies,
+          score: state.score,
+          totalZombiesKilled: state.totalZombiesKilled,
+        });
+
+        set({
+          plants: remainingPlants,
+          grid: instantResult.grid ?? gridWithoutInstantPlant,
+          zombies: instantResult.zombies,
+          score: instantResult.score,
+          totalZombiesKilled: instantResult.totalZombiesKilled,
+          currentSun: newSun,
+          loadout: rechargeSeed(),
+          selectedSlot: null,
+        });
+        return true;
+      }
+
       set({
         plants: {
           ...state.plants,
@@ -419,57 +548,53 @@ export const useGameStore = create<GameStore>()((set, get) => ({
 
     loadout = rechargeSeed();
 
-    if (def.isInstantUse) {
-      let zombies = state.zombies;
-      let score = state.score;
-      let totalZombiesKilled = state.totalZombiesKilled;
-      let newGrid: GameEngineState["grid"] | null = null;
+    if (def.isInstantUse && shouldMushroomSleep(def, state.environment)) {
+      const instanceId = nextPlantId(plantType, row, col);
+      const plant: RuntimePlant = {
+        instanceId,
+        plantType,
+        row,
+        col,
+        health: def.health,
+        maxHealth: def.health,
+        lastAttackAtMs: 0,
+        lastSunAtMs: state.gameTimeMs,
+        isSleeping: true,
+        isCharging: false,
+        chargeEndsAtMs: 0,
+        armedAtMs: null,
+      };
+      const newGrid = cloneGrid(state.grid);
+      setPlantInCorrectSlot(newGrid, row, col, plantType, instanceId);
 
-      if (plantType === "CHERRY_BOMB") {
-        const result = damageZombiesInArea(
-          zombies,
-          (zombie) => Math.abs(zombie.lane - row) <= 1 && Math.abs(zombie.x - col) <= 1.5,
-          def.attackDamage ?? 1800
-        );
-        zombies = result.zombies;
-        score += result.scoreDelta;
-        totalZombiesKilled += result.killedCount;
-      } else if (plantType === "JALAPENO") {
-        const result = damageZombiesInArea(
-          zombies,
-          (zombie) => zombie.lane === row,
-          def.attackDamage ?? 1800
-        );
-        zombies = result.zombies;
-        score += result.scoreDelta;
-        totalZombiesKilled += result.killedCount;
-      } else if (plantType === "ICE_SHROOM") {
-        zombies = freezeAllZombies(zombies, state.gameTimeMs);
-      } else if (plantType === "BLOVER") {
-        const remaining: Record<string, RuntimeZombie> = {};
-        for (const [id, zombie] of Object.entries(zombies)) {
-          if (zombie.isAerial) {
-            score += scoreKilledZombie(zombie);
-            totalZombiesKilled += 1;
-          } else {
-            remaining[id] = zombie;
-          }
-        }
-        zombies = remaining;
-        if (state.environment.fogEnabled) {
-          newGrid = state.grid.map((r) => r.map((c) => ({ ...c })));
-          clearAllFog(newGrid);
-        }
-      }
+      set({
+        plants: { ...state.plants, [instanceId]: plant },
+        currentSun: newSun,
+        grid: newGrid,
+        loadout,
+        selectedSlot: null,
+      });
+      return true;
+    }
+
+    if (def.isInstantUse) {
+      const instantResult = applyInstantPlantEffect(plantType, row, col, {
+        environment: state.environment,
+        gameTimeMs: state.gameTimeMs,
+        grid: state.grid,
+        zombies: state.zombies,
+        score: state.score,
+        totalZombiesKilled: state.totalZombiesKilled,
+      });
 
       set({
         currentSun: newSun,
         loadout,
         selectedSlot: null,
-        zombies,
-        score,
-        totalZombiesKilled,
-        ...(newGrid ? { grid: newGrid } : {}),
+        zombies: instantResult.zombies,
+        score: instantResult.score,
+        totalZombiesKilled: instantResult.totalZombiesKilled,
+        ...(instantResult.grid ? { grid: instantResult.grid } : {}),
       });
       return true;
     }
@@ -485,7 +610,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
       health: def.health, maxHealth: def.health,
       lastAttackAtMs: 0,
       lastSunAtMs: initialSunClock,
-      isSleeping: def.isMushroomType && state.environment.skyDropSun,
+      isSleeping: shouldMushroomSleep(def, state.environment),
       isCharging: plantType === "POTATO_MINE",
       chargeEndsAtMs: plantType === "POTATO_MINE" ? state.gameTimeMs + POTATO_MINE_ARM_MS : 0,
       armedAtMs: null,
@@ -715,6 +840,18 @@ export const useGameStore = create<GameStore>()((set, get) => ({
     // -----------------------------------------------------------------------
     let gridChanged = false;
     let newGrid = state.grid;
+
+    for (const gridRow of state.grid) {
+      for (const cell of gridRow) {
+        if (cell.craterExpiresAtMs === null || cell.craterExpiresAtMs > newGameTimeMs) continue;
+        if (!gridChanged) {
+          newGrid = cloneGrid(state.grid);
+          gridChanged = true;
+        }
+        const craterCell = newGrid[cell.row]?.[cell.col];
+        if (craterCell) craterCell.craterExpiresAtMs = null;
+      }
+    }
 
     for (const [plantId, plant] of Object.entries(plants)) {
       if (plant.plantType === "CHOMPER") {
