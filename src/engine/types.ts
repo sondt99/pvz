@@ -183,6 +183,20 @@ export interface RuntimeLawnMower {
   triggeredAtMs: number | null;
 }
 
+export type PlacementFailureReason =
+  | "GAME_NOT_PLAYING"
+  | "INVALID_PLANT_TYPE"
+  | "INVALID_CELL"
+  | "ON_COOLDOWN"
+  | "INSUFFICIENT_SUN"
+  | "OCCUPIED"
+  | "GRAVE_BLOCKING"
+  | "CRATER_BLOCKING"
+  | "NEEDS_LILY_PAD"
+  | "NEEDS_FLOWER_POT"
+  | "INVALID_TERRAIN"
+  | "NO_SLEEPING_MUSHROOM";
+
 export interface SeedPacketSlot {
   plantType: string;
   plantId: string;
@@ -220,4 +234,5 @@ export interface GameEngineState {
     spawnAtMs: number;
     x?: number;
   }>;
+  lastPlacementFailure: PlacementFailureReason | null;
 }
