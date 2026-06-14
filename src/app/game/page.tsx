@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useGameStore } from "@/store/game-store";
 import { useGameLoop } from "@/hooks/useGameLoop";
@@ -9,6 +9,13 @@ import { GameHUD } from "@/components/game/GameHUD";
 import { SeedPacketBar } from "@/components/game/SeedPacketBar";
 import { GRID_COLS, GRID_ROWS_POOL, GRID_ROWS_STANDARD } from "@/engine/constants";
 import type { EnvironmentConfig, EnvironmentType, SeedPacketSlot } from "@/engine/types";
+import { serializeGameState } from "@/lib/game-serializer";
+import {
+  createGameSession,
+  listGameSessions,
+  loadGameSession,
+  saveGameSession,
+} from "@/lib/game-session-client";
 
 const ENVIRONMENTS: Record<EnvironmentType, EnvironmentConfig> = {
   DAY: {
@@ -129,23 +136,151 @@ function parseEnvironmentParam(): EnvironmentType {
   return ENVIRONMENT_ORDER.includes(raw as EnvironmentType) ? (raw as EnvironmentType) : "DAY";
 }
 
+function parseSessionIdParam(): string | null {
+  if (typeof window === "undefined") return null;
+  return new URLSearchParams(window.location.search).get("sessionId");
+}
+
+function updateGameUrl(envType: EnvironmentType, sessionId: string | null): void {
+  if (typeof window === "undefined") return;
+  const params = new URLSearchParams();
+  params.set("env", envType);
+  if (sessionId) params.set("sessionId", sessionId);
+  window.history.replaceState(null, "", `/game?${params.toString()}`);
+}
+
+type PersistenceState = "connecting" | "db" | "loaded" | "saving" | "saved" | "local" | "error";
+
+const PERSISTENCE_LABELS: Record<PersistenceState, string> = {
+  connecting: "Syncing",
+  db: "Cloud",
+  loaded: "Loaded",
+  saving: "Saving",
+  saved: "Saved",
+  local: "Local",
+  error: "Save failed",
+};
+
 export default function GamePage() {
   const [activeEnvironment, setActiveEnvironment] = useState<EnvironmentType>("DAY");
+  const [routeReady, setRouteReady] = useState(false);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [persistenceState, setPersistenceState] = useState<PersistenceState>("connecting");
   const status = useGameStore((s) => s.status);
   const selectedSlot = useGameStore((s) => s.selectedSlot);
   const loadout = useGameStore((s) => s.loadout);
 
   useEffect(() => {
     setActiveEnvironment(parseEnvironmentParam());
+    setRouteReady(true);
   }, []);
 
+  const startSession = useCallback(
+    async (
+      envType: EnvironmentType,
+      options: {
+        forceNew?: boolean;
+        preferredSessionId?: string | null;
+        isCancelled?: () => boolean;
+      } = {}
+    ) => {
+      const isCancelled = options.isCancelled ?? (() => false);
+      const env = ENVIRONMENTS[envType];
+      const slots = makeLoadout(envType);
+
+      setPersistenceState("connecting");
+
+      try {
+        let sessionId = options.forceNew ? null : options.preferredSessionId ?? null;
+        if (!sessionId) {
+          const sessions = await listGameSessions();
+          sessionId =
+            sessions.find((session) => session.environmentType === envType)?.id ?? null;
+        }
+
+        if (isCancelled()) return;
+
+        if (sessionId) {
+          const loaded = await loadGameSession(sessionId);
+          if (isCancelled()) return;
+
+          const loadedEnv = loaded.state.environment?.type ?? envType;
+          useGameStore.setState({
+            ...loaded.state,
+            status: loaded.session.status === "PAUSED" ? "paused" : "playing",
+            selectedSlot: null,
+          });
+          setCurrentSessionId(loaded.session.id);
+          setPersistenceState(loaded.session.status === "PAUSED" ? "loaded" : "db");
+          if (loadedEnv !== envType) setActiveEnvironment(loadedEnv);
+          updateGameUrl(loadedEnv, loaded.session.id);
+          return;
+        }
+
+        const created = await createGameSession(
+          envType,
+          slots.map((slot) => slot.plantType)
+        );
+        if (isCancelled()) return;
+
+        const store = useGameStore.getState();
+        store.initGame(env, slots);
+        store.startGame();
+        setCurrentSessionId(created.sessionId);
+        setPersistenceState("db");
+        updateGameUrl(envType, created.sessionId);
+      } catch (err) {
+        console.warn("[GamePage] Falling back to local session", err);
+        if (isCancelled()) return;
+
+        const store = useGameStore.getState();
+        store.initGame(env, slots);
+        store.startGame();
+        setCurrentSessionId(null);
+        setPersistenceState("local");
+        updateGameUrl(envType, null);
+      }
+    },
+    []
+  );
+
   useEffect(() => {
-    const store = useGameStore.getState();
-    store.initGame(ENVIRONMENTS[activeEnvironment], makeLoadout(activeEnvironment));
-    store.startGame();
-  }, [activeEnvironment]);
+    if (!routeReady) return;
+    let cancelled = false;
+    void startSession(activeEnvironment, {
+      preferredSessionId: parseSessionIdParam(),
+      isCancelled: () => cancelled,
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeEnvironment, routeReady, startSession]);
 
   useGameLoop();
+
+  async function handlePauseSave() {
+    const store = useGameStore.getState();
+    store.pauseGame();
+
+    if (!currentSessionId) {
+      setPersistenceState("local");
+      return;
+    }
+
+    setPersistenceState("saving");
+    try {
+      await saveGameSession(currentSessionId, serializeGameState(useGameStore.getState()));
+      setPersistenceState("saved");
+    } catch (err) {
+      console.error("[GamePage] Failed to save session", err);
+      setPersistenceState("error");
+    }
+  }
+
+  async function handleResume() {
+    useGameStore.getState().resumeGame();
+    setPersistenceState(currentSessionId ? "db" : "local");
+  }
 
   function handleCellClick(col: number, row: number) {
     const store = useGameStore.getState();
@@ -175,10 +310,10 @@ export default function GamePage() {
 
   function switchEnvironment(envType: EnvironmentType) {
     if (envType === activeEnvironment) return;
+    setCurrentSessionId(null);
+    setPersistenceState("connecting");
     setActiveEnvironment(envType);
-    if (typeof window !== "undefined") {
-      window.history.replaceState(null, "", `/game?env=${envType}`);
-    }
+    updateGameUrl(envType, null);
   }
 
   const isGameOver = status === "game-over";
@@ -197,7 +332,11 @@ export default function GamePage() {
         overflow: "hidden",
       }}
     >
-      <GameHUD />
+      <GameHUD
+        onPauseRequest={handlePauseSave}
+        onResumeRequest={handleResume}
+        persistenceLabel={PERSISTENCE_LABELS[persistenceState]}
+      />
 
       <div
         style={{
@@ -300,9 +439,7 @@ export default function GamePage() {
               <div style={{ display: "flex", gap: 16 }}>
                 <button
                   onClick={() => {
-                    const store = useGameStore.getState();
-                    store.initGame(ENVIRONMENTS[activeEnvironment], makeLoadout(activeEnvironment));
-                    store.startGame();
+                    void startSession(activeEnvironment, { forceNew: true });
                   }}
                   style={{
                     background: "#2a7a2a",

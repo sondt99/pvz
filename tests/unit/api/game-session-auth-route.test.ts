@@ -145,6 +145,7 @@ describe("game session API authentication and ownership", () => {
     expect(response.status).toBe(200);
     expect(body).toHaveLength(1);
     expect(body[0].id).toBe(ownSession.id);
+    expect(body[0].environmentType).toBe("DAY");
   });
 
   it("returns 403 when loading another user's game session", async () => {

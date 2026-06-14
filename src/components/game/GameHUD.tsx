@@ -1,22 +1,46 @@
 "use client";
 
+import { useState } from "react";
 import { useGameStore } from "@/store/game-store";
 
-export function GameHUD() {
+interface GameHUDProps {
+  onPauseRequest?: () => Promise<void> | void;
+  onResumeRequest?: () => Promise<void> | void;
+  persistenceLabel?: string;
+}
+
+export function GameHUD({
+  onPauseRequest,
+  onResumeRequest,
+  persistenceLabel,
+}: GameHUDProps = {}) {
   const currentSun = useGameStore((s) => s.currentSun);
   const waveNumber = useGameStore((s) => s.waveNumber);
   const score = useGameStore((s) => s.score);
   const status = useGameStore((s) => s.status);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   const isPaused = status === "paused";
   const isPlaying = status === "playing";
 
-  function handlePauseResume() {
+  async function handlePauseResume() {
+    if (isSyncing) return;
     const store = useGameStore.getState();
-    if (isPaused) {
-      store.resumeGame();
-    } else {
-      store.pauseGame();
+    setIsSyncing(true);
+    try {
+      if (isPaused) {
+        if (onResumeRequest) {
+          await onResumeRequest();
+        } else {
+          store.resumeGame();
+        }
+      } else if (onPauseRequest) {
+        await onPauseRequest();
+      } else {
+        store.pauseGame();
+      }
+    } finally {
+      setIsSyncing(false);
     }
   }
 
@@ -81,6 +105,19 @@ export function GameHUD() {
       <div style={{ flex: 1 }} />
 
       {/* Status badge */}
+      {persistenceLabel && (
+        <span
+          style={{
+            color: "#d7f5b6",
+            fontSize: 12,
+            fontWeight: 700,
+            opacity: 0.86,
+          }}
+        >
+          {persistenceLabel}
+        </span>
+      )}
+
       {isPaused && (
         <span
           style={{
@@ -101,6 +138,7 @@ export function GameHUD() {
       {(isPlaying || isPaused) && (
         <button
           onClick={handlePauseResume}
+          disabled={isSyncing}
           style={{
             background: isPaused ? "#2a7a2a" : "#5a3a0a",
             color: "#e0ffe0",
@@ -109,11 +147,12 @@ export function GameHUD() {
             padding: "6px 16px",
             fontWeight: "bold",
             fontSize: 14,
-            cursor: "pointer",
+            cursor: isSyncing ? "wait" : "pointer",
             letterSpacing: 0.5,
+            opacity: isSyncing ? 0.72 : 1,
           }}
         >
-          {isPaused ? "▶ Resume" : "⏸ Pause"}
+          {isSyncing ? "Syncing..." : isPaused ? "▶ Resume" : "⏸ Pause"}
         </button>
       )}
     </div>
