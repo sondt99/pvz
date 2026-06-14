@@ -11,6 +11,7 @@ import {
   setPlantOnCell,
   setLilyPadOnCell,
   setFlowerPotOnCell,
+  setPumpkinOnCell,
   getEastmostPlantCol,
 } from "@/engine/grid";
 import type { EnvironmentConfig } from "@/engine/types";
@@ -134,6 +135,7 @@ describe("generateGrid", () => {
       expect(cell.plantInstanceId).toBeNull();
       expect(cell.lilyPadInstanceId).toBeNull();
       expect(cell.flowerPotInstanceId).toBeNull();
+      expect(cell.pumpkinInstanceId).toBeNull();
       expect(cell.graveId).toBeNull();
       expect(cell.craterExpiresAtMs).toBeNull();
     }
@@ -332,6 +334,76 @@ describe("canPlantHere", () => {
         isFlowerPot: true,
       })
     ).toBe(false);
+  });
+
+  it("allows Pumpkin over an occupied land plant without replacing it", () => {
+    const grid = generateGrid(DAY_ENV);
+    setPlantOnCell(grid, 0, 0, "plant-1");
+    expect(
+      canPlantHere(grid, 0, 0, {
+        isAquatic: false,
+        requiresLilyPad: false,
+        requiresFlowerPot: false,
+        isPumpkin: true,
+      })
+    ).toBe(true);
+  });
+
+  it("rejects a second Pumpkin on the same cell", () => {
+    const grid = generateGrid(DAY_ENV);
+    setPumpkinOnCell(grid, 0, 0, "pumpkin-1");
+    expect(
+      canPlantHere(grid, 0, 0, {
+        isAquatic: false,
+        requiresLilyPad: false,
+        requiresFlowerPot: false,
+        isPumpkin: true,
+      })
+    ).toBe(false);
+  });
+
+  it("allows Pumpkin on a Lily Pad platform but not bare water", () => {
+    const grid = generateGrid(POOL_ENV);
+    expect(
+      canPlantHere(grid, 2, 0, {
+        isAquatic: false,
+        requiresLilyPad: false,
+        requiresFlowerPot: false,
+        isPumpkin: true,
+      })
+    ).toBe(false);
+
+    setLilyPadOnCell(grid, 2, 0, "lilypad-1");
+    expect(
+      canPlantHere(grid, 2, 0, {
+        isAquatic: false,
+        requiresLilyPad: false,
+        requiresFlowerPot: false,
+        isPumpkin: true,
+      })
+    ).toBe(true);
+  });
+
+  it("allows Pumpkin on a roof Flower Pot platform but not bare slope", () => {
+    const grid = generateGrid(ROOF_ENV);
+    expect(
+      canPlantHere(grid, 0, 0, {
+        isAquatic: false,
+        requiresLilyPad: false,
+        requiresFlowerPot: false,
+        isPumpkin: true,
+      })
+    ).toBe(false);
+
+    setFlowerPotOnCell(grid, 0, 0, "pot-1");
+    expect(
+      canPlantHere(grid, 0, 0, {
+        isAquatic: false,
+        requiresLilyPad: false,
+        requiresFlowerPot: false,
+        isPumpkin: true,
+      })
+    ).toBe(true);
   });
 
   it("rejects planting on graves", () => {

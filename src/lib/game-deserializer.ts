@@ -165,6 +165,9 @@ export function deserializeGameState(
         if (entity.layer === "WATER") {
           // Lily pad
           gridCell.lilyPadInstanceId = entity.instanceId;
+        } else if (entity.layer === "ARMOR" || def.plantType === "PUMPKIN") {
+          // Pumpkin shell around the cell, including old saves that stored it as GROUND.
+          gridCell.pumpkinInstanceId = entity.instanceId;
         } else if (entity.layer === "GROUND" && def.plantType === "FLOWER_POT") {
           // Flower pot on slope
           gridCell.flowerPotInstanceId = entity.instanceId;

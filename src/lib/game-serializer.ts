@@ -182,6 +182,23 @@ function serializeGrid(state: GameEngineState): GridCell[][] {
         }
       }
 
+      // Pumpkin wraps the tile in a protective ARMOR layer above the regular plant.
+      if (cell.pumpkinInstanceId !== null) {
+        const pumpkinPlant = plants[cell.pumpkinInstanceId];
+        if (pumpkinPlant) {
+          entities.push({
+            instanceId: pumpkinPlant.instanceId,
+            entityType: "PLANT",
+            entityId: pumpkinPlant.plantType,
+            health: pumpkinPlant.health,
+            maxHealth: pumpkinPlant.maxHealth,
+            layer: "ARMOR",
+            zIndex: 2,
+            extraState: null,
+          });
+        }
+      }
+
       return {
         row: cell.row,
         col: cell.col,

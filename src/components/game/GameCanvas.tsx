@@ -509,6 +509,38 @@ function drawBomb(ctx: CanvasRenderingContext2D, cx: number, cy: number): void {
   ctx.fill();
 }
 
+function drawPumpkin(ctx: CanvasRenderingContext2D, cx: number, cy: number): void {
+  const shell = ctx.createLinearGradient(cx - 34, cy - 18, cx + 34, cy + 28);
+  shell.addColorStop(0, "#ffb347");
+  shell.addColorStop(1, "#b9571b");
+  ctx.fillStyle = shell;
+
+  for (const offset of [-25, 25]) {
+    ctx.beginPath();
+    ctx.ellipse(cx + offset, cy + 8, 15, 27, offset < 0 ? -0.18 : 0.18, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.beginPath();
+  ctx.ellipse(cx, cy + 26, 27, 10, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.ellipse(cx, cy - 14, 18, 9, 0, Math.PI, 0);
+  ctx.fill();
+
+  ctx.strokeStyle = "#7a3514";
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy + 8, 36, 29, 0, 0.12 * Math.PI, 1.88 * Math.PI);
+  ctx.stroke();
+
+  ctx.fillStyle = "#513019";
+  ctx.beginPath();
+  ctx.roundRect(cx - 5, cy - 28, 10, 13, 4);
+  ctx.fill();
+}
+
 function drawMushroom(ctx: CanvasRenderingContext2D, cx: number, cy: number, color: string): void {
   ctx.fillStyle = color;
   ctx.beginPath();
@@ -533,6 +565,7 @@ function drawPlant(ctx: CanvasRenderingContext2D, plant: RuntimePlant): void {
   if (plant.plantType === "SUNFLOWER") drawSunflower(ctx, cx, cy);
   else if (plant.plantType === "WALL_NUT") drawWallNut(ctx, cx, cy);
   else if (plant.plantType === "TALL_NUT") drawWallNut(ctx, cx, cy, true);
+  else if (plant.plantType === "PUMPKIN") drawPumpkin(ctx, cx, cy);
   else if (plant.plantType === "SNOW_PEA") drawPeashooter(ctx, cx, cy, true);
   else if (plant.plantType === "CHERRY_BOMB") drawBomb(ctx, cx, cy);
   else if (plant.plantType.includes("SHROOM")) drawMushroom(ctx, cx, cy, plant.plantType === "SUN_SHROOM" ? "#d8a33c" : "#8e67c7");
@@ -576,6 +609,12 @@ function drawPlant(ctx: CanvasRenderingContext2D, plant: RuntimePlant): void {
 
   ctx.restore();
   drawHealthBar(ctx, cx - 26, tileY(plant.row) + 7, 52, healthPct, "#5ee84e");
+}
+
+function getPlantRenderPriority(plant: RuntimePlant): number {
+  if (plant.plantType === "LILY_PAD" || plant.plantType === "FLOWER_POT") return 0;
+  if (plant.plantType === "PUMPKIN") return 2;
+  return 1;
 }
 
 function drawZombie(ctx: CanvasRenderingContext2D, zombie: RuntimeZombie, gridRows: number, gridCols: number): void {
@@ -777,7 +816,10 @@ export function GameCanvas({ onCellClick }: GameCanvasProps) {
         drawLawnMower(ctx, mower);
       }
 
-      for (const plant of Object.values(plants)) {
+      const renderedPlants = Object.values(plants).sort(
+        (a, b) => getPlantRenderPriority(a) - getPlantRenderPriority(b)
+      );
+      for (const plant of renderedPlants) {
         drawPlant(ctx, plant);
       }
 

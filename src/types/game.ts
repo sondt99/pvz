@@ -16,7 +16,7 @@ export interface StackedEntity {
   entityId: string;
   health: number;
   maxHealth: number;
-  layer: "GROUND" | "WATER" | "SKY" | "GRAVE" | "RAIL";
+  layer: "GROUND" | "WATER" | "ARMOR" | "SKY" | "GRAVE" | "RAIL";
   zIndex: number;
   extraState: Record<string, unknown> | null;
 }
@@ -65,6 +65,7 @@ export function isStackedEntity(v: unknown): v is StackedEntity {
     typeof e.maxHealth === "number" &&
     (e.layer === "GROUND" ||
       e.layer === "WATER" ||
+      e.layer === "ARMOR" ||
       e.layer === "SKY" ||
       e.layer === "GRAVE" ||
       e.layer === "RAIL") &&
