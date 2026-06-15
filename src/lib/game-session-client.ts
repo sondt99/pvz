@@ -37,6 +37,48 @@ export function getStoredSessionToken(): string | null {
   return window.localStorage.getItem(CLIENT_SESSION_TOKEN_STORAGE_KEY);
 }
 
+export function storeSessionToken(token: string): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(CLIENT_SESSION_TOKEN_STORAGE_KEY, token);
+}
+
+export function clearSessionToken(): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(CLIENT_SESSION_TOKEN_STORAGE_KEY);
+}
+
+export interface CurrentUser {
+  id: string;
+  email: string;
+  displayName: string;
+  avatarUrl: string | null;
+}
+
+export async function getCurrentUser(): Promise<CurrentUser | null> {
+  const token = getStoredSessionToken();
+  if (!token) return null;
+  try {
+    const res = await fetch("/api/auth/me", {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    const data = (await res.json()) as { user: CurrentUser | null };
+    return data.user;
+  } catch {
+    return null;
+  }
+}
+
+export async function logout(): Promise<void> {
+  const token = getStoredSessionToken();
+  if (token) {
+    await fetch("/api/auth/logout", {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}` },
+    }).catch(() => {});
+  }
+  clearSessionToken();
+}
+
 export async function listGameSessions(fetcher: Fetcher = fetch): Promise<GameSessionListItem[]> {
   const response = await fetcher("/api/game/sessions", {
     method: "GET",

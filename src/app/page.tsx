@@ -2,7 +2,13 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { getStoredSessionToken } from "@/lib/game-session-client";
+import {
+  getStoredSessionToken,
+  storeSessionToken,
+  getCurrentUser,
+  logout,
+  type CurrentUser,
+} from "@/lib/game-session-client";
 
 type LevelStatus = "LOCKED" | "UNLOCKED" | "COMPLETED";
 
@@ -204,10 +210,27 @@ function findNextLevel(levels: LevelEntry[]): LevelEntry | null {
 // Main page
 // ---------------------------------------------------------------------------
 export default function HomePage() {
+  const [authLoading, setAuthLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [levels, setLevels] = useState<LevelEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Pick up auth_token from URL (post-OAuth redirect), then resolve current user
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tokenFromUrl = params.get("auth_token");
+    if (tokenFromUrl) {
+      storeSessionToken(tokenFromUrl);
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+    getCurrentUser()
+      .then(user => setCurrentUser(user))
+      .finally(() => setAuthLoading(false));
+  }, []);
+
+  // Fetch levels after auth resolves so the right token is used
+  useEffect(() => {
+    if (authLoading) return;
     const token = getStoredSessionToken();
     const headers: HeadersInit = token ? { authorization: `Bearer ${token}` } : {};
     fetch("/api/game/levels", { credentials: "include", headers })
@@ -215,7 +238,7 @@ export default function HomePage() {
       .then((d: { levels: LevelEntry[] }) => setLevels(d.levels ?? []))
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }, [authLoading]);
 
   const byWorld: Record<number, LevelEntry[]> = {};
   for (const l of levels) {
@@ -234,6 +257,42 @@ export default function HomePage() {
       flexDirection: "column",
       alignItems: "center",
     }}>
+
+      {/* ---- Auth bar ---- */}
+      <div style={{ width: "100%", maxWidth: 860, display: "flex", justifyContent: "flex-end", alignItems: "center", marginBottom: "0.5rem", minHeight: 40 }}>
+        {!authLoading && currentUser && (
+          <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+            {currentUser.avatarUrl ? (
+              <img
+                src={currentUser.avatarUrl}
+                alt=""
+                style={{ width: 30, height: 30, borderRadius: "50%", border: "2px solid #22c55e44", flexShrink: 0 }}
+              />
+            ) : (
+              <div style={{ width: 30, height: 30, borderRadius: "50%", background: "#14532d", border: "2px solid #22c55e44", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.8rem", fontWeight: 700, color: "#4ade80", flexShrink: 0 }}>
+                {currentUser.displayName.charAt(0).toUpperCase()}
+              </div>
+            )}
+            <span style={{ color: "#9ca3af", fontSize: "0.78rem", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {currentUser.displayName}
+            </span>
+            <button
+              onClick={async () => { await logout(); setCurrentUser(null); }}
+              style={{ background: "transparent", color: "#6b7280", border: "1px solid #374151", borderRadius: "0.35rem", padding: "0.28rem 0.65rem", fontSize: "0.73rem", cursor: "pointer", fontFamily: "inherit" }}
+            >
+              Sign out
+            </button>
+          </div>
+        )}
+        {!authLoading && !currentUser && (
+          <Link
+            href="/login"
+            style={{ color: "#4ade80", border: "1px solid #22c55e44", borderRadius: "0.35rem", padding: "0.28rem 0.85rem", fontSize: "0.78rem", textDecoration: "none", fontWeight: 600, letterSpacing: "0.02em" }}
+          >
+            Sign in
+          </Link>
+        )}
+      </div>
 
       {/* ---- Hero header ---- */}
       <header style={{ textAlign: "center", marginBottom: "2rem", maxWidth: 700, width: "100%" }}>
