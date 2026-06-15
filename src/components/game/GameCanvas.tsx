@@ -1235,12 +1235,97 @@ function drawMagnetShroom(ctx: CanvasRenderingContext2D, cx: number, cy: number)
   ctx.fill();
 }
 
-function drawPlant(ctx: CanvasRenderingContext2D, plant: RuntimePlant): void {
+export function renderPlantPreview(
+  ctx: CanvasRenderingContext2D,
+  plantType: string,
+  cx: number,
+  cy: number
+): void {
+  const pt = plantType;
+  if (pt === "SUNFLOWER") drawSunflower(ctx, cx, cy);
+  else if (pt === "MARIGOLD") drawMarigold(ctx, cx, cy);
+  else if (pt === "WALL_NUT") drawWallNut(ctx, cx, cy);
+  else if (pt === "TALL_NUT") drawWallNut(ctx, cx, cy, true);
+  else if (pt === "PUMPKIN") drawPumpkin(ctx, cx, cy);
+  else if (pt === "GARLIC") drawGarlic(ctx, cx, cy);
+  else if (pt === "STARFRUIT") drawStarfruit(ctx, cx, cy);
+  else if (pt === "SNOW_PEA") drawPeashooter(ctx, cx, cy, true);
+  else if (pt === "CHERRY_BOMB") drawBomb(ctx, cx, cy);
+  else if (pt === "JALAPENO") drawJalapeno(ctx, cx, cy);
+  else if (pt === "REPEATER") drawRepeater(ctx, cx, cy);
+  else if (pt === "THREEPEATER") drawThreepeater(ctx, cx, cy);
+  else if (pt === "SPLIT_PEA") drawSplitPea(ctx, cx, cy);
+  else if (pt === "CHOMPER") drawChomper(ctx, cx, cy);
+  else if (pt === "POTATO_MINE") drawPotatoMine(ctx, cx, cy, false);
+  else if (pt === "SPIKEWEED") drawSpikeweed(ctx, cx, cy);
+  else if (pt === "TANGLE_KELP") drawTangleKelp(ctx, cx, cy);
+  else if (pt === "SQUASH") drawSquash(ctx, cx, cy);
+  else if (pt === "CACTUS") drawCactus(ctx, cx, cy);
+  else if (pt === "TORCHWOOD") drawTorchwood(ctx, cx, cy);
+  else if (pt === "PLANTERN") drawPlantern(ctx, cx, cy);
+  else if (pt === "BLOVER") drawBlover(ctx, cx, cy);
+  else if (pt === "UMBRELLA_LEAF") drawUmbrellaLeaf(ctx, cx, cy);
+  else if (pt === "COFFEE_BEAN") drawCoffeeBean(ctx, cx, cy);
+  else if (pt === "MAGNET_SHROOM") drawMagnetShroom(ctx, cx, cy);
+  else if (pt === "LILY_PAD") {
+    ctx.fillStyle = "#43a65a";
+    ctx.beginPath();
+    ctx.ellipse(cx, cy + 4, 30, 17, -0.1, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (pt === "FLOWER_POT") {
+    ctx.fillStyle = "#a65b38";
+    ctx.beginPath();
+    ctx.roundRect(cx - 24, cy - 16, 48, 38, 7);
+    ctx.fill();
+    ctx.fillStyle = "#583022";
+    ctx.fillRect(cx - 26, cy - 20, 52, 9);
+  } else if (pt.includes("PULT")) {
+    ctx.fillStyle = "#5aa84f";
+    ctx.beginPath();
+    ctx.ellipse(cx, cy + 10, 24, 18, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#386f31";
+    ctx.lineWidth = 8;
+    ctx.beginPath();
+    ctx.moveTo(cx - 2, cy + 4);
+    ctx.lineTo(cx + 24, cy - 22);
+    ctx.stroke();
+    ctx.fillStyle = pt === "MELON_PULT" ? "#74c85a" : pt === "KERNEL_PULT" ? "#f1c84e" : "#9bd05a";
+    ctx.beginPath();
+    ctx.arc(cx + 30, cy - 27, 13, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (pt.includes("SHROOM")) {
+    const shroomColors: Record<string, string> = {
+      PUFF_SHROOM: "#a87ccd",
+      SUN_SHROOM: "#d8a33c",
+      FUME_SHROOM: "#4a8a1e",
+      SCAREDY_SHROOM: "#d68faa",
+      ICE_SHROOM: "#3bbcd6",
+      DOOM_SHROOM: "#2a1a40",
+      SEA_SHROOM: "#2e8c7a",
+    };
+    drawMushroom(ctx, cx, cy, shroomColors[pt] ?? "#8e67c7");
+  } else {
+    drawPeashooter(ctx, cx, cy);
+  }
+}
+
+function drawPlant(ctx: CanvasRenderingContext2D, plant: RuntimePlant, now: number): void {
   const cx = tileX(plant.col) + CELL_W / 2;
   const cy = tileY(plant.row) + CELL_H / 2 + 4;
   const healthPct = plant.maxHealth > 0 ? plant.health / plant.maxHealth : 0;
 
   ctx.save();
+
+  // Per-plant sway animation
+  const swayPhase = plant.col * 1.4 + plant.row * 0.8;
+  const noSway = plant.plantType === "SPIKEWEED" || plant.plantType === "LILY_PAD" ||
+    plant.plantType === "FLOWER_POT" || plant.plantType === "TANGLE_KELP";
+  const swayAmp = noSway ? 0 : ["WALL_NUT", "TALL_NUT", "PUMPKIN"].includes(plant.plantType) ? 1 : 3;
+  const swayX = Math.sin(now / 1200 + swayPhase) * swayAmp * 0.5;
+  const swayY = Math.sin(now / 900 + swayPhase * 1.3) * swayAmp;
+  ctx.translate(swayX, swayY);
+
   ctx.shadowColor = "rgba(0,0,0,0.26)";
   ctx.shadowBlur = 8;
   ctx.shadowOffsetY = 5;
@@ -1567,9 +1652,10 @@ function drawFogOverlay(ctx: CanvasRenderingContext2D, grid: RuntimeGridCell[][]
 
 interface GameCanvasProps {
   onCellClick?: (col: number, row: number) => void;
+  shovelMode?: boolean;
 }
 
-export function GameCanvas({ onCellClick }: GameCanvasProps) {
+export function GameCanvas({ onCellClick, shovelMode = false }: GameCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number | null>(null);
   const effectsRef = useRef<CanvasEffect[]>([]);
@@ -1653,7 +1739,7 @@ export function GameCanvas({ onCellClick }: GameCanvasProps) {
         (a, b) => getPlantRenderPriority(a) - getPlantRenderPriority(b)
       );
       for (const plant of renderedPlants) {
-        drawPlant(ctx, plant);
+        drawPlant(ctx, plant, now);
       }
 
       for (const zombie of Object.values(zombies)) {
@@ -1759,7 +1845,7 @@ export function GameCanvas({ onCellClick }: GameCanvasProps) {
         display: "block",
         width: "min(100%, 1080px)",
         height: "auto",
-        cursor: "crosshair",
+        cursor: shovelMode ? "pointer" : "crosshair",
         borderRadius: "8px",
       }}
     />

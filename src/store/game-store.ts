@@ -5,6 +5,7 @@ import type {
   PlacementFailureReason,
   RuntimeLawnMower,
   RuntimePlant,
+  RuntimeSunDrop,
   RuntimeZombie,
   SeedPacketSlot,
 } from "../engine/types";
@@ -692,6 +693,7 @@ interface GameActions {
   resumeGame: () => void;
   placePlant: (plantType: string, row: number, col: number) => boolean;
   removePlant: (instanceId: string) => void;
+  shovePlant: (row: number, col: number) => void;
   collectSunDrop: (dropId: string) => void;
   selectSlot: (slot: number | null) => void;
   queueZombie: (zombieType: string, lane: number, spawnAtMs: number) => void;
@@ -953,6 +955,45 @@ export const useGameStore = create<GameStore>()((set, get) => ({
 
     const { [instanceId]: _removed, ...rest } = state.plants;
     set({ plants: rest, grid: newGrid });
+  },
+
+  shovePlant: (row, col) => {
+    const state = get();
+    // Find plant at this grid position (prefer top-layer: pumpkin > normal plant)
+    const entry = Object.entries(state.plants).find(
+      ([, p]) => p.row === row && p.col === col
+    );
+    if (!entry) return;
+    const [instanceId, plant] = entry;
+
+    // Calculate refund from loadout sun cost
+    const slot = state.loadout.find((s) => s.plantType === plant.plantType);
+    const refund = slot?.sunCost ?? 0;
+
+    // Remove plant from grid
+    const newGrid = state.grid.map((r) => r.map((c) => ({ ...c })));
+    setPlantInCorrectSlot(newGrid, plant.row, plant.col, plant.plantType, null);
+    const { [instanceId]: _removed, ...restPlants } = state.plants;
+
+    // Spawn a landed sun drop at the plant's position for the refund
+    const newSunDrops = { ...state.sunDrops };
+    if (refund > 0) {
+      const dropId = `shovel-${instanceId}-${Date.now()}`;
+      const refundDrop: RuntimeSunDrop = {
+        instanceId: dropId,
+        x: plant.col + 0.5,
+        y: plant.row + 0.3,
+        targetY: plant.row + 0.3,
+        value: refund,
+        source: "plant",
+        state: "landed",
+        spawnedAtMs: Date.now(),
+        lifetimeMs: 10_000,
+      };
+      newSunDrops[dropId] = refundDrop;
+    }
+
+    set({ plants: restPlants, grid: newGrid, sunDrops: newSunDrops });
   },
 
   collectSunDrop: (dropId) => {

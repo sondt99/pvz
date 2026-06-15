@@ -202,6 +202,7 @@ const PERSISTENCE_LABELS: Record<PersistenceState, string> = {
 export default function GamePage() {
   const [activeEnvironment, setActiveEnvironment] = useState<EnvironmentType>("DAY");
   const [activeLevelNumber, setActiveLevelNumber] = useState<number | null>(null);
+  const [shovelSelected, setShovelSelected] = useState(false);
   const [rewardPlantId, setRewardPlantId] = useState<string | null>(null);
   const [routeReady, setRouteReady] = useState(false);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
@@ -382,13 +383,25 @@ export default function GamePage() {
     setPersistenceState(currentSessionId ? "db" : "local");
   }
 
+  function handleShovelToggle() {
+    setShovelSelected((prev) => {
+      if (!prev) useGameStore.getState().selectSlot(null); // deselect plant when activating shovel
+      return !prev;
+    });
+  }
+
   function handleCellClick(col: number, row: number) {
     const store = useGameStore.getState();
-    if (store.selectedSlot === null) return;
 
+    if (shovelSelected) {
+      store.shovePlant(row, col);
+      setShovelSelected(false);
+      return;
+    }
+
+    if (store.selectedSlot === null) return;
     const slot = store.loadout[store.selectedSlot];
     if (!slot) return;
-
     const placed = store.placePlant(slot.plantType, row, col);
     if (placed) {
       store.selectSlot(null);
@@ -529,7 +542,7 @@ export default function GamePage() {
             width: "100%",
           }}
         >
-          <GameCanvas onCellClick={handleSunClick} />
+          <GameCanvas onCellClick={handleSunClick} shovelMode={shovelSelected} />
 
           {showOverlay && (
             <div
@@ -608,7 +621,7 @@ export default function GamePage() {
         </div>
       </div>
 
-      <SeedPacketBar />
+      <SeedPacketBar shovelSelected={shovelSelected} onShovelToggle={handleShovelToggle} />
     </main>
   );
 }
