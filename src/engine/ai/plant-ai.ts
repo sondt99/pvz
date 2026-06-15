@@ -15,6 +15,11 @@ import {
   SCAREDY_SHROOM_COWER_COLS,
   SCAREDY_SHROOM_COWER_LANES,
   SEA_SHROOM_RANGE_COLS,
+  SUNSHROOM_SMALL_PHASE_MS,
+  SUNSHROOM_MEDIUM_PHASE_MS,
+  SUNSHROOM_SMALL_VALUE,
+  SUNSHROOM_MEDIUM_VALUE,
+  SUNSHROOM_LARGE_VALUE,
 } from "../constants";
 
 const STARFRUIT_DIRECTIONS = [
@@ -356,6 +361,18 @@ export function plantProduceSun(
     return { sunDrop: null, updatedPlant: plant };
   }
   const id = `sun-plant-${++_sunDropCounter}`;
-  const sunDrop = createPlantSunDrop(gameTimeMs, id, plant.col, plant.row, def.sunProduceAmount);
+  // Sun-shroom grows over time: small → medium → large
+  let sunAmount = def.sunProduceAmount;
+  if (def.plantType === "SUN_SHROOM") {
+    const age = gameTimeMs - plant.plantedAtMs;
+    if (age < SUNSHROOM_SMALL_PHASE_MS) {
+      sunAmount = SUNSHROOM_SMALL_VALUE;
+    } else if (age < SUNSHROOM_MEDIUM_PHASE_MS) {
+      sunAmount = SUNSHROOM_MEDIUM_VALUE;
+    } else {
+      sunAmount = SUNSHROOM_LARGE_VALUE;
+    }
+  }
+  const sunDrop = createPlantSunDrop(gameTimeMs, id, plant.col, plant.row, sunAmount ?? def.sunProduceAmount);
   return { sunDrop, updatedPlant: { ...plant, lastSunAtMs: gameTimeMs } };
 }

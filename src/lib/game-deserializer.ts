@@ -163,6 +163,7 @@ export function deserializeGameState(
           maxHealth: entity.maxHealth,
           lastAttackAtMs: 0,
           lastSunAtMs: 0,
+          plantedAtMs: typeof extra.plantedAtMs === "number" ? extra.plantedAtMs : 0,
           isSleeping: typeof extra.isSleeping === "boolean" ? extra.isSleeping : false,
           isCharging: typeof extra.isCharging === "boolean" ? extra.isCharging : false,
           chargeEndsAtMs: typeof extra.chargeEndsAtMs === "number" ? extra.chargeEndsAtMs : 0,

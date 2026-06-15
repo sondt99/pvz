@@ -78,3 +78,22 @@ export const CATAPULT_FIRE_RANGE_COLS = 7; // max look-ahead distance
 export const CATAPULT_BASKETBALL_DAMAGE = 40;
 
 export const MAX_DELTA_MS = 100; // cap delta to avoid spiral-of-death
+
+// Temporary plant lifespans
+export const PUFF_SHROOM_LIFETIME_MS = 120_000; // 2 minutes
+export const MARIGOLD_LIFETIME_MS = 120_000; // 2 minutes
+
+// Sun-shroom phase thresholds (age of plant)
+export const SUNSHROOM_SMALL_PHASE_MS = 18_000;  // 0-18s → 15 sun
+export const SUNSHROOM_MEDIUM_PHASE_MS = 36_000; // 18-36s → 25 sun
+// after 36s → SUNSHROOM_LARGE_VALUE (50 sun)
+
+// Newspaper Zombie enraged speed after newspaper is destroyed
+export const NEWSPAPER_ENRAGED_SPEED_COLS_PER_SEC = 0.55;
+
+// Dancing Zombie calls backup dancers when it crosses this x position
+export const DANCING_ZOMBIE_CALL_X = 7.0;
+
+// Jack-in-the-Box random explosion timer range (ms after spawn)
+export const JACK_IN_THE_BOX_MIN_EXPLODE_MS = 7_000;
+export const JACK_IN_THE_BOX_MAX_EXPLODE_MS = 25_000;
