@@ -103,6 +103,7 @@ export interface RuntimePlant {
   maxHealth: number;
   lastAttackAtMs: number;
   lastSunAtMs: number;
+  plantedAtMs: number;
   isSleeping: boolean;
   isCharging: boolean;
   chargeEndsAtMs: number;
@@ -135,6 +136,9 @@ export interface RuntimeZombie {
   smashUntilMs?: number;
   bungeeGrabAtMs?: number; // Bungee: timestamp when the grab fires
   catapultLastFireAtMs?: number; // Catapult: timestamp of last basketball shot
+  isEnraged?: boolean; // Newspaper: true after newspaper is destroyed
+  hasCalledDancers?: boolean; // Dancing: true after backup dancers have been spawned
+  jackboxExplodeAtMs?: number; // Jack-in-the-Box: timestamp when it explodes
 }
 
 export interface RuntimeProjectile {

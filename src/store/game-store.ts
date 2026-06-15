@@ -42,10 +42,16 @@ import {
   CATAPULT_BASKETBALL_DAMAGE,
   CATAPULT_FIRE_INTERVAL_MS,
   CATAPULT_FIRE_RANGE_COLS,
+  DANCING_ZOMBIE_CALL_X,
+  JACK_IN_THE_BOX_MIN_EXPLODE_MS,
+  JACK_IN_THE_BOX_MAX_EXPLODE_MS,
   MAGNET_SHROOM_RANGE_COLS,
   MAGNET_SHROOM_RANGE_LANES,
   MAGNETIC_ZOMBIE_TYPES,
+  MARIGOLD_LIFETIME_MS,
+  NEWSPAPER_ENRAGED_SPEED_COLS_PER_SEC,
   POGO_WITHOUT_STICK_SPEED_COLS_PER_SEC,
+  PUFF_SHROOM_LIFETIME_MS,
   UMBRELLA_LEAF_RADIUS_COLS,
   UMBRELLA_LEAF_RADIUS_LANES,
   POTATO_MINE_ARM_MS,
@@ -194,6 +200,12 @@ function createRuntimeZombie(
     hasThrownImp: zombieType === "GARGANTUAR" ? false : undefined,
     bungeeGrabAtMs: zombieType === "BUNGEE" ? gameTimeMs + BUNGEE_GRAB_DELAY_MS : undefined,
     catapultLastFireAtMs: zombieType === "CATAPULT" ? gameTimeMs : undefined,
+    isEnraged: zombieType === "NEWSPAPER" ? false : undefined,
+    hasCalledDancers: zombieType === "DANCING" ? false : undefined,
+    jackboxExplodeAtMs:
+      zombieType === "JACK_IN_THE_BOX"
+        ? gameTimeMs + JACK_IN_THE_BOX_MIN_EXPLODE_MS + Math.random() * (JACK_IN_THE_BOX_MAX_EXPLODE_MS - JACK_IN_THE_BOX_MIN_EXPLODE_MS)
+        : undefined,
   };
 }
 
@@ -866,6 +878,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
         maxHealth: def.health,
         lastAttackAtMs: 0,
         lastSunAtMs: state.gameTimeMs,
+        plantedAtMs: state.gameTimeMs,
         isSleeping: true,
         isCharging: false,
         chargeEndsAtMs: 0,
@@ -920,6 +933,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
       health: def.health, maxHealth: def.health,
       lastAttackAtMs: 0,
       lastSunAtMs: initialSunClock,
+      plantedAtMs: state.gameTimeMs,
       isSleeping: shouldMushroomSleep(def, state.environment),
       isCharging: plantType === "POTATO_MINE",
       chargeEndsAtMs: plantType === "POTATO_MINE" ? state.gameTimeMs + POTATO_MINE_ARM_MS : 0,
@@ -959,41 +973,17 @@ export const useGameStore = create<GameStore>()((set, get) => ({
 
   shovePlant: (row, col) => {
     const state = get();
-    // Find plant at this grid position (prefer top-layer: pumpkin > normal plant)
     const entry = Object.entries(state.plants).find(
       ([, p]) => p.row === row && p.col === col
     );
     if (!entry) return;
     const [instanceId, plant] = entry;
 
-    // Calculate refund from loadout sun cost
-    const slot = state.loadout.find((s) => s.plantType === plant.plantType);
-    const refund = slot?.sunCost ?? 0;
-
-    // Remove plant from grid
     const newGrid = state.grid.map((r) => r.map((c) => ({ ...c })));
     setPlantInCorrectSlot(newGrid, plant.row, plant.col, plant.plantType, null);
     const { [instanceId]: _removed, ...restPlants } = state.plants;
 
-    // Spawn a landed sun drop at the plant's position for the refund
-    const newSunDrops = { ...state.sunDrops };
-    if (refund > 0) {
-      const dropId = `shovel-${instanceId}-${Date.now()}`;
-      const refundDrop: RuntimeSunDrop = {
-        instanceId: dropId,
-        x: plant.col + 0.5,
-        y: plant.row + 0.3,
-        targetY: plant.row + 0.3,
-        value: refund,
-        source: "plant",
-        state: "landed",
-        spawnedAtMs: Date.now(),
-        lifetimeMs: 10_000,
-      };
-      newSunDrops[dropId] = refundDrop;
-    }
-
-    set({ plants: restPlants, grid: newGrid, sunDrops: newSunDrops });
+    set({ plants: restPlants, grid: newGrid });
   },
 
   collectSunDrop: (dropId) => {
@@ -1128,10 +1118,25 @@ export const useGameStore = create<GameStore>()((set, get) => ({
       cooldownRemainingMs: Math.max(0, slot.cooldownRemainingMs - deltaMs),
     }));
 
+    let gridChanged = false;
+    let newGrid = state.grid;
+
     for (const [plantId, plant] of Object.entries(plants)) {
       let currentPlant = plant;
       let def;
       try { def = getPlantDef(currentPlant.plantType); } catch { continue; }
+
+      // 7a. Temporary plant lifespan (Puff-shroom 2 min, Marigold 2 min)
+      if (
+        (currentPlant.plantType === "PUFF_SHROOM" && newGameTimeMs - currentPlant.plantedAtMs >= PUFF_SHROOM_LIFETIME_MS) ||
+        (currentPlant.plantType === "MARIGOLD" && newGameTimeMs - currentPlant.plantedAtMs >= MARIGOLD_LIFETIME_MS)
+      ) {
+        if (!gridChanged) { newGrid = cloneGrid(state.grid); gridChanged = true; }
+        setPlantInCorrectSlot(newGrid, currentPlant.row, currentPlant.col, currentPlant.plantType, null);
+        const { [plantId]: _expired, ...remainingPlants } = plants;
+        plants = remainingPlants;
+        continue;
+      }
 
       if (
         currentPlant.plantType === "POTATO_MINE" &&
@@ -1192,8 +1197,6 @@ export const useGameStore = create<GameStore>()((set, get) => ({
     // -----------------------------------------------------------------------
     // 7d. Contact-trigger plants and melee plants
     // -----------------------------------------------------------------------
-    let gridChanged = false;
-    let newGrid = state.grid;
 
     for (const gridRow of state.grid) {
       for (const cell of gridRow) {
@@ -1328,7 +1331,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
     // -----------------------------------------------------------------------
     // 8. Zombie AI loop
     // -----------------------------------------------------------------------
-    // We may need to update the grid if a plant dies from eating
+    const dancerSpawns: Array<{ lane: number; x: number }> = [];
 
     for (const [zombieId, zombie] of Object.entries(zombies)) {
       // 8a. Tick status effects
@@ -1338,6 +1341,51 @@ export const useGameStore = create<GameStore>()((set, get) => ({
       }
       if (z.isEating && z.zombieType === "SNORKEL" && z.isSubmerged) {
         z = { ...z, isSubmerged: false };
+      }
+
+      // 8a-newspaper. Enrage when newspaper armor is destroyed
+      if (z.zombieType === "NEWSPAPER" && z.armorHealth <= 0 && !z.isEnraged) {
+        z = { ...z, isEnraged: true, speedColsPerSec: NEWSPAPER_ENRAGED_SPEED_COLS_PER_SEC };
+      }
+
+      // 8a-jackbox. Explode when timer fires
+      if (z.zombieType === "JACK_IN_THE_BOX" && z.jackboxExplodeAtMs !== undefined && newGameTimeMs >= z.jackboxExplodeAtMs) {
+        const explodeX = z.x;
+        const explodeLane = z.lane;
+        // Kill zombies in 3×3 area (including allied zombies — PvZ1 accurate)
+        const blastResult = damageZombiesInArea(
+          zombies,
+          (zb) => Math.abs(zb.lane - explodeLane) <= 1 && Math.abs(zb.x - explodeX) <= 1.5,
+          1800
+        );
+        zombies = blastResult.zombies;
+        score += blastResult.scoreDelta;
+        totalZombiesKilled += blastResult.killedCount;
+        // Destroy plants in 3×3 area
+        for (const [pid, p] of Object.entries(plants)) {
+          if (Math.abs(p.row - explodeLane) <= 1 && Math.abs(p.col - explodeX) <= 1.5) {
+            if (!gridChanged) { newGrid = cloneGrid(state.grid); gridChanged = true; }
+            setPlantInCorrectSlot(newGrid, p.row, p.col, p.plantType, null);
+            const { [pid]: _blasted, ...rest } = plants;
+            plants = rest;
+          }
+        }
+        continue; // zombie itself is consumed in the explosion
+      }
+
+      // 8a-dancing. Call up to 4 Backup Dancers when crossing DANCING_ZOMBIE_CALL_X
+      if (z.zombieType === "DANCING" && !z.hasCalledDancers && z.x <= DANCING_ZOMBIE_CALL_X) {
+        z = { ...z, hasCalledDancers: true };
+        const usedLanes = new Set<number>([z.lane]);
+        const allLanes = Array.from({ length: env.gridRows }, (_, i) => i);
+        const spawnX = z.x + 0.5;
+        for (let i = 0; i < 4; i++) {
+          const candidates = allLanes.filter((l) => !usedLanes.has(l));
+          if (candidates.length === 0) break;
+          const lane = candidates[Math.floor(Math.random() * candidates.length)];
+          usedLanes.add(lane);
+          dancerSpawns.push({ lane, x: spawnX + i * 0.3 });
+        }
       }
 
       // 8b. If eating, check if target plant still exists and is alive
@@ -1454,20 +1502,18 @@ export const useGameStore = create<GameStore>()((set, get) => ({
             (p) => p.row === z.lane && p.col < z.x && p.col >= z.x - CATAPULT_FIRE_RANGE_COLS
           );
           if (catapultTarget) {
-            const protected_ = isProtectedByUmbrellaLeaf(catapultTarget.col, catapultTarget.row, plants);
-            if (!protected_) {
-              const damaged = { ...catapultTarget, health: catapultTarget.health - CATAPULT_BASKETBALL_DAMAGE };
-              if (damaged.health <= 0) {
-                if (!gridChanged) {
-                  newGrid = cloneGrid(state.grid);
-                  gridChanged = true;
-                }
-                setPlantInCorrectSlot(newGrid, damaged.row, damaged.col, damaged.plantType, null);
-                const { [catapultTarget.instanceId]: _dead, ...remainingPlants } = plants;
-                plants = remainingPlants;
-              } else {
-                plants[catapultTarget.instanceId] = damaged;
+            // Catapult basketball is NOT blocked by Umbrella Leaf (PvZ1 accurate)
+            const damaged = { ...catapultTarget, health: catapultTarget.health - CATAPULT_BASKETBALL_DAMAGE };
+            if (damaged.health <= 0) {
+              if (!gridChanged) {
+                newGrid = cloneGrid(state.grid);
+                gridChanged = true;
               }
+              setPlantInCorrectSlot(newGrid, damaged.row, damaged.col, damaged.plantType, null);
+              const { [catapultTarget.instanceId]: _dead, ...remainingPlants } = plants;
+              plants = remainingPlants;
+            } else {
+              plants[catapultTarget.instanceId] = damaged;
             }
             z = { ...z, catapultLastFireAtMs: newGameTimeMs };
           }
@@ -1494,6 +1540,12 @@ export const useGameStore = create<GameStore>()((set, get) => ({
       }
 
       zombies[zombieId] = z;
+    }
+
+    // Spawn Backup Dancers queued during Dancing Zombie trigger
+    for (const spawn of dancerSpawns) {
+      const dancer = createRuntimeZombie("BACKUP_DANCER", spawn.lane, spawn.x, env, newGameTimeMs);
+      zombies[dancer.instanceId] = dancer;
     }
 
     // 8e. Check house breach: consume lane mower first, lose only after it is gone.
