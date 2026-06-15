@@ -358,7 +358,7 @@ export default function HomePage() {
 
       {/* ---- Footer ---- */}
       <footer style={{ marginTop: "2.5rem", color: "#6b7280", fontSize: "0.7rem", textAlign: "center" }}>
-        Built with Next.js · Neon Postgres · Zustand · 38 plants · 32 zombies · 5 worlds
+        5 worlds
       </footer>
     </main>
   );
