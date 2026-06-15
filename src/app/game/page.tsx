@@ -14,6 +14,7 @@ import {
   completeGameSession,
   createGameSession,
   fetchLevelConfig,
+  getCurrentUser,
   listGameSessions,
   loadGameSession,
   saveGameSession,
@@ -211,6 +212,13 @@ export default function GamePage() {
   const status = useGameStore((s) => s.status);
   const selectedSlot = useGameStore((s) => s.selectedSlot);
   const loadout = useGameStore((s) => s.loadout);
+
+  // Auth gate — redirect to login if not signed in
+  useEffect(() => {
+    getCurrentUser().then(user => {
+      if (!user) window.location.replace("/login");
+    });
+  }, []);
 
   useEffect(() => {
     const levelNum = parseLevelParam();

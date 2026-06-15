@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
+import { getCurrentUser } from "@/lib/game-session-client";
 
 const ERROR_MESSAGES: Record<string, string> = {
   oauth_not_configured: "Google login is not configured on this server.",
@@ -18,6 +19,13 @@ function LoginContent() {
   const errorKey = searchParams.get("error");
   const errorMsg = errorKey ? (ERROR_MESSAGES[errorKey] ?? "An error occurred. Please try again.") : null;
   const [loading, setLoading] = useState(false);
+
+  // Already logged in → go home
+  useEffect(() => {
+    getCurrentUser().then(user => {
+      if (user) window.location.replace("/");
+    });
+  }, []);
 
   const handleGoogleLogin = () => {
     setLoading(true);
