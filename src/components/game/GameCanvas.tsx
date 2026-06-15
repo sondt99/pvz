@@ -87,6 +87,25 @@ const PROJECTILE_COLORS: Record<string, string> = {
   default: "#ffffff",
 };
 
+type CanvasEffect = {
+  type: "explosion" | "hit-flash";
+  x: number;
+  y: number;
+  radius: number;
+  color: string;
+  startMs: number;
+  durationMs: number;
+};
+
+const INSTANT_PLANT_COLORS: Record<string, string> = {
+  CHERRY_BOMB: "#ff5511",
+  DOOM_SHROOM: "#8822cc",
+  JALAPENO: "#ff6600",
+  ICE_SHROOM: "#44ccff",
+  BLOVER: "#aaccff",
+  SQUASH: "#88cc22",
+};
+
 function boardW(gridCols: number): number {
   return gridCols * CELL_W;
 }
@@ -604,6 +623,618 @@ function drawMushroom(ctx: CanvasRenderingContext2D, cx: number, cy: number, col
   ctx.fill();
 }
 
+function drawRepeater(ctx: CanvasRenderingContext2D, cx: number, cy: number): void {
+  // Stem
+  ctx.strokeStyle = "#2d7d3a";
+  ctx.lineWidth = 7;
+  ctx.beginPath();
+  ctx.moveTo(cx - 4, cy + 24);
+  ctx.quadraticCurveTo(cx - 8, cy + 2, cx + 1, cy - 14);
+  ctx.stroke();
+  // Leaves
+  ctx.fillStyle = "#55b54b";
+  ctx.beginPath();
+  ctx.ellipse(cx - 16, cy + 21, 18, 8, -0.35, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(cx + 12, cy + 22, 18, 8, 0.35, 0, Math.PI * 2);
+  ctx.fill();
+  // Head 1 (upper)
+  const g1 = ctx.createRadialGradient(cx - 8, cy - 24, 3, cx, cy - 18, 22);
+  g1.addColorStop(0, "#a5ed75"); g1.addColorStop(1, "#398f36");
+  ctx.fillStyle = g1;
+  ctx.beginPath(); ctx.arc(cx - 2, cy - 20, 19, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#3b9a3d";
+  ctx.beginPath(); ctx.ellipse(cx + 18, cy - 20, 14, 10, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#11391e";
+  ctx.beginPath(); ctx.arc(cx - 7, cy - 25, 2.5, 0, Math.PI * 2); ctx.fill();
+  // Head 2 (lower, offset)
+  const g2 = ctx.createRadialGradient(cx - 4, cy - 2, 3, cx + 2, cy + 2, 17);
+  g2.addColorStop(0, "#a5ed75"); g2.addColorStop(1, "#398f36");
+  ctx.fillStyle = g2;
+  ctx.beginPath(); ctx.arc(cx + 3, cy - 2, 15, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#3b9a3d";
+  ctx.beginPath(); ctx.ellipse(cx + 19, cy - 2, 12, 8, 0, 0, Math.PI * 2); ctx.fill();
+}
+
+function drawThreepeater(ctx: CanvasRenderingContext2D, cx: number, cy: number): void {
+  // Central thick stem
+  ctx.strokeStyle = "#2d7d3a";
+  ctx.lineWidth = 7;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy + 24);
+  ctx.lineTo(cx, cy - 8);
+  ctx.stroke();
+  // Branch left
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - 2);
+  ctx.lineTo(cx - 22, cy - 22);
+  ctx.stroke();
+  // Branch right
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - 2);
+  ctx.lineTo(cx + 22, cy - 22);
+  ctx.stroke();
+  // Leaves
+  ctx.fillStyle = "#55b54b";
+  ctx.beginPath(); ctx.ellipse(cx - 16, cy + 18, 16, 7, -0.35, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(cx + 12, cy + 18, 16, 7, 0.35, 0, Math.PI * 2); ctx.fill();
+  // Center head
+  const gc = ctx.createRadialGradient(cx - 4, cy - 20, 3, cx, cy - 14, 18);
+  gc.addColorStop(0, "#a5ed75"); gc.addColorStop(1, "#398f36");
+  ctx.fillStyle = gc;
+  ctx.beginPath(); ctx.arc(cx, cy - 16, 16, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#3b9a3d"; ctx.beginPath(); ctx.ellipse(cx + 17, cy - 16, 13, 8, 0, 0, Math.PI * 2); ctx.fill();
+  // Left head (smaller)
+  ctx.fillStyle = "#55b54b";
+  ctx.beginPath(); ctx.arc(cx - 22, cy - 26, 12, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#3b9a3d"; ctx.beginPath(); ctx.ellipse(cx - 9, cy - 26, 10, 6, 0, 0, Math.PI * 2); ctx.fill();
+  // Right head (smaller)
+  ctx.fillStyle = "#55b54b";
+  ctx.beginPath(); ctx.arc(cx + 22, cy - 26, 12, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#3b9a3d"; ctx.beginPath(); ctx.ellipse(cx + 35, cy - 26, 10, 6, 0, 0, Math.PI * 2); ctx.fill();
+}
+
+function drawSplitPea(ctx: CanvasRenderingContext2D, cx: number, cy: number): void {
+  // Stem
+  ctx.strokeStyle = "#2d7d3a";
+  ctx.lineWidth = 7;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy + 24);
+  ctx.quadraticCurveTo(cx - 4, cy + 4, cx, cy - 10);
+  ctx.stroke();
+  // Leaves
+  ctx.fillStyle = "#55b54b";
+  ctx.beginPath(); ctx.ellipse(cx - 16, cy + 18, 17, 7, -0.35, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(cx + 14, cy + 18, 17, 7, 0.35, 0, Math.PI * 2); ctx.fill();
+  // Front head (facing right)
+  const gf = ctx.createRadialGradient(cx - 4, cy - 22, 3, cx + 4, cy - 16, 22);
+  gf.addColorStop(0, "#a5ed75"); gf.addColorStop(1, "#398f36");
+  ctx.fillStyle = gf;
+  ctx.beginPath(); ctx.arc(cx + 2, cy - 18, 18, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#3b9a3d"; ctx.beginPath(); ctx.ellipse(cx + 21, cy - 18, 15, 10, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#11391e"; ctx.beginPath(); ctx.arc(cx - 4, cy - 23, 2.5, 0, Math.PI * 2); ctx.fill();
+  // Back head (facing left, different shade)
+  ctx.fillStyle = "#3d8a30";
+  ctx.beginPath(); ctx.arc(cx - 6, cy - 4, 13, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#2c6e24"; ctx.beginPath(); ctx.ellipse(cx - 21, cy - 4, 11, 7, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#11391e"; ctx.beginPath(); ctx.arc(cx + 2, cy - 7, 2, 0, Math.PI * 2); ctx.fill();
+}
+
+function drawChomper(ctx: CanvasRenderingContext2D, cx: number, cy: number): void {
+  // Stem
+  ctx.strokeStyle = "#5e3475";
+  ctx.lineWidth = 8;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy + 26);
+  ctx.lineTo(cx, cy - 4);
+  ctx.stroke();
+  // Leaves
+  ctx.fillStyle = "#7a46a0";
+  ctx.beginPath(); ctx.ellipse(cx - 18, cy + 16, 20, 8, -0.4, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(cx + 16, cy + 16, 20, 8, 0.4, 0, Math.PI * 2); ctx.fill();
+  // Lower jaw
+  ctx.fillStyle = "#9d4ec0";
+  ctx.beginPath();
+  ctx.ellipse(cx, cy + 6, 28, 16, 0, 0, Math.PI);
+  ctx.fill();
+  // Upper jaw (darker)
+  ctx.fillStyle = "#7d3aa0";
+  ctx.beginPath();
+  ctx.ellipse(cx, cy - 6, 28, 16, 0, Math.PI, 0);
+  ctx.fill();
+  // Teeth (lower)
+  ctx.fillStyle = "#f5f0c8";
+  for (let i = -2; i <= 2; i++) {
+    ctx.beginPath();
+    ctx.moveTo(cx + i * 10 - 4, cy + 4);
+    ctx.lineTo(cx + i * 10, cy - 4);
+    ctx.lineTo(cx + i * 10 + 4, cy + 4);
+    ctx.closePath();
+    ctx.fill();
+  }
+  // Eyes
+  ctx.fillStyle = "#ffffcc";
+  ctx.beginPath(); ctx.arc(cx - 10, cy - 12, 6, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx + 10, cy - 12, 6, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#1a0030";
+  ctx.beginPath(); ctx.arc(cx - 9, cy - 12, 3, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx + 11, cy - 12, 3, 0, Math.PI * 2); ctx.fill();
+}
+
+function drawPotatoMine(ctx: CanvasRenderingContext2D, cx: number, cy: number, armed: boolean): void {
+  // Dirt mound
+  ctx.fillStyle = "#7a5c34";
+  ctx.beginPath();
+  ctx.ellipse(cx, cy + 18, 28, 12, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Potato body (half-buried)
+  const pg = ctx.createRadialGradient(cx - 8, cy - 4, 4, cx, cy + 4, 26);
+  pg.addColorStop(0, "#d9b47a");
+  pg.addColorStop(1, "#9a6e3a");
+  ctx.fillStyle = pg;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy + 4, 22, 20, 0, 0, Math.PI * 2);
+  ctx.fill();
+  if (armed) {
+    // Eyes open (armed - ready to explode)
+    ctx.fillStyle = "#ffe87a";
+    ctx.beginPath(); ctx.arc(cx - 8, cy - 2, 5, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(cx + 8, cy - 2, 5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#1a0a00";
+    ctx.beginPath(); ctx.arc(cx - 7, cy - 2, 2.5, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(cx + 9, cy - 2, 2.5, 0, Math.PI * 2); ctx.fill();
+    // Furrowed brow (ready)
+    ctx.strokeStyle = "#6a3a12";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(cx - 13, cy - 10); ctx.lineTo(cx - 5, cy - 7);
+    ctx.moveTo(cx + 13, cy - 10); ctx.lineTo(cx + 5, cy - 7);
+    ctx.stroke();
+  } else {
+    // Eyes closed (unarmed - sleeping)
+    ctx.strokeStyle = "#6a3a12";
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(cx - 8, cy - 1, 5, 0, Math.PI);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(cx + 8, cy - 1, 5, 0, Math.PI);
+    ctx.stroke();
+    // "Zzz" if unarmed
+    ctx.fillStyle = "rgba(255,255,255,0.6)";
+    ctx.font = "bold 9px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("z", cx + 18, cy - 16);
+    ctx.textAlign = "left";
+  }
+}
+
+function drawSpikeweed(ctx: CanvasRenderingContext2D, cx: number, cy: number): void {
+  // Ground strip
+  ctx.fillStyle = "#2d5a1e";
+  ctx.beginPath();
+  ctx.roundRect(cx - 30, cy + 10, 60, 14, 5);
+  ctx.fill();
+  // Spikes
+  ctx.fillStyle = "#6abf3a";
+  for (let i = -3; i <= 3; i++) {
+    const sx = cx + i * 9;
+    ctx.beginPath();
+    ctx.moveTo(sx - 5, cy + 10);
+    ctx.lineTo(sx, cy - 12);
+    ctx.lineTo(sx + 5, cy + 10);
+    ctx.closePath();
+    ctx.fill();
+  }
+  // Small leaves
+  ctx.strokeStyle = "#3d7a22";
+  ctx.lineWidth = 2;
+  for (let i = -2; i <= 2; i++) {
+    const sx = cx + i * 11 + 4;
+    ctx.beginPath();
+    ctx.moveTo(sx, cy + 8);
+    ctx.quadraticCurveTo(sx + 8, cy - 2, sx + 14, cy + 4);
+    ctx.stroke();
+  }
+}
+
+function drawTangleKelp(ctx: CanvasRenderingContext2D, cx: number, cy: number): void {
+  // Water base bubble
+  ctx.fillStyle = "rgba(42, 120, 160, 0.6)";
+  ctx.beginPath();
+  ctx.ellipse(cx, cy + 20, 26, 10, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Kelp strands (wavy)
+  ctx.strokeStyle = "#2a8c6e";
+  ctx.lineWidth = 5;
+  for (let i = -1; i <= 1; i++) {
+    const sx = cx + i * 10;
+    ctx.beginPath();
+    ctx.moveTo(sx, cy + 16);
+    ctx.bezierCurveTo(sx - 12, cy + 4, sx + 14, cy - 8, sx - 8, cy - 22);
+    ctx.stroke();
+  }
+  ctx.strokeStyle = "#3db886";
+  ctx.lineWidth = 3;
+  for (let i = -1; i <= 1; i++) {
+    const sx = cx + i * 10;
+    ctx.beginPath();
+    ctx.moveTo(sx, cy + 16);
+    ctx.bezierCurveTo(sx + 10, cy + 6, sx - 12, cy - 6, sx + 6, cy - 20);
+    ctx.stroke();
+  }
+  // Tip fronds
+  ctx.fillStyle = "#4dd4a0";
+  ctx.beginPath();
+  ctx.ellipse(cx - 8, cy - 24, 10, 5, -0.6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(cx + 6, cy - 26, 10, 5, 0.6, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawSquash(ctx: CanvasRenderingContext2D, cx: number, cy: number): void {
+  // Legs
+  ctx.fillStyle = "#3a7a26";
+  ctx.beginPath(); ctx.roundRect(cx - 18, cy + 8, 12, 20, 4); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(cx + 6, cy + 8, 12, 20, 4); ctx.fill();
+  // Body
+  const sg = ctx.createLinearGradient(cx - 28, cy - 18, cx + 28, cy + 18);
+  sg.addColorStop(0, "#a5d44a");
+  sg.addColorStop(1, "#5a9a22");
+  ctx.fillStyle = sg;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy - 2, 28, 22, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Face stripes (squash ridges)
+  ctx.strokeStyle = "rgba(50, 100, 20, 0.38)";
+  ctx.lineWidth = 3;
+  for (const dx of [-10, 0, 10]) {
+    ctx.beginPath();
+    ctx.moveTo(cx + dx, cy - 22); ctx.lineTo(cx + dx, cy + 18);
+    ctx.stroke();
+  }
+  // Eyes (angry)
+  ctx.fillStyle = "#fff";
+  ctx.beginPath(); ctx.arc(cx - 9, cy - 8, 7, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx + 9, cy - 8, 7, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#1a0a00";
+  ctx.beginPath(); ctx.arc(cx - 8, cy - 8, 4, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx + 10, cy - 8, 4, 0, Math.PI * 2); ctx.fill();
+  // Angry brows
+  ctx.strokeStyle = "#2a4a10";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(cx - 15, cy - 18); ctx.lineTo(cx - 4, cy - 14);
+  ctx.moveTo(cx + 15, cy - 18); ctx.lineTo(cx + 4, cy - 14);
+  ctx.stroke();
+}
+
+function drawJalapeno(ctx: CanvasRenderingContext2D, cx: number, cy: number): void {
+  // Stem
+  ctx.strokeStyle = "#2a6e1a";
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy + 24);
+  ctx.lineTo(cx, cy - 8);
+  ctx.stroke();
+  // Leaves
+  ctx.fillStyle = "#3a8a28";
+  ctx.beginPath(); ctx.ellipse(cx - 14, cy + 16, 16, 7, -0.4, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(cx + 14, cy + 16, 16, 7, 0.4, 0, Math.PI * 2); ctx.fill();
+  // Pepper cap (green)
+  ctx.fillStyle = "#2f7e1a";
+  ctx.beginPath();
+  ctx.ellipse(cx, cy - 14, 14, 8, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Pepper body (red-orange gradient)
+  const jg = ctx.createLinearGradient(cx - 14, cy - 8, cx + 14, cy + 20);
+  jg.addColorStop(0, "#ff6b1a");
+  jg.addColorStop(0.5, "#e83020");
+  jg.addColorStop(1, "#c41a14");
+  ctx.fillStyle = jg;
+  ctx.beginPath();
+  ctx.moveTo(cx - 13, cy - 8);
+  ctx.bezierCurveTo(cx - 16, cy + 4, cx - 10, cy + 22, cx, cy + 26);
+  ctx.bezierCurveTo(cx + 10, cy + 22, cx + 16, cy + 4, cx + 13, cy - 8);
+  ctx.closePath();
+  ctx.fill();
+  // Highlight
+  ctx.fillStyle = "rgba(255,200,150,0.36)";
+  ctx.beginPath();
+  ctx.ellipse(cx - 4, cy + 4, 5, 12, -0.3, 0, Math.PI * 2);
+  ctx.fill();
+  // Flame tip
+  ctx.fillStyle = "#ff9922";
+  ctx.beginPath();
+  ctx.arc(cx + 2, cy + 28, 5, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawCactus(ctx: CanvasRenderingContext2D, cx: number, cy: number): void {
+  // Main trunk
+  const cg = ctx.createLinearGradient(cx - 14, cy - 24, cx + 14, cy + 24);
+  cg.addColorStop(0, "#6abf3a"); cg.addColorStop(1, "#3d7a22");
+  ctx.fillStyle = cg;
+  ctx.beginPath();
+  ctx.roundRect(cx - 11, cy - 24, 22, 52, 8);
+  ctx.fill();
+  // Left arm
+  ctx.beginPath();
+  ctx.roundRect(cx - 28, cy - 4, 20, 12, 6);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.roundRect(cx - 30, cy - 20, 12, 20, 6);
+  ctx.fill();
+  // Right arm
+  ctx.beginPath();
+  ctx.roundRect(cx + 8, cy - 6, 20, 12, 6);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.roundRect(cx + 18, cy - 22, 12, 20, 6);
+  ctx.fill();
+  // Spines
+  ctx.strokeStyle = "#ffe8a0";
+  ctx.lineWidth = 2;
+  for (const [sx, sy] of [[cx - 12, cy - 10], [cx + 12, cy - 10], [cx - 12, cy + 8], [cx + 12, cy + 8],
+    [cx - 12, cy + 24], [cx + 12, cy + 24], [cx - 30, cy - 12], [cx + 30, cy - 14]] as [number, number][]) {
+    ctx.beginPath();
+    ctx.moveTo(sx, sy); ctx.lineTo(sx - (sx < cx ? 8 : -8), sy - 4); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(sx, sy); ctx.lineTo(sx - (sx < cx ? 8 : -8), sy + 4); ctx.stroke();
+  }
+  // Top flower
+  ctx.fillStyle = "#ff6688";
+  ctx.beginPath();
+  ctx.arc(cx, cy - 26, 7, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#ffee44";
+  ctx.beginPath();
+  ctx.arc(cx, cy - 26, 3, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawTorchwood(ctx: CanvasRenderingContext2D, cx: number, cy: number): void {
+  // Tree log body
+  const lg = ctx.createLinearGradient(cx - 22, cy - 20, cx + 22, cy + 28);
+  lg.addColorStop(0, "#8a5a2e"); lg.addColorStop(1, "#5a3518");
+  ctx.fillStyle = lg;
+  ctx.beginPath();
+  ctx.roundRect(cx - 20, cy - 14, 40, 42, 10);
+  ctx.fill();
+  // Wood grain lines
+  ctx.strokeStyle = "rgba(40, 20, 8, 0.4)";
+  ctx.lineWidth = 2;
+  for (let i = -1; i <= 1; i++) {
+    ctx.beginPath();
+    ctx.moveTo(cx + i * 8, cy - 14); ctx.lineTo(cx + i * 8, cy + 28);
+    ctx.stroke();
+  }
+  // Knot
+  ctx.strokeStyle = "rgba(40, 20, 8, 0.5)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.ellipse(cx + 4, cy + 6, 7, 5, 0.2, 0, Math.PI * 2);
+  ctx.stroke();
+  // Fire (3 flame shapes)
+  for (const [fx, size, col] of [[cx - 8, 1.1, "#ff4400"], [cx + 2, 1.3, "#ff7700"], [cx + 10, 1.0, "#ffaa00"]] as [number, number, string][]) {
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.moveTo(fx, cy - 14);
+    ctx.bezierCurveTo(fx - 10 * size, cy - 24, fx - 6 * size, cy - 40, fx, cy - 48 * size + 10);
+    ctx.bezierCurveTo(fx + 6 * size, cy - 40, fx + 10 * size, cy - 24, fx, cy - 14);
+    ctx.fill();
+  }
+  ctx.fillStyle = "#ffe055";
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - 18);
+  ctx.bezierCurveTo(cx - 6, cy - 26, cx - 4, cy - 36, cx, cy - 42);
+  ctx.bezierCurveTo(cx + 4, cy - 36, cx + 6, cy - 26, cx, cy - 18);
+  ctx.fill();
+}
+
+function drawPlantern(ctx: CanvasRenderingContext2D, cx: number, cy: number): void {
+  // Glow aura
+  const glow = ctx.createRadialGradient(cx, cy - 4, 4, cx, cy - 4, 38);
+  glow.addColorStop(0, "rgba(255, 220, 80, 0.38)");
+  glow.addColorStop(1, "rgba(255, 220, 80, 0)");
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(cx, cy - 4, 38, 0, Math.PI * 2);
+  ctx.fill();
+  // Handle
+  ctx.strokeStyle = "#8a6a22";
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(cx - 8, cy - 28); ctx.lineTo(cx + 8, cy - 28);
+  ctx.arc(cx, cy - 28, 8, 0, Math.PI, true);
+  ctx.stroke();
+  // Lantern body
+  const planternLg = ctx.createLinearGradient(cx - 18, cy - 24, cx + 18, cy + 20);
+  planternLg.addColorStop(0, "#f5c840"); planternLg.addColorStop(1, "#c88a18");
+  ctx.fillStyle = planternLg;
+  ctx.beginPath();
+  ctx.roundRect(cx - 18, cy - 24, 36, 44, 8);
+  ctx.fill();
+  // Glass panels (bright)
+  ctx.fillStyle = "rgba(255, 240, 120, 0.65)";
+  ctx.beginPath();
+  ctx.roundRect(cx - 13, cy - 18, 11, 32, 4);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.roundRect(cx + 2, cy - 18, 11, 32, 4);
+  ctx.fill();
+  // Top / bottom caps
+  ctx.fillStyle = "#8a6a22";
+  ctx.beginPath(); ctx.roundRect(cx - 20, cy - 26, 40, 6, 4); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(cx - 20, cy + 18, 40, 6, 4); ctx.fill();
+}
+
+function drawBlover(ctx: CanvasRenderingContext2D, cx: number, cy: number): void {
+  // Stem
+  ctx.strokeStyle = "#4a9a38";
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy + 26);
+  ctx.lineTo(cx, cy - 6);
+  ctx.stroke();
+  // Fluffy dandelion head — many small circles radiating outward
+  ctx.fillStyle = "#e8e8e8";
+  for (let i = 0; i < 12; i++) {
+    const a = (Math.PI * 2 * i) / 12;
+    const r = 22;
+    const bx = cx + Math.cos(a) * r;
+    const by = cy - 12 + Math.sin(a) * r;
+    // Stalk
+    ctx.strokeStyle = "rgba(200, 200, 200, 0.7)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - 10);
+    ctx.lineTo(bx, by);
+    ctx.stroke();
+    // Puff
+    ctx.fillStyle = "#f0f0f0";
+    ctx.beginPath();
+    ctx.arc(bx, by, 5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // Center
+  ctx.fillStyle = "#c8d440";
+  ctx.beginPath();
+  ctx.arc(cx, cy - 10, 8, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawUmbrellaLeaf(ctx: CanvasRenderingContext2D, cx: number, cy: number): void {
+  // Stem
+  ctx.strokeStyle = "#3a7a22";
+  ctx.lineWidth = 6;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy + 26);
+  ctx.lineTo(cx, cy - 6);
+  ctx.stroke();
+  // Umbrella leaf (large flat circle with scalloped edge)
+  ctx.fillStyle = "#4aaf35";
+  ctx.beginPath();
+  ctx.arc(cx, cy - 14, 30, 0, Math.PI * 2);
+  ctx.fill();
+  // Scalloped edge
+  ctx.fillStyle = "#3a9428";
+  for (let i = 0; i < 10; i++) {
+    const a = (Math.PI * 2 * i) / 10;
+    ctx.beginPath();
+    ctx.arc(cx + Math.cos(a) * 28, cy - 14 + Math.sin(a) * 28, 7, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // Veins
+  ctx.strokeStyle = "rgba(30, 90, 18, 0.4)";
+  ctx.lineWidth = 2;
+  for (let i = 0; i < 6; i++) {
+    const a = (Math.PI * 2 * i) / 6;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - 14);
+    ctx.lineTo(cx + Math.cos(a) * 26, cy - 14 + Math.sin(a) * 26);
+    ctx.stroke();
+  }
+  // Center dome (water repelling bump)
+  ctx.fillStyle = "#66cc44";
+  ctx.beginPath();
+  ctx.arc(cx, cy - 14, 8, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawCoffeeBean(ctx: CanvasRenderingContext2D, cx: number, cy: number): void {
+  // Bean body
+  const bg = ctx.createRadialGradient(cx - 8, cy - 8, 3, cx, cy, 26);
+  bg.addColorStop(0, "#6b3a1c"); bg.addColorStop(1, "#2e1408");
+  ctx.fillStyle = bg;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, 22, 28, 0.15, 0, Math.PI * 2);
+  ctx.fill();
+  // Center crease
+  ctx.strokeStyle = "rgba(10, 5, 2, 0.7)";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(cx - 2, cy - 24);
+  ctx.bezierCurveTo(cx - 8, cy - 8, cx + 8, cy + 8, cx + 2, cy + 24);
+  ctx.stroke();
+  // Steam lines
+  ctx.strokeStyle = "rgba(220, 200, 180, 0.55)";
+  ctx.lineWidth = 2;
+  for (const dx of [-7, 0, 7]) {
+    ctx.beginPath();
+    ctx.moveTo(cx + dx, cy - 28);
+    ctx.bezierCurveTo(cx + dx - 5, cy - 36, cx + dx + 5, cy - 44, cx + dx, cy - 52);
+    ctx.stroke();
+  }
+  // Shine
+  ctx.fillStyle = "rgba(180, 130, 80, 0.3)";
+  ctx.beginPath();
+  ctx.ellipse(cx - 6, cy - 8, 7, 12, -0.4, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawMarigold(ctx: CanvasRenderingContext2D, cx: number, cy: number): void {
+  // Stem
+  ctx.strokeStyle = "#3f8736";
+  ctx.lineWidth = 6;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy + 26);
+  ctx.lineTo(cx, cy - 4);
+  ctx.stroke();
+  // Leaves
+  ctx.fillStyle = "#4cad45";
+  ctx.beginPath(); ctx.ellipse(cx - 14, cy + 14, 17, 7, -0.4, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(cx + 14, cy + 14, 17, 7, 0.4, 0, Math.PI * 2); ctx.fill();
+  // Petals (orange layered)
+  for (let layer = 0; layer < 3; layer++) {
+    const r = 18 - layer * 3;
+    const count = 12 - layer;
+    ctx.fillStyle = layer === 0 ? "#ff8c00" : layer === 1 ? "#ffa820" : "#ffcc44";
+    for (let i = 0; i < count; i++) {
+      const a = (Math.PI * 2 * i) / count + (layer * 0.3);
+      ctx.beginPath();
+      ctx.ellipse(cx + Math.cos(a) * r, cy - 14 + Math.sin(a) * r, 7, 12, a, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  // Center
+  ctx.fillStyle = "#ff6600";
+  ctx.beginPath(); ctx.arc(cx, cy - 14, 10, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#cc3300";
+  ctx.beginPath(); ctx.arc(cx, cy - 14, 5, 0, Math.PI * 2); ctx.fill();
+}
+
+function drawMagnetShroom(ctx: CanvasRenderingContext2D, cx: number, cy: number): void {
+  // Metallic mushroom
+  ctx.fillStyle = "#6e7880";
+  ctx.beginPath();
+  ctx.ellipse(cx, cy - 10, 27, 18, 0, Math.PI, 0);
+  ctx.fill();
+  // U-shaped magnet on top
+  ctx.strokeStyle = "#cc4444";
+  ctx.lineWidth = 6;
+  ctx.beginPath();
+  ctx.arc(cx, cy - 10, 13, Math.PI, 0);
+  ctx.stroke();
+  ctx.strokeStyle = "#4444cc";
+  ctx.lineWidth = 6;
+  ctx.beginPath();
+  ctx.arc(cx - 13, cy - 10, 1, 0, Math.PI * 2); ctx.stroke();
+  // Tips of magnet
+  ctx.fillStyle = "#cc4444";
+  ctx.beginPath(); ctx.roundRect(cx - 16, cy - 24, 7, 14, 3); ctx.fill();
+  ctx.fillStyle = "#4444cc";
+  ctx.beginPath(); ctx.roundRect(cx + 9, cy - 24, 7, 14, 3); ctx.fill();
+  // Stem
+  ctx.fillStyle = "#b0bec5";
+  ctx.beginPath();
+  ctx.roundRect(cx - 12, cy - 9, 24, 30, 10);
+  ctx.fill();
+}
+
 function drawPlant(ctx: CanvasRenderingContext2D, plant: RuntimePlant): void {
   const cx = tileX(plant.col) + CELL_W / 2;
   const cy = tileY(plant.row) + CELL_H / 2 + 4;
@@ -614,16 +1245,69 @@ function drawPlant(ctx: CanvasRenderingContext2D, plant: RuntimePlant): void {
   ctx.shadowBlur = 8;
   ctx.shadowOffsetY = 5;
 
-  if (plant.plantType === "SUNFLOWER") drawSunflower(ctx, cx, cy);
-  else if (plant.plantType === "WALL_NUT") drawWallNut(ctx, cx, cy);
-  else if (plant.plantType === "TALL_NUT") drawWallNut(ctx, cx, cy, true);
-  else if (plant.plantType === "PUMPKIN") drawPumpkin(ctx, cx, cy);
-  else if (plant.plantType === "GARLIC") drawGarlic(ctx, cx, cy);
-  else if (plant.plantType === "STARFRUIT") drawStarfruit(ctx, cx, cy);
-  else if (plant.plantType === "SNOW_PEA") drawPeashooter(ctx, cx, cy, true);
-  else if (plant.plantType === "CHERRY_BOMB") drawBomb(ctx, cx, cy);
-  else if (plant.plantType.includes("SHROOM")) drawMushroom(ctx, cx, cy, plant.plantType === "SUN_SHROOM" ? "#d8a33c" : "#8e67c7");
-  else if (plant.plantType === "LILY_PAD") {
+  const pt = plant.plantType;
+
+  if (pt === "SUNFLOWER" || pt === "MARIGOLD") {
+    if (pt === "MARIGOLD") drawMarigold(ctx, cx, cy);
+    else drawSunflower(ctx, cx, cy);
+  } else if (pt === "WALL_NUT") {
+    drawWallNut(ctx, cx, cy);
+  } else if (pt === "TALL_NUT") {
+    drawWallNut(ctx, cx, cy, true);
+  } else if (pt === "PUMPKIN") {
+    drawPumpkin(ctx, cx, cy);
+  } else if (pt === "GARLIC") {
+    drawGarlic(ctx, cx, cy);
+  } else if (pt === "STARFRUIT") {
+    drawStarfruit(ctx, cx, cy);
+  } else if (pt === "SNOW_PEA") {
+    drawPeashooter(ctx, cx, cy, true);
+  } else if (pt === "CHERRY_BOMB" || pt === "JALAPENO") {
+    if (pt === "JALAPENO") drawJalapeno(ctx, cx, cy);
+    else drawBomb(ctx, cx, cy);
+  } else if (pt === "REPEATER") {
+    drawRepeater(ctx, cx, cy);
+  } else if (pt === "THREEPEATER") {
+    drawThreepeater(ctx, cx, cy);
+  } else if (pt === "SPLIT_PEA") {
+    drawSplitPea(ctx, cx, cy);
+  } else if (pt === "CHOMPER") {
+    drawChomper(ctx, cx, cy);
+  } else if (pt === "POTATO_MINE") {
+    const armed = (plant as { armedAtMs?: number | null }).armedAtMs != null && Date.now() >= ((plant as { armedAtMs?: number | null }).armedAtMs as number);
+    drawPotatoMine(ctx, cx, cy, armed);
+  } else if (pt === "SPIKEWEED") {
+    drawSpikeweed(ctx, cx, cy);
+  } else if (pt === "TANGLE_KELP") {
+    drawTangleKelp(ctx, cx, cy);
+  } else if (pt === "SQUASH") {
+    drawSquash(ctx, cx, cy);
+  } else if (pt === "CACTUS") {
+    drawCactus(ctx, cx, cy);
+  } else if (pt === "TORCHWOOD") {
+    drawTorchwood(ctx, cx, cy);
+  } else if (pt === "PLANTERN") {
+    drawPlantern(ctx, cx, cy);
+  } else if (pt === "BLOVER") {
+    drawBlover(ctx, cx, cy);
+  } else if (pt === "UMBRELLA_LEAF") {
+    drawUmbrellaLeaf(ctx, cx, cy);
+  } else if (pt === "COFFEE_BEAN") {
+    drawCoffeeBean(ctx, cx, cy);
+  } else if (pt === "MAGNET_SHROOM") {
+    drawMagnetShroom(ctx, cx, cy);
+  } else if (pt.includes("SHROOM")) {
+    const shroomColors: Record<string, string> = {
+      PUFF_SHROOM: "#a87ccd",
+      SUN_SHROOM: "#d8a33c",
+      FUME_SHROOM: "#4a8a1e",
+      SCAREDY_SHROOM: "#d68faa",
+      ICE_SHROOM: "#3bbcd6",
+      DOOM_SHROOM: "#2a1a40",
+      SEA_SHROOM: "#2e8c7a",
+    };
+    drawMushroom(ctx, cx, cy, shroomColors[pt] ?? "#8e67c7");
+  } else if (pt === "LILY_PAD") {
     ctx.fillStyle = "#43a65a";
     ctx.beginPath();
     ctx.ellipse(cx, cy + 4, 30, 17, -0.1, 0, Math.PI * 2);
@@ -635,14 +1319,14 @@ function drawPlant(ctx: CanvasRenderingContext2D, plant: RuntimePlant): void {
     ctx.lineTo(cx + 13, cy + 12);
     ctx.closePath();
     ctx.fill();
-  } else if (plant.plantType === "FLOWER_POT") {
+  } else if (pt === "FLOWER_POT") {
     ctx.fillStyle = "#a65b38";
     ctx.beginPath();
     ctx.roundRect(cx - 24, cy - 16, 48, 38, 7);
     ctx.fill();
     ctx.fillStyle = "#583022";
     ctx.fillRect(cx - 26, cy - 20, 52, 9);
-  } else if (plant.plantType.includes("PULT")) {
+  } else if (pt.includes("PULT")) {
     ctx.fillStyle = "#5aa84f";
     ctx.beginPath();
     ctx.ellipse(cx, cy + 10, 24, 18, 0, 0, Math.PI * 2);
@@ -653,11 +1337,12 @@ function drawPlant(ctx: CanvasRenderingContext2D, plant: RuntimePlant): void {
     ctx.moveTo(cx - 2, cy + 4);
     ctx.lineTo(cx + 24, cy - 22);
     ctx.stroke();
-    ctx.fillStyle = plant.plantType === "MELON_PULT" ? "#74c85a" : plant.plantType === "KERNEL_PULT" ? "#f1c84e" : "#9bd05a";
+    ctx.fillStyle = pt === "MELON_PULT" ? "#74c85a" : pt === "KERNEL_PULT" ? "#f1c84e" : "#9bd05a";
     ctx.beginPath();
     ctx.arc(cx + 30, cy - 27, 13, 0, Math.PI * 2);
     ctx.fill();
   } else {
+    // PEASHOOTER and any unrecognized type
     drawPeashooter(ctx, cx, cy);
   }
 
@@ -887,6 +1572,9 @@ interface GameCanvasProps {
 export function GameCanvas({ onCellClick }: GameCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number | null>(null);
+  const effectsRef = useRef<CanvasEffect[]>([]);
+  const prevPlantsRef = useRef<Map<string, { type: string; cx: number; cy: number }>>(new Map());
+  const prevZombieHealthRef = useRef<Map<string, number>>(new Map());
 
   const status = useGameStore((s) => s.status);
   const environment = useGameStore((s) => s.environment);
@@ -905,6 +1593,54 @@ export function GameCanvas({ onCellClick }: GameCanvasProps) {
 
       const state = useGameStore.getState();
       const { environment: env, plants, zombies, projectiles, sunDrops, lawnMowers } = state;
+
+      const now = performance.now();
+
+      // Detect instant-use plant removals → explosion effects
+      const currentPlants = new Map<string, { type: string; cx: number; cy: number }>();
+      for (const [id, plant] of Object.entries(state.plants)) {
+        currentPlants.set(id, {
+          type: plant.plantType,
+          cx: tileX(plant.col) + CELL_W / 2,
+          cy: tileY(plant.row) + CELL_H / 2 + 4,
+        });
+      }
+      for (const [id, info] of prevPlantsRef.current) {
+        if (!currentPlants.has(id) && INSTANT_PLANT_COLORS[info.type]) {
+          effectsRef.current.push({
+            type: "explosion",
+            x: info.cx,
+            y: info.cy,
+            radius: info.type === "DOOM_SHROOM" ? 130 : info.type === "JALAPENO" ? 160 : 90,
+            color: INSTANT_PLANT_COLORS[info.type],
+            startMs: now,
+            durationMs: info.type === "DOOM_SHROOM" ? 800 : 500,
+          });
+        }
+      }
+      prevPlantsRef.current = currentPlants;
+
+      // Detect zombie damage → hit-flash effects
+      for (const [id, zombie] of Object.entries(state.zombies)) {
+        const prevHp = prevZombieHealthRef.current.get(id) ?? zombie.maxHealth;
+        if (zombie.health < prevHp - 8) {
+          effectsRef.current.push({
+            type: "hit-flash",
+            x: HOUSE_W + zombie.x * CELL_W + CELL_W / 2,
+            y: tileY(zombie.lane) + CELL_H * 0.42,
+            radius: 22,
+            color: "rgba(255, 80, 60, 0.75)",
+            startMs: now,
+            durationMs: 200,
+          });
+        }
+        prevZombieHealthRef.current.set(id, zombie.health);
+      }
+      for (const id of prevZombieHealthRef.current.keys()) {
+        if (!state.zombies[id]) prevZombieHealthRef.current.delete(id);
+      }
+      // Expire old effects
+      effectsRef.current = effectsRef.current.filter(e => now - e.startMs < e.durationMs);
 
       drawSceneBackdrop(ctx, env.type, env.gridRows, env.gridCols);
       drawBoard(ctx, env.type, env.gridRows, env.gridCols, env.waterLaneIndices, state.grid);
@@ -930,6 +1666,33 @@ export function GameCanvas({ onCellClick }: GameCanvasProps) {
 
       if (env.fogEnabled) {
         drawFogOverlay(ctx, state.grid, env.gridRows, env.gridCols);
+      }
+
+      // Draw visual effects
+      for (const effect of effectsRef.current) {
+        const progress = (now - effect.startMs) / effect.durationMs;
+        if (progress >= 1 || progress < 0) continue;
+        ctx.save();
+        if (effect.type === "explosion") {
+          const r = effect.radius * Math.pow(progress, 0.45);
+          ctx.globalAlpha = (1 - progress) * 0.82;
+          ctx.fillStyle = effect.color;
+          ctx.beginPath();
+          ctx.arc(effect.x, effect.y, r, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.globalAlpha = (1 - progress) * 0.45;
+          ctx.fillStyle = "#ffffff";
+          ctx.beginPath();
+          ctx.arc(effect.x, effect.y, r * 0.38, 0, Math.PI * 2);
+          ctx.fill();
+        } else if (effect.type === "hit-flash") {
+          ctx.globalAlpha = (1 - progress) * 0.7;
+          ctx.fillStyle = effect.color;
+          ctx.beginPath();
+          ctx.arc(effect.x, effect.y, effect.radius * (0.5 + progress * 0.5), 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
       }
 
       for (const drop of Object.values(sunDrops)) {
