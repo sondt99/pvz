@@ -2,38 +2,7 @@
 
 import { useGameStore } from "@/store/game-store";
 import type { SeedPacketSlot } from "@/engine/types";
-
-const PLANT_EMOJI: Record<string, string> = {
-  PEASHOOTER: "🫛",
-  SUNFLOWER: "🌻",
-  WALL_NUT: "🥜",
-  PUMPKIN: "🎃",
-  SNOW_PEA: "❄️",
-  CHERRY_BOMB: "🍒",
-  POTATO_MINE: "🥔",
-  REPEATER: "⚡",
-  PUFF_SHROOM: "🍄",
-  SUN_SHROOM: "☀️",
-  FUME_SHROOM: "💨",
-  SCAREDY_SHROOM: "😨",
-  ICE_SHROOM: "❄️",
-  DOOM_SHROOM: "💀",
-  LILY_PAD: "🪷",
-  TANGLE_KELP: "🌿",
-  SEA_SHROOM: "🪸",
-  PLANTERN: "🪔",
-  BLOVER: "🌬️",
-  SPLIT_PEA: "🔀",
-  STARFRUIT: "⭐",
-  SPIKEWEED: "🌵",
-  TORCHWOOD: "🔥",
-  TALL_NUT: "🗿",
-  FLOWER_POT: "🪴",
-  CABBAGE_PULT: "🥬",
-  KERNEL_PULT: "🌽",
-  GARLIC: "🧄",
-  MELON_PULT: "🍈",
-};
+import { PlantPreviewCanvas } from "./PlantPreviewCanvas";
 
 const PLANT_BG: Record<string, string> = {
   PEASHOOTER: "#1a5c2a",
@@ -90,7 +59,7 @@ function SlotCard({ slot, currentSun, onSelect }: SlotCardProps) {
       style={{
         position: "relative",
         width: 72,
-        height: 88,
+        height: 92,
         background: isSelected ? "#6aad2a" : bg,
         border: isSelected ? "3px solid #ffd700" : "2px solid #2a4a1a",
         borderRadius: 8,
@@ -99,7 +68,7 @@ function SlotCard({ slot, currentSun, onSelect }: SlotCardProps) {
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "space-between",
-        padding: "6px 4px 4px",
+        padding: "4px 4px 3px",
         opacity: isDisabled && !isSelected ? 0.55 : 1,
         transition: "border-color 0.1s, background 0.1s",
         overflow: "hidden",
@@ -108,10 +77,8 @@ function SlotCard({ slot, currentSun, onSelect }: SlotCardProps) {
       disabled={isDisabled}
       title={`${slot.plantType} — ${slot.sunCost} ☀`}
     >
-      {/* Plant icon */}
-      <span style={{ fontSize: 26, lineHeight: 1 }}>
-        {PLANT_EMOJI[slot.plantType] ?? "🌿"}
-      </span>
+      {/* Plant preview */}
+      <PlantPreviewCanvas plantType={slot.plantType} size={52} />
 
       {/* Plant name (short) */}
       <span
@@ -166,7 +133,12 @@ function SlotCard({ slot, currentSun, onSelect }: SlotCardProps) {
   );
 }
 
-export function SeedPacketBar() {
+interface SeedPacketBarProps {
+  shovelSelected?: boolean;
+  onShovelToggle?: () => void;
+}
+
+export function SeedPacketBar({ shovelSelected = false, onShovelToggle }: SeedPacketBarProps = {}) {
   const loadout = useGameStore((s) => s.loadout);
   const currentSun = useGameStore((s) => s.currentSun);
   const selectedSlot = useGameStore((s) => s.selectedSlot);
@@ -199,6 +171,41 @@ export function SeedPacketBar() {
           onSelect={handleSelect}
         />
       ))}
+      {/* Shovel tool */}
+      <div style={{ display: "flex", alignItems: "center", gap: 0, flexShrink: 0 }}>
+        <div style={{ width: 1, height: 72, background: "#2a5a0a", margin: "0 8px", opacity: 0.6 }} />
+        <button
+          onClick={onShovelToggle}
+          title="Shovel — click a plant to remove it and get a sun refund"
+          style={{
+            width: 64,
+            height: 92,
+            background: shovelSelected
+              ? "linear-gradient(to bottom, #7a4a00, #5a3000)"
+              : "linear-gradient(to bottom, #2a4a0a, #1a3205)",
+            border: shovelSelected ? "3px solid #ffd700" : "2px solid #2a5a0a",
+            borderRadius: 8,
+            cursor: "pointer",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 4,
+            flexShrink: 0,
+            boxShadow: shovelSelected ? "0 0 14px rgba(255,215,0,0.4)" : "none",
+            transition: "background 0.15s, border-color 0.15s, box-shadow 0.15s",
+          }}
+        >
+          <span style={{ fontSize: 26, lineHeight: 1 }}>⛏️</span>
+          <span style={{
+            color: shovelSelected ? "#ffd700" : "#8ab870",
+            fontSize: 9,
+            fontWeight: 700,
+            textTransform: "uppercase",
+            letterSpacing: 0.5,
+          }}>Shovel</span>
+        </button>
+      </div>
       {loadout.length === 0 && (
         <p style={{ color: "#4a7a4a", fontSize: 14, margin: 0 }}>
           No seed packets loaded.
