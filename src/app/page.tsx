@@ -215,7 +215,7 @@ export default function HomePage() {
   const [levels, setLevels] = useState<LevelEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Pick up auth_token from URL (post-OAuth redirect), then resolve current user
+  // Pick up auth_token from URL (post-OAuth redirect), resolve user, gate on login
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const tokenFromUrl = params.get("auth_token");
@@ -223,9 +223,14 @@ export default function HomePage() {
       storeSessionToken(tokenFromUrl);
       window.history.replaceState({}, "", window.location.pathname);
     }
-    getCurrentUser()
-      .then(user => setCurrentUser(user))
-      .finally(() => setAuthLoading(false));
+    getCurrentUser().then(user => {
+      if (!user) {
+        window.location.replace("/login");
+        return;
+      }
+      setCurrentUser(user);
+      setAuthLoading(false);
+    });
   }, []);
 
   // Fetch levels after auth resolves so the right token is used
@@ -283,14 +288,6 @@ export default function HomePage() {
               Sign out
             </button>
           </div>
-        )}
-        {!authLoading && !currentUser && (
-          <Link
-            href="/login"
-            style={{ color: "#4ade80", border: "1px solid #22c55e44", borderRadius: "0.35rem", padding: "0.28rem 0.85rem", fontSize: "0.78rem", textDecoration: "none", fontWeight: 600, letterSpacing: "0.02em" }}
-          >
-            Sign in
-          </Link>
         )}
       </div>
 
