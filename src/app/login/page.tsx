@@ -12,6 +12,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   email_not_verified: "Your Google email is not verified. Please verify it and try again.",
   invalid_state: "Security check failed. Please try again.",
   missing_code: "Google sign-in was cancelled or failed. Please try again.",
+  internal_error: "A server error occurred. Please try again.",
 };
 
 function LoginContent() {

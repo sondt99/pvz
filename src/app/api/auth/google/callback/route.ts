@@ -91,59 +91,61 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return NextResponse.redirect(`${appUrl}/login?error=email_not_verified`);
   }
 
-  // Upsert user: find by googleId first, then by email, otherwise create
-  let user = await prisma.user.findUnique({ where: { googleId: userInfo.sub } });
+  // Upsert user and create session — wrapped so DB errors redirect gracefully
+  try {
+    let user = await prisma.user.findUnique({ where: { googleId: userInfo.sub } });
 
-  if (!user) {
-    user = await prisma.user.findUnique({ where: { email: userInfo.email } });
-    if (user) {
-      // Existing email-only account — link Google
-      user = await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          googleId: userInfo.sub,
-          avatarUrl: userInfo.picture ?? user.avatarUrl,
-        },
-      });
+    if (!user) {
+      user = await prisma.user.findUnique({ where: { email: userInfo.email } });
+      if (user) {
+        // Existing email-only account — link Google
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: {
+            googleId: userInfo.sub,
+            avatarUrl: userInfo.picture ?? user.avatarUrl,
+          },
+        });
+      } else {
+        // Brand new user
+        user = await prisma.user.create({
+          data: {
+            email: userInfo.email,
+            googleId: userInfo.sub,
+            displayName: userInfo.name,
+            avatarUrl: userInfo.picture,
+          },
+        });
+      }
     } else {
-      // Brand new user
-      user = await prisma.user.create({
-        data: {
-          email: userInfo.email,
-          googleId: userInfo.sub,
-          displayName: userInfo.name,
-          avatarUrl: userInfo.picture,
-        },
+      // Update avatar/name in case they changed
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { avatarUrl: userInfo.picture, displayName: userInfo.name },
       });
     }
-  } else {
-    // Update avatar/name in case they changed
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { avatarUrl: userInfo.picture, displayName: userInfo.name },
+
+    const token = randomBytes(32).toString("hex");
+    const tokenHash = hashSessionToken(token);
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+
+    await prisma.session.create({
+      data: {
+        userId: user.id,
+        tokenHash,
+        expiresAt,
+        userAgent: request.headers.get("user-agent") ?? undefined,
+        ipAddress: request.headers.get("x-forwarded-for") ?? undefined,
+      },
     });
+
+    const redirectUrl = new URL("/", appUrl);
+    redirectUrl.searchParams.set("auth_token", token);
+    const response = NextResponse.redirect(redirectUrl.toString());
+    response.cookies.delete("google_oauth_state");
+    return response;
+  } catch (err) {
+    console.error("[google/callback] DB error:", err);
+    return NextResponse.redirect(`${appUrl}/login?error=internal_error`);
   }
-
-  // Create a session token (same flow as existing auth)
-  const token = randomBytes(32).toString("hex");
-  const tokenHash = hashSessionToken(token);
-  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
-
-  await prisma.session.create({
-    data: {
-      userId: user.id,
-      tokenHash,
-      expiresAt,
-      userAgent: request.headers.get("user-agent") ?? undefined,
-      ipAddress: request.headers.get("x-forwarded-for") ?? undefined,
-    },
-  });
-
-  // Redirect to home page passing the token so client can store it
-  const redirectUrl = new URL("/", appUrl);
-  redirectUrl.searchParams.set("auth_token", token);
-
-  const response = NextResponse.redirect(redirectUrl.toString());
-  response.cookies.delete("google_oauth_state");
-  return response;
 }
