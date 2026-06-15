@@ -1,11 +1,10 @@
 // =============================================================================
 // Prisma Schema — Plants vs. Zombies Web (Phase 1)
-// Provider: Neon Postgres (Serverless) via @prisma/adapter-neon
+// Provider: Neon Postgres (standard pg via pooler endpoint)
 // =============================================================================
 
 generator client {
-  provider        = "prisma-client-js"
-  previewFeatures = ["driverAdapters"]
+  provider = "prisma-client-js"
 }
 
 datasource db {
