@@ -42,7 +42,7 @@ export interface GeneratedWave {
 
 const DEFAULT_FINAL_WAVE_NUMBER = 5;
 const DEFAULT_FLAG_EVERY = 5;
-const DEFAULT_SPAWN_INTERVAL_MS = 1500;
+const DEFAULT_SPAWN_INTERVAL_MS = 4500;
 const MAX_CONFIGURED_WAVE_COUNT = 60;
 
 const PROGRESSION: string[][] = [
