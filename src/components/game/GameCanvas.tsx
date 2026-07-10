@@ -1359,8 +1359,7 @@ function drawPlant(ctx: CanvasRenderingContext2D, plant: RuntimePlant, now: numb
   } else if (pt === "CHOMPER") {
     drawChomper(ctx, cx, cy);
   } else if (pt === "POTATO_MINE") {
-    const armed = (plant as { armedAtMs?: number | null }).armedAtMs != null && Date.now() >= ((plant as { armedAtMs?: number | null }).armedAtMs as number);
-    drawPotatoMine(ctx, cx, cy, armed);
+    drawPotatoMine(ctx, cx, cy, !plant.isCharging);
   } else if (pt === "SPIKEWEED") {
     drawSpikeweed(ctx, cx, cy);
   } else if (pt === "TANGLE_KELP") {
@@ -1599,7 +1598,11 @@ function drawProjectile(ctx: CanvasRenderingContext2D, proj: RuntimeProjectile):
 }
 
 function drawSunDrop(ctx: CanvasRenderingContext2D, drop: RuntimeSunDrop): void {
-  const px = HOUSE_W + drop.x * CELL_W + CELL_W / 2;
+  // drop.x is already column-centered (col + 0.5, matching zombie/projectile
+  // coordinate convention), so unlike drop.y it must NOT get an extra CELL_W/2 —
+  // adding one here previously rendered every sun drop half a cell right of the
+  // column its own coordinates (and the click hit-test) say it's in.
+  const px = HOUSE_W + drop.x * CELL_W;
   const py = TOP_PAD + drop.y * CELL_H + CELL_H / 2;
   const radius = drop.state === "landed" ? 18 : 14;
 

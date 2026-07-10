@@ -174,7 +174,8 @@ function createRuntimeZombie(
   lane: number,
   x: number,
   env: EnvironmentConfig,
-  gameTimeMs = 0
+  gameTimeMs: number,
+  random: () => number
 ): RuntimeZombie {
   const def = getZombieDef(zombieType);
   return {
@@ -204,7 +205,7 @@ function createRuntimeZombie(
     hasCalledDancers: zombieType === "DANCING" ? false : undefined,
     jackboxExplodeAtMs:
       zombieType === "JACK_IN_THE_BOX"
-        ? gameTimeMs + JACK_IN_THE_BOX_MIN_EXPLODE_MS + Math.random() * (JACK_IN_THE_BOX_MAX_EXPLODE_MS - JACK_IN_THE_BOX_MIN_EXPLODE_MS)
+        ? gameTimeMs + JACK_IN_THE_BOX_MIN_EXPLODE_MS + random() * (JACK_IN_THE_BOX_MAX_EXPLODE_MS - JACK_IN_THE_BOX_MIN_EXPLODE_MS)
         : undefined,
   };
 }
@@ -360,7 +361,9 @@ function getGargantuarImpLandingX(zombie: RuntimeZombie): number {
 
 function applyGargantuarImpThrows(
   zombies: Record<string, RuntimeZombie>,
-  env: EnvironmentConfig
+  env: EnvironmentConfig,
+  gameTimeMs: number,
+  random: () => number
 ): Record<string, RuntimeZombie> {
   let updated = { ...zombies };
   for (const [zombieId, zombie] of Object.entries(zombies)) {
@@ -370,7 +373,9 @@ function applyGargantuarImpThrows(
       "IMP",
       zombie.lane,
       getGargantuarImpLandingX(zombie),
-      env
+      env,
+      gameTimeMs,
+      random
     );
     updated[zombieId] = { ...zombie, hasThrownImp: true };
     updated[imp.instanceId] = imp;
@@ -1028,6 +1033,13 @@ export const useGameStore = create<GameStore>()((set, get) => ({
     let nextWaveAtMs = state.nextWaveAtMs;
     let rngState = state.rngState;
     let zombieSpawnQueue = [...state.zombieSpawnQueue];
+    // Seeded RNG for all in-tick randomness (sky sun position, zombie spawn flavor,
+    // dancing zombie lanes, etc.) so saved games replay deterministically.
+    const nextRandom = () => {
+      const result = nextRandomValue(rngState);
+      rngState = result.rngState;
+      return result.value;
+    };
 
     if (newGameTimeMs >= nextWaveAtMs) {
       const newWaveNumber = waveNumber + 1;
@@ -1066,7 +1078,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
     let zombies: Record<string, RuntimeZombie> = { ...state.zombies };
     for (const entry of toSpawn) {
       const lane = resolveAquaticSpawnLane(entry.zombieType, entry.lane, env);
-      const zombie = createRuntimeZombie(entry.zombieType, lane, entry.x ?? ZOMBIE_SPAWN_X, env, newGameTimeMs);
+      const zombie = createRuntimeZombie(entry.zombieType, lane, entry.x ?? ZOMBIE_SPAWN_X, env, newGameTimeMs, nextRandom);
       zombies[zombie.instanceId] = zombie;
     }
 
@@ -1096,8 +1108,8 @@ export const useGameStore = create<GameStore>()((set, get) => ({
     const skyResult = tickSkySun(newGameTimeMs, nextSkyDropAtMs, env);
     if (skyResult.shouldDrop) {
       const id = nextSunId();
-      const col = Math.floor(Math.random() * env.gridCols);
-      const targetRow = 1 + Math.floor(Math.random() * 3);
+      const col = Math.floor(nextRandom() * env.gridCols);
+      const targetRow = 1 + Math.floor(nextRandom() * 3);
       const drop = createSkySunDrop(newGameTimeMs, id, col, targetRow);
       sunDrops = { ...sunDrops, [id]: drop };
       nextSkyDropAtMs = skyResult.nextSkyDropAtMs;
@@ -1108,11 +1120,6 @@ export const useGameStore = create<GameStore>()((set, get) => ({
     // -----------------------------------------------------------------------
     let plants = { ...state.plants };
     let projectiles = { ...state.projectiles };
-    const nextPlantRandom = () => {
-      const result = nextRandomValue(rngState);
-      rngState = result.rngState;
-      return result.value;
-    };
     const loadout = state.loadout.map((slot) => ({
       ...slot,
       cooldownRemainingMs: Math.max(0, slot.cooldownRemainingMs - deltaMs),
@@ -1177,7 +1184,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
           newGameTimeMs,
           zombies,
           env.gridRows,
-          nextPlantRandom,
+          nextRandom,
           env
         );
         if (fireResult.projectiles.length > 0) {
@@ -1382,7 +1389,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
         for (let i = 0; i < 4; i++) {
           const candidates = allLanes.filter((l) => !usedLanes.has(l));
           if (candidates.length === 0) break;
-          const lane = candidates[Math.floor(Math.random() * candidates.length)];
+          const lane = candidates[Math.floor(nextRandom() * candidates.length)];
           usedLanes.add(lane);
           dancerSpawns.push({ lane, x: spawnX + i * 0.3 });
         }
@@ -1502,18 +1509,20 @@ export const useGameStore = create<GameStore>()((set, get) => ({
             (p) => p.row === z.lane && p.col < z.x && p.col >= z.x - CATAPULT_FIRE_RANGE_COLS
           );
           if (catapultTarget) {
-            // Catapult basketball is NOT blocked by Umbrella Leaf (PvZ1 accurate)
-            const damaged = { ...catapultTarget, health: catapultTarget.health - CATAPULT_BASKETBALL_DAMAGE };
-            if (damaged.health <= 0) {
-              if (!gridChanged) {
-                newGrid = cloneGrid(state.grid);
-                gridChanged = true;
+            // Umbrella Leaf blocks things lobbed from above: Catapult basketballs and Bungee grabs (PvZ1 accurate).
+            if (!isProtectedByUmbrellaLeaf(catapultTarget.col, catapultTarget.row, plants)) {
+              const damaged = { ...catapultTarget, health: catapultTarget.health - CATAPULT_BASKETBALL_DAMAGE };
+              if (damaged.health <= 0) {
+                if (!gridChanged) {
+                  newGrid = cloneGrid(state.grid);
+                  gridChanged = true;
+                }
+                setPlantInCorrectSlot(newGrid, damaged.row, damaged.col, damaged.plantType, null);
+                const { [catapultTarget.instanceId]: _dead, ...remainingPlants } = plants;
+                plants = remainingPlants;
+              } else {
+                plants[catapultTarget.instanceId] = damaged;
               }
-              setPlantInCorrectSlot(newGrid, damaged.row, damaged.col, damaged.plantType, null);
-              const { [catapultTarget.instanceId]: _dead, ...remainingPlants } = plants;
-              plants = remainingPlants;
-            } else {
-              plants[catapultTarget.instanceId] = damaged;
             }
             z = { ...z, catapultLastFireAtMs: newGameTimeMs };
           }
@@ -1544,7 +1553,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
 
     // Spawn Backup Dancers queued during Dancing Zombie trigger
     for (const spawn of dancerSpawns) {
-      const dancer = createRuntimeZombie("BACKUP_DANCER", spawn.lane, spawn.x, env, newGameTimeMs);
+      const dancer = createRuntimeZombie("BACKUP_DANCER", spawn.lane, spawn.x, env, newGameTimeMs, nextRandom);
       zombies[dancer.instanceId] = dancer;
     }
 
@@ -1625,7 +1634,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
       }
     }
     projectiles = updatedProjectiles;
-    zombies = applyGargantuarImpThrows(zombies, env);
+    zombies = applyGargantuarImpThrows(zombies, env, newGameTimeMs, nextRandom);
 
     // -----------------------------------------------------------------------
     // 10. Remove dead plants (health <= 0) — any remaining after eating loop

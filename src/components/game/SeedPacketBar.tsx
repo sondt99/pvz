@@ -176,7 +176,7 @@ export function SeedPacketBar({ shovelSelected = false, onShovelToggle }: SeedPa
         <div style={{ width: 1, height: 72, background: "#2a5a0a", margin: "0 8px", opacity: 0.6 }} />
         <button
           onClick={onShovelToggle}
-          title="Shovel — click a plant to remove it and get a sun refund"
+          title="Shovel — click a plant to dig it up (no sun refund)"
           style={{
             width: 64,
             height: 92,
