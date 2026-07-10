@@ -59,6 +59,7 @@ interface SessionData {
   fogEnabled: boolean;
   slopeEnabled: boolean;
   conveyorBelt: boolean;
+  skyDropSun: boolean;
   environmentConfig?: unknown;
   rngSeed?: string | null;
 }
@@ -85,7 +86,7 @@ export function deserializeGameState(
     fogEnabled: session.fogEnabled,
     slopeEnabled: session.slopeEnabled,
     conveyorBelt: session.conveyorBelt,
-    skyDropSun: session.environmentType === "DAY" || session.environmentType === "ROOF",
+    skyDropSun: session.skyDropSun,
   };
 
   // --- Grid ---
@@ -234,6 +235,9 @@ export function deserializeGameState(
       smashUntilMs: typeof extra.smashUntilMs === "number" ? extra.smashUntilMs : undefined,
       bungeeGrabAtMs: typeof extra.bungeeGrabAtMs === "number" ? extra.bungeeGrabAtMs : undefined,
       catapultLastFireAtMs: typeof extra.catapultLastFireAtMs === "number" ? extra.catapultLastFireAtMs : undefined,
+      isEnraged: typeof extra.isEnraged === "boolean" ? extra.isEnraged : undefined,
+      hasCalledDancers: typeof extra.hasCalledDancers === "boolean" ? extra.hasCalledDancers : undefined,
+      jackboxExplodeAtMs: typeof extra.jackboxExplodeAtMs === "number" ? extra.jackboxExplodeAtMs : undefined,
     };
 
     zombies[z.instanceId] = zombie;

@@ -168,7 +168,7 @@ function serializeGrid(state: GameEngineState): GridCell[][] {
           // (lily pad provides the platform). If the cell is a water cell and the
           // plant itself is the lily pad, it was already handled above via lilyPadInstanceId.
           const layer: StackedEntity["layer"] = "GROUND";
-          const extraState: Record<string, unknown> = {};
+          const extraState: Record<string, unknown> = { plantedAtMs: plant.plantedAtMs };
           if (plant.armedAtMs !== null) extraState.armedAtMs = plant.armedAtMs;
           if (plant.isSleeping) extraState.isSleeping = true;
           if (plant.isCharging) extraState.isCharging = true;
@@ -262,6 +262,9 @@ function serializeZombies(state: GameEngineState): ZombieInstance[] {
       smashUntilMs: zombie.smashUntilMs,
       bungeeGrabAtMs: zombie.bungeeGrabAtMs,
       catapultLastFireAtMs: zombie.catapultLastFireAtMs,
+      isEnraged: zombie.isEnraged,
+      hasCalledDancers: zombie.hasCalledDancers,
+      jackboxExplodeAtMs: zombie.jackboxExplodeAtMs,
       speedColsPerSec: zombie.speedColsPerSec,
       eatDamagePerSec: zombie.eatDamagePerSec,
     },

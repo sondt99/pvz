@@ -60,6 +60,7 @@ export async function GET(
         fogEnabled: session.fogEnabled,
         slopeEnabled: session.slopeEnabled,
         conveyorBelt: session.conveyorBelt,
+        skyDropSun: session.skyDropSun,
         environmentConfig: session.environmentConfig,
         rngSeed: session.rngSeed,
       },

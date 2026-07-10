@@ -1,8 +1,46 @@
 import { describe, expect, it } from "vitest";
 import { deserializeGameState } from "@/lib/game-deserializer";
-import { serializeGameState } from "@/lib/game-serializer";
+import { serializeGameState, type SerializedGameState } from "@/lib/game-serializer";
 import { generateGrid } from "@/engine/grid";
 import type { EnvironmentConfig, GameEngineState } from "@/engine/types";
+
+// Every test in this file serializes a GameEngineState, then feeds it back through
+// deserializeGameState wrapped in the SessionData shape a real API route would supply.
+// This helper is that wrapping — kept in one place so a new SessionData field only
+// needs threading through once instead of once per test.
+function restoreFrom(serialized: SerializedGameState, environment: EnvironmentConfig) {
+  return deserializeGameState(
+    {
+      gameTimeMs: serialized.gameTimeMs,
+      environmentState: serialized.environmentState,
+      graveState: serialized.graveState,
+      gridState: serialized.gridState,
+      zombieState: serialized.zombieState,
+      projectileState: serialized.projectileState,
+      sunDropState: serialized.sunDropState,
+      lawnMowerState: serialized.lawnMowerState,
+      spawnQueueState: serialized.spawnQueueState,
+      seedCooldowns: serialized.seedCooldowns,
+      loadoutSnapshot: serialized.loadoutSnapshot,
+      currentSun: serialized.currentSun,
+      cumulativeSun: serialized.cumulativeSun,
+      score: serialized.score,
+      waveNumber: serialized.waveNumber,
+      nextWaveTimerMs: serialized.nextWaveTimerMs,
+      totalZombiesKilled: serialized.totalZombiesKilled,
+      environmentType: environment.type,
+      gridRows: environment.gridRows,
+      gridCols: environment.gridCols,
+      waterLaneIndices: environment.waterLaneIndices,
+      gravesEnabled: environment.gravesEnabled,
+      fogEnabled: environment.fogEnabled,
+      slopeEnabled: environment.slopeEnabled,
+      conveyorBelt: environment.conveyorBelt,
+      skyDropSun: environment.skyDropSun,
+    },
+    0
+  );
+}
 
 describe("save/load serialization", () => {
   it("round-trips volatile pause state with projectiles, sun drops, spawn queue, and timers", () => {
@@ -105,36 +143,7 @@ describe("save/load serialization", () => {
     };
 
     const serialized = serializeGameState(state);
-    const restored = deserializeGameState(
-      {
-        gameTimeMs: serialized.gameTimeMs,
-        environmentState: serialized.environmentState,
-        graveState: serialized.graveState,
-        gridState: serialized.gridState,
-        zombieState: serialized.zombieState,
-        projectileState: serialized.projectileState,
-        sunDropState: serialized.sunDropState,
-        lawnMowerState: serialized.lawnMowerState,
-        spawnQueueState: serialized.spawnQueueState,
-        seedCooldowns: serialized.seedCooldowns,
-        loadoutSnapshot: serialized.loadoutSnapshot,
-        currentSun: serialized.currentSun,
-        cumulativeSun: serialized.cumulativeSun,
-        score: serialized.score,
-        waveNumber: serialized.waveNumber,
-        nextWaveTimerMs: serialized.nextWaveTimerMs,
-        totalZombiesKilled: serialized.totalZombiesKilled,
-        environmentType: environment.type,
-        gridRows: environment.gridRows,
-        gridCols: environment.gridCols,
-        waterLaneIndices: environment.waterLaneIndices,
-        gravesEnabled: environment.gravesEnabled,
-        fogEnabled: environment.fogEnabled,
-        slopeEnabled: environment.slopeEnabled,
-        conveyorBelt: environment.conveyorBelt,
-      },
-      0
-    );
+    const restored = restoreFrom(serialized, environment);
 
     expect(serialized.projectileState).toHaveLength(1);
     expect(serialized.sunDropState).toHaveLength(1);
@@ -266,6 +275,42 @@ describe("save/load serialization", () => {
           hasThrownImp: true,
           smashUntilMs: 6_500,
         },
+        "zombie-dancing-1": {
+          instanceId: "zombie-dancing-1",
+          zombieType: "DANCING",
+          lane: 3,
+          x: 5.5,
+          health: 200,
+          maxHealth: 200,
+          armorHealth: 0,
+          speedColsPerSec: 1 / 4.7,
+          eatDamagePerSec: 100,
+          isEating: false,
+          eatTargetId: null,
+          statusEffects: [],
+          isUnderground: false,
+          isAerial: false,
+          isFrozen: false,
+          hasCalledDancers: true,
+        },
+        "zombie-jackbox-1": {
+          instanceId: "zombie-jackbox-1",
+          zombieType: "JACK_IN_THE_BOX",
+          lane: 4,
+          x: 3.1,
+          health: 200,
+          maxHealth: 200,
+          armorHealth: 0,
+          speedColsPerSec: 1 / 4.7,
+          eatDamagePerSec: 100,
+          isEating: false,
+          eatTargetId: null,
+          statusEffects: [],
+          isUnderground: false,
+          isAerial: false,
+          isFrozen: false,
+          jackboxExplodeAtMs: 22_000,
+        },
       },
       projectiles: {},
       sunDrops: {},
@@ -290,43 +335,18 @@ describe("save/load serialization", () => {
     const digger = serialized.zombieState.find((entry) => entry.instanceId === "zombie-digger-1");
     const pogo = serialized.zombieState.find((entry) => entry.instanceId === "zombie-pogo-1");
     const gargantuar = serialized.zombieState.find((entry) => entry.instanceId === "zombie-gargantuar-1");
+    const dancing = serialized.zombieState.find((entry) => entry.instanceId === "zombie-dancing-1");
+    const jackbox = serialized.zombieState.find((entry) => entry.instanceId === "zombie-jackbox-1");
 
     expect(zombie.health).toBe(200);
     expect(zombie.extraState?.armorHealth).toBe(640);
     expect(digger?.extraState).toMatchObject({ direction: "right", emergeUntilMs: 9_000 });
     expect(pogo?.extraState).toMatchObject({ direction: "left", pogoStickActive: false });
     expect(gargantuar?.extraState).toMatchObject({ hasThrownImp: true, smashUntilMs: 6_500 });
+    expect(dancing?.extraState).toMatchObject({ hasCalledDancers: true });
+    expect(jackbox?.extraState).toMatchObject({ jackboxExplodeAtMs: 22_000 });
 
-    const restored = deserializeGameState(
-      {
-        gameTimeMs: serialized.gameTimeMs,
-        environmentState: serialized.environmentState,
-        graveState: serialized.graveState,
-        gridState: serialized.gridState,
-        zombieState: serialized.zombieState,
-        projectileState: serialized.projectileState,
-        sunDropState: serialized.sunDropState,
-        lawnMowerState: serialized.lawnMowerState,
-        spawnQueueState: serialized.spawnQueueState,
-        seedCooldowns: serialized.seedCooldowns,
-        loadoutSnapshot: serialized.loadoutSnapshot,
-        currentSun: serialized.currentSun,
-        cumulativeSun: serialized.cumulativeSun,
-        score: serialized.score,
-        waveNumber: serialized.waveNumber,
-        nextWaveTimerMs: serialized.nextWaveTimerMs,
-        totalZombiesKilled: serialized.totalZombiesKilled,
-        environmentType: environment.type,
-        gridRows: environment.gridRows,
-        gridCols: environment.gridCols,
-        waterLaneIndices: environment.waterLaneIndices,
-        gravesEnabled: environment.gravesEnabled,
-        fogEnabled: environment.fogEnabled,
-        slopeEnabled: environment.slopeEnabled,
-        conveyorBelt: environment.conveyorBelt,
-      },
-      0
-    );
+    const restored = restoreFrom(serialized, environment);
 
     expect(restored.zombies?.["zombie-buckethead-1"]).toMatchObject({
       zombieType: "BUCKETHEAD",
@@ -348,6 +368,17 @@ describe("save/load serialization", () => {
       zombieType: "GARGANTUAR",
       hasThrownImp: true,
       smashUntilMs: 6_500,
+    });
+    // Regression: a Dancing Zombie that already called its backup dancers must not
+    // re-summon them after a reload, and a Jack-in-the-Box that hasn't exploded yet
+    // must keep its explosion timer instead of becoming permanently inert.
+    expect(restored.zombies?.["zombie-dancing-1"]).toMatchObject({
+      zombieType: "DANCING",
+      hasCalledDancers: true,
+    });
+    expect(restored.zombies?.["zombie-jackbox-1"]).toMatchObject({
+      zombieType: "JACK_IN_THE_BOX",
+      jackboxExplodeAtMs: 22_000,
     });
   });
 
@@ -373,6 +404,7 @@ describe("save/load serialization", () => {
       maxHealth: 300,
       lastAttackAtMs: 0,
       lastSunAtMs: 0,
+      plantedAtMs: 0,
       isSleeping: false,
       isCharging: false,
       chargeEndsAtMs: 0,
@@ -388,6 +420,7 @@ describe("save/load serialization", () => {
       maxHealth: 4000,
       lastAttackAtMs: 0,
       lastSunAtMs: 0,
+      plantedAtMs: 0,
       isSleeping: false,
       isCharging: false,
       chargeEndsAtMs: 0,
@@ -430,36 +463,7 @@ describe("save/load serialization", () => {
       "ARMOR",
     ]);
 
-    const restored = deserializeGameState(
-      {
-        gameTimeMs: serialized.gameTimeMs,
-        environmentState: serialized.environmentState,
-        graveState: serialized.graveState,
-        gridState: serialized.gridState,
-        zombieState: serialized.zombieState,
-        projectileState: serialized.projectileState,
-        sunDropState: serialized.sunDropState,
-        lawnMowerState: serialized.lawnMowerState,
-        spawnQueueState: serialized.spawnQueueState,
-        seedCooldowns: serialized.seedCooldowns,
-        loadoutSnapshot: serialized.loadoutSnapshot,
-        currentSun: serialized.currentSun,
-        cumulativeSun: serialized.cumulativeSun,
-        score: serialized.score,
-        waveNumber: serialized.waveNumber,
-        nextWaveTimerMs: serialized.nextWaveTimerMs,
-        totalZombiesKilled: serialized.totalZombiesKilled,
-        environmentType: environment.type,
-        gridRows: environment.gridRows,
-        gridCols: environment.gridCols,
-        waterLaneIndices: environment.waterLaneIndices,
-        gravesEnabled: environment.gravesEnabled,
-        fogEnabled: environment.fogEnabled,
-        slopeEnabled: environment.slopeEnabled,
-        conveyorBelt: environment.conveyorBelt,
-      },
-      0
-    );
+    const restored = restoreFrom(serialized, environment);
 
     expect(restored.grid?.[0][0].plantInstanceId).toBe(peashooter.instanceId);
     expect(restored.grid?.[0][0].pumpkinInstanceId).toBe(pumpkin.instanceId);
@@ -467,5 +471,115 @@ describe("save/load serialization", () => {
       plantType: "PUMPKIN",
       health: 3500,
     });
+  });
+
+  it("round-trips a plant's plantedAtMs so Puff-shroom lifetime and Sun-shroom growth stay correct after reload", () => {
+    const environment: EnvironmentConfig = {
+      type: "NIGHT",
+      gridRows: 5,
+      gridCols: 9,
+      waterLaneIndices: [],
+      gravesEnabled: true,
+      fogEnabled: false,
+      slopeEnabled: false,
+      conveyorBelt: false,
+      skyDropSun: false,
+    };
+    const grid = generateGrid(environment);
+    const puffShroom = {
+      instanceId: "plant-puffshroom-1",
+      plantType: "PUFF_SHROOM",
+      row: 2,
+      col: 4,
+      health: 300,
+      maxHealth: 300,
+      lastAttackAtMs: 0,
+      lastSunAtMs: 0,
+      plantedAtMs: 3_000,
+      isSleeping: false,
+      isCharging: false,
+      chargeEndsAtMs: 0,
+      armedAtMs: null,
+      blocksAerial: false,
+    };
+    grid[2][4].plantInstanceId = puffShroom.instanceId;
+
+    const state: GameEngineState = {
+      status: "paused",
+      environment,
+      grid,
+      plants: { [puffShroom.instanceId]: puffShroom },
+      zombies: {},
+      projectiles: {},
+      sunDrops: {},
+      lawnMowers: {},
+      currentSun: 50,
+      cumulativeSun: 0,
+      gameTimeMs: 60_000,
+      waveNumber: 1,
+      nextWaveAtMs: 90_000,
+      rngState: 111_222_333,
+      score: 0,
+      totalZombiesKilled: 0,
+      loadout: [],
+      selectedSlot: null,
+      nextSkyDropAtMs: 30_000,
+      zombieSpawnQueue: [],
+      lastPlacementFailure: null,
+    };
+
+    const serialized = serializeGameState(state);
+    const entity = serialized.gridState[2][4].entities.find(
+      (e) => e.instanceId === puffShroom.instanceId
+    );
+    expect(entity?.extraState).toMatchObject({ plantedAtMs: 3_000 });
+
+    const restored = restoreFrom(serialized, environment);
+
+    expect(restored.plants?.[puffShroom.instanceId]?.plantedAtMs).toBe(3_000);
+  });
+
+  it("restores skyDropSun from the persisted session value for POOL (not just DAY/ROOF)", () => {
+    const environment: EnvironmentConfig = {
+      type: "POOL",
+      gridRows: 6,
+      gridCols: 9,
+      waterLaneIndices: [2, 3],
+      gravesEnabled: false,
+      fogEnabled: false,
+      slopeEnabled: false,
+      conveyorBelt: false,
+      skyDropSun: true,
+    };
+    const grid = generateGrid(environment);
+
+    const state: GameEngineState = {
+      status: "paused",
+      environment,
+      grid,
+      plants: {},
+      zombies: {},
+      projectiles: {},
+      sunDrops: {},
+      lawnMowers: {},
+      currentSun: 50,
+      cumulativeSun: 0,
+      gameTimeMs: 1_000,
+      waveNumber: 1,
+      nextWaveAtMs: 30_000,
+      rngState: 444_555_666,
+      score: 0,
+      totalZombiesKilled: 0,
+      loadout: [],
+      selectedSlot: null,
+      nextSkyDropAtMs: 8_000,
+      zombieSpawnQueue: [],
+      lastPlacementFailure: null,
+    };
+
+    const serialized = serializeGameState(state);
+    const restored = restoreFrom(serialized, environment);
+
+    expect(restored.environment?.skyDropSun).toBe(true);
   });
 });
