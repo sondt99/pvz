@@ -5,7 +5,7 @@
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import type { EnvironmentType } from "@/engine/types";
+import { ENVIRONMENT_TYPES, type EnvironmentType } from "@/engine/types";
 import { authenticateRequest } from "@/lib/auth";
 
 // ---------------------------------------------------------------------------
@@ -17,6 +17,8 @@ interface CreateSessionBody {
   environmentType: string;
   loadout: string[];
 }
+
+const VALID_ENVIRONMENT_TYPES = new Set<string>(ENVIRONMENT_TYPES);
 
 export async function POST(request: Request): Promise<NextResponse> {
   const auth = await authenticateRequest(request);
@@ -36,6 +38,24 @@ export async function POST(request: Request): Promise<NextResponse> {
   if (!environmentType || !Array.isArray(loadout)) {
     return NextResponse.json(
       { error: "Missing required fields: environmentType, loadout" },
+      { status: 400 }
+    );
+  }
+  if (!VALID_ENVIRONMENT_TYPES.has(environmentType)) {
+    return NextResponse.json(
+      { error: `Invalid environmentType: must be one of ${[...VALID_ENVIRONMENT_TYPES].join(", ")}` },
+      { status: 400 }
+    );
+  }
+  if (!loadout.every((plantType) => typeof plantType === "string" && plantType.length > 0)) {
+    return NextResponse.json(
+      { error: "loadout must be an array of plant type strings" },
+      { status: 400 }
+    );
+  }
+  if (levelNumber !== undefined && (typeof levelNumber !== "number" || !Number.isInteger(levelNumber) || levelNumber <= 0)) {
+    return NextResponse.json(
+      { error: "levelNumber must be a positive integer" },
       { status: 400 }
     );
   }
