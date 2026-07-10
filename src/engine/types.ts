@@ -7,7 +7,8 @@ import type { WaveConfig } from "./wave-generator";
 
 export type GameStatus = "idle" | "playing" | "paused" | "victory" | "game-over";
 
-export type EnvironmentType = "DAY" | "NIGHT" | "POOL" | "FOG" | "ROOF";
+export const ENVIRONMENT_TYPES = ["DAY", "NIGHT", "POOL", "FOG", "ROOF"] as const;
+export type EnvironmentType = (typeof ENVIRONMENT_TYPES)[number];
 
 export interface EnvironmentConfig {
   type: EnvironmentType;

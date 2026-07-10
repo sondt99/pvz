@@ -8,7 +8,8 @@ import { GameCanvas } from "@/components/game/GameCanvas";
 import { GameHUD } from "@/components/game/GameHUD";
 import { SeedPacketBar } from "@/components/game/SeedPacketBar";
 import { GRID_COLS, GRID_ROWS_POOL, GRID_ROWS_STANDARD } from "@/engine/constants";
-import type { EnvironmentConfig, EnvironmentType, SeedPacketSlot } from "@/engine/types";
+import { getPlantDef } from "@/engine/entities/plant-defs";
+import { ENVIRONMENT_TYPES, type EnvironmentConfig, type EnvironmentType, type SeedPacketSlot } from "@/engine/types";
 import { serializeGameState } from "@/lib/game-serializer";
 import {
   completeGameSession,
@@ -78,7 +79,7 @@ const ENVIRONMENTS: Record<EnvironmentType, EnvironmentConfig> = {
   },
 };
 
-const ENVIRONMENT_ORDER: EnvironmentType[] = ["DAY", "NIGHT", "POOL", "FOG", "ROOF"];
+const ENVIRONMENT_ORDER: EnvironmentType[] = [...ENVIRONMENT_TYPES];
 
 const ENVIRONMENT_LABELS: Record<EnvironmentType, { icon: string; label: string }> = {
   DAY:   { icon: "☀️",  label: "Day" },
@@ -92,48 +93,6 @@ function toTitleCase(s: string): string {
   return s.replace(/_/g, " ").replace(/\w\S*/g, w => w[0].toUpperCase() + w.slice(1).toLowerCase());
 }
 
-const PLANT_COSTS: Record<string, number> = {
-  PEASHOOTER: 100,
-  SUNFLOWER: 50,
-  WALL_NUT: 50,
-  PUMPKIN: 125,
-  SNOW_PEA: 175,
-  CHERRY_BOMB: 150,
-  POTATO_MINE: 25,
-  PUFF_SHROOM: 0,
-  SUN_SHROOM: 25,
-  FUME_SHROOM: 75,
-  SCAREDY_SHROOM: 25,
-  ICE_SHROOM: 75,
-  DOOM_SHROOM: 125,
-  LILY_PAD: 25,
-  TANGLE_KELP: 25,
-  SEA_SHROOM: 0,
-  PLANTERN: 25,
-  BLOVER: 100,
-  SPLIT_PEA: 125,
-  STARFRUIT: 125,
-  TORCHWOOD: 175,
-  FLOWER_POT: 25,
-  CABBAGE_PULT: 100,
-  KERNEL_PULT: 100,
-  GARLIC: 50,
-  MELON_PULT: 300,
-};
-
-const PLANT_RECHARGE_MS: Record<string, number> = {
-  CHERRY_BOMB: 50_000,
-  WALL_NUT: 30_000,
-  PUMPKIN: 30_000,
-  POTATO_MINE: 30_000,
-  ICE_SHROOM: 50_000,
-  DOOM_SHROOM: 50_000,
-  TANGLE_KELP: 30_000,
-  BLOVER: 30_000,
-  GARLIC: 30_000,
-  default: 7_500,
-};
-
 const LOADOUTS: Record<EnvironmentType, string[]> = {
   DAY: ["SUNFLOWER", "PEASHOOTER", "WALL_NUT", "PUMPKIN", "POTATO_MINE", "SNOW_PEA", "CHERRY_BOMB"],
   NIGHT: ["SUN_SHROOM", "PUFF_SHROOM", "FUME_SHROOM", "SCAREDY_SHROOM", "WALL_NUT", "ICE_SHROOM", "DOOM_SHROOM"],
@@ -143,15 +102,18 @@ const LOADOUTS: Record<EnvironmentType, string[]> = {
 };
 
 function makeLoadout(envType: EnvironmentType): SeedPacketSlot[] {
-  return LOADOUTS[envType].map((plantType, index) => ({
-    plantType,
-    plantId: plantType,
-    sunCost: PLANT_COSTS[plantType] ?? 100,
-    cooldownRemainingMs: 0,
-    cooldownTotalMs: PLANT_RECHARGE_MS[plantType] ?? PLANT_RECHARGE_MS.default,
-    isSelected: false,
-    slotIndex: index,
-  }));
+  return LOADOUTS[envType].map((plantType, index) => {
+    const def = getPlantDef(plantType);
+    return {
+      plantType,
+      plantId: plantType,
+      sunCost: def.sunCost,
+      cooldownRemainingMs: 0,
+      cooldownTotalMs: def.rechargeTime * 1000,
+      isSelected: false,
+      slotIndex: index,
+    };
+  });
 }
 
 function parseLevelParam(): number | null {
@@ -248,6 +210,7 @@ export default function GamePage() {
         let env: EnvironmentConfig;
         let slots: SeedPacketSlot[];
         let levelRewardPlantId: string | null = null;
+        let levelWaveConfig: unknown;
 
         if (levelNum !== null) {
           const levelConfig = await fetchLevelConfig(levelNum);
@@ -267,6 +230,7 @@ export default function GamePage() {
           };
           slots = levelConfig.loadout;
           levelRewardPlantId = lvl.rewardPlantId;
+          levelWaveConfig = lvl.waveConfig;
           setRewardPlantId(levelRewardPlantId);
           setActiveEnvironment(lvl.environmentType);
         } else {
@@ -312,7 +276,7 @@ export default function GamePage() {
         if (isCancelled()) return;
 
         const store = useGameStore.getState();
-        store.initGame(env, slots);
+        store.initGame(env, slots, { waveConfig: levelWaveConfig });
         store.startGame();
         setCurrentSessionId(created.sessionId);
         setPersistenceState("db");
@@ -421,7 +385,7 @@ export default function GamePage() {
     for (const [dropId, drop] of Object.entries(store.sunDrops)) {
       const dropCol = Math.floor(drop.x);
       const dropRow = Math.floor(drop.y);
-      if (Math.abs(dropCol - col) <= 1 && Math.abs(dropRow - row) <= 1) {
+      if (dropCol === col && dropRow === row) {
         store.collectSunDrop(dropId);
         return;
       }
