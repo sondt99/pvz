@@ -20,7 +20,7 @@
     "seed": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
   },
   "dependencies": {
-    "next": "^15.0.0",
+    "next": "^15.5.21",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
     "@prisma/client": "^6.0.0",
