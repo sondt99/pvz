@@ -8,7 +8,10 @@ import {
   SKY_SUN_FALL_SPEED_PER_MS,
 } from "./constants";
 
-export function getInitialSun(_env: EnvironmentConfig): number {
+export function getInitialSun(_env: EnvironmentConfig, startingSun?: number): number {
+  if (typeof startingSun === "number" && Number.isFinite(startingSun) && startingSun >= 0) {
+    return Math.floor(startingSun);
+  }
   return 50;
 }
 

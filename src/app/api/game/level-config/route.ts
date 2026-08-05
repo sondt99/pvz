@@ -11,6 +11,14 @@ import { authenticateRequest } from "@/lib/auth";
 import { PLANT_DEFINITIONS } from "@/engine/entities/plant-defs";
 import { plantIdsFromCompletedLevels, plantIdToType } from "@/data/plant-progression";
 import { SEED_PLANT_CATALOG } from "@/data/seed-catalog";
+import { LEVEL_CONFIGS } from "@/data/level-configs";
+import {
+  parseLevelRulesFromUnknown,
+  shouldRequireSeedChooser,
+  shovelUnlockedFromCompleted,
+  DEFAULT_LEVEL_PLAY_RULES,
+  type PlayMode,
+} from "@/data/level-play-modes";
 
 function buildSlot(plantId: string, index: number) {
   const plantType = plantIdToType(plantId);
@@ -77,13 +85,88 @@ export async function GET(request: Request): Promise<NextResponse> {
       availablePlantIds = ["peashooter"];
     }
 
-    const availablePlants = availablePlantIds.map((id, index) => buildSlot(id, index));
-    const seedSlots = Math.max(1, level.seedSlots);
+    const codeCfg = LEVEL_CONFIGS[levelNumber];
+    const fromDb = parseLevelRulesFromUnknown(level.ruleConfig);
+    const playMode = (fromDb.playMode ?? codeCfg?.playMode ?? "NORMAL") as PlayMode;
+    const skipSeedChooser =
+      fromDb.skipSeedChooser ??
+      codeCfg?.skipSeedChooser ??
+      DEFAULT_LEVEL_PLAY_RULES.skipSeedChooser;
+    const freePlacement =
+      fromDb.freePlacement ??
+      codeCfg?.freePlacement ??
+      (playMode === "BOWLING" || playMode === "CONVEYOR");
+    const hideSunHud =
+      fromDb.hideSunHud ??
+      codeCfg?.hideSunHud ??
+      (playMode === "BOWLING" || playMode === "CONVEYOR");
+    const conveyorBelt =
+      fromDb.conveyorBelt ?? codeCfg?.conveyorBelt ?? level.conveyorBelt ?? playMode === "CONVEYOR";
+    const startingSun =
+      fromDb.startingSun ?? codeCfg?.startingSun ?? level.startingSun ?? 50;
+    const skyDropSun =
+      fromDb.skyDropSun ??
+      (codeCfg?.skyDropSun === null || codeCfg?.skyDropSun === undefined
+        ? level.skyDropSun
+        : codeCfg.skyDropSun);
+    const conveyorPlantPool =
+      fromDb.conveyorPlantPool ?? codeCfg?.conveyorPlantPool ?? [];
+    const conveyorIntervalMs =
+      fromDb.conveyorIntervalMs ?? codeCfg?.conveyorIntervalMs ?? 3500;
+    const conveyorSlotCap =
+      fromDb.conveyorSlotCap ?? codeCfg?.conveyorSlotCap ?? 10;
+    const bowlingNutTypes =
+      fromDb.bowlingNutTypes ?? codeCfg?.bowlingNutTypes ?? ["WALL_NUT"];
 
-    // Pre-select when the player has fewer plants than slots (early tutorial levels)
+    // Bowling mini-game uses nut packets, not adventure unlocks.
+    let availablePlants =
+      playMode === "BOWLING"
+        ? bowlingNutTypes.map((plantType, index) => {
+            const plantId = plantType.toLowerCase().replace(/_/g, "-");
+            const def = PLANT_DEFINITIONS[plantType];
+            return {
+              plantType,
+              plantId,
+              displayName:
+                plantType === "EXPLODE_O_NUT"
+                  ? "Explode-o-nut"
+                  : plantType.replace(/_/g, " "),
+              sunCost: 0,
+              cooldownRemainingMs: 0,
+              cooldownTotalMs: 1_200,
+              isSelected: false,
+              slotIndex: index,
+            };
+          })
+        : availablePlantIds.map((id, index) => buildSlot(id, index));
+
+    // Conveyor: chooser skipped; available list is informational.
+    if (playMode === "CONVEYOR" && conveyorPlantPool.length > 0) {
+      availablePlants = conveyorPlantPool.map((plantType, index) => {
+        const def = PLANT_DEFINITIONS[plantType];
+        return {
+          plantType,
+          plantId: plantType.toLowerCase().replace(/_/g, "-"),
+          displayName: plantType.replace(/_/g, " "),
+          sunCost: 0,
+          cooldownRemainingMs: 0,
+          cooldownTotalMs: 0,
+          isSelected: false,
+          slotIndex: index,
+        };
+      });
+    }
+
+    const seedSlots = Math.max(1, level.seedSlots);
+    const requireChooser = shouldRequireSeedChooser(levelNumber, {
+      playMode,
+      skipSeedChooser,
+    });
+
+    // Pre-select fixed loadout for early / special levels
     const preselected =
-      availablePlants.length <= seedSlots
-        ? availablePlants.map((slot, index) => ({ ...slot, slotIndex: index }))
+      !requireChooser || availablePlants.length <= seedSlots
+        ? availablePlants.slice(0, seedSlots).map((slot, index) => ({ ...slot, slotIndex: index }))
         : [];
 
     return NextResponse.json({
@@ -97,16 +180,26 @@ export async function GET(request: Request): Promise<NextResponse> {
         gravesEnabled: level.gravesEnabled,
         fogEnabled: level.fogEnabled,
         slopeEnabled: level.slopeEnabled,
-        conveyorBelt: level.conveyorBelt,
-        skyDropSun: level.skyDropSun,
-        startingSun: level.startingSun,
+        conveyorBelt,
+        skyDropSun,
+        startingSun,
         seedSlots,
-        rewardPlantId: level.rewardPlantId,
+        rewardPlantId: level.rewardPlantId ?? codeCfg?.rewardPlantId ?? null,
         briefingText: level.briefingText,
         waveConfig: level.waveConfig,
+        playMode,
+        skipSeedChooser: !requireChooser,
+        freePlacement,
+        hideSunHud,
+        conveyorPlantPool,
+        conveyorIntervalMs,
+        conveyorSlotCap,
+        bowlingNutTypes,
       },
       availablePlants,
       seedSlots,
+      requireSeedChooser: requireChooser,
+      shovelUnlocked: shovelUnlockedFromCompleted(completedLevelNumbers),
       /** @deprecated use availablePlants + chooser; kept for older clients */
       loadout: preselected.length > 0 ? preselected : availablePlants.slice(0, seedSlots),
     });

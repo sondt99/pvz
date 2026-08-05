@@ -37,6 +37,11 @@ describe("getInitialSun", () => {
   it("returns 50 for NIGHT environment", () => {
     expect(getInitialSun(NIGHT)).toBe(50);
   });
+
+  it("honors startingSun override", () => {
+    expect(getInitialSun(DAY, 150)).toBe(150);
+    expect(getInitialSun(DAY, 0)).toBe(0);
+  });
 });
 
 describe("skyDropsEnabled", () => {

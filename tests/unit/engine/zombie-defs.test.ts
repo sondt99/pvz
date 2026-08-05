@@ -11,8 +11,8 @@ const ALL_ZOMBIE_TYPES = [
 ];
 
 describe("ZOMBIE_DEFINITIONS completeness", () => {
-  it("defines exactly 31 zombie types", () => {
-    expect(Object.keys(ZOMBIE_DEFINITIONS)).toHaveLength(31);
+  it("defines exactly 32 zombie types", () => {
+    expect(Object.keys(ZOMBIE_DEFINITIONS)).toHaveLength(32);
   });
 
   it("contains all expected zombie types", () => {
@@ -102,8 +102,8 @@ describe("getZombieDef", () => {
 });
 
 describe("getAllZombieTypes", () => {
-  it("returns 31 zombie types", () => {
-    expect(getAllZombieTypes()).toHaveLength(31);
+  it("returns 32 zombie types", () => {
+    expect(getAllZombieTypes()).toHaveLength(32);
   });
 
   it("includes GARGANTUAR and NORMAL", () => {

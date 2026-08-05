@@ -7,7 +7,7 @@ import {
   ProjectileType,
 } from "@prisma/client";
 import { SEED_PLANT_CATALOG } from "../src/data/seed-catalog";
-import { LEVEL_CONFIGS } from "../src/data/level-configs";
+import { LEVEL_CONFIGS, levelRuleConfig } from "../src/data/level-configs";
 
 const prisma = new PrismaClient();
 
@@ -206,6 +206,22 @@ async function main() {
     const briefingText = cfg?.briefingText ?? (level as { briefingText?: string }).briefingText ?? null;
     const rewardPlantId = cfg?.rewardPlantId ?? null;
     const seedSlots = cfg?.seedSlots ?? 6;
+    const startingSun = cfg?.startingSun ?? defaults.startingSun;
+    const conveyorBelt = cfg?.conveyorBelt ?? defaults.conveyorBelt;
+    const skyDropSun =
+      cfg?.skyDropSun === null || cfg?.skyDropSun === undefined
+        ? defaults.skyDropSun
+        : cfg.skyDropSun;
+    const ruleConfig = cfg
+      ? (levelRuleConfig(cfg) as Prisma.InputJsonObject)
+      : ({} as Prisma.InputJsonObject);
+    const envFields = {
+      ...defaults,
+      startingSun,
+      conveyorBelt,
+      skyDropSun,
+      ruleConfig,
+    };
     await prisma.level.upsert({
       where: { levelNumber: level.levelNumber },
       update: {
@@ -218,7 +234,7 @@ async function main() {
         rewardPlantId,
         seedSlots,
         waveConfig,
-        ...defaults,
+        ...envFields,
       },
       create: {
         levelNumber: level.levelNumber,
@@ -231,11 +247,11 @@ async function main() {
         rewardPlantId,
         seedSlots,
         waveConfig,
-        ...defaults,
+        ...envFields,
       },
     });
   }
-  console.log(`Seeded ${levels.length} levels with wave configs.`);
+  console.log(`Seeded ${levels.length} levels with wave configs and play modes.`);
 }
 
 main()

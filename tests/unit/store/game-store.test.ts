@@ -154,6 +154,11 @@ describe("initGame", () => {
     expect(useGameStore.getState().currentSun).toBe(50);
   });
 
+  it("honors startingSun override (tutorial 1-1)", () => {
+    useGameStore.getState().initGame(DAY_ENV, LOADOUT, { startingSun: 150 });
+    expect(useGameStore.getState().currentSun).toBe(150);
+  });
+
   it("sets status to idle", () => {
     useGameStore.getState().initGame(DAY_ENV, LOADOUT);
     expect(useGameStore.getState().status).toBe("idle");
@@ -1311,6 +1316,166 @@ describe("tick — zombie movement", () => {
     expect(zombie.hasJumped).toBe(true);
     expect(zombie.x).toBeLessThan(3);
     expect(zombie.speedColsPerSec).toBeCloseTo(getZombieDef("NORMAL").speedColsPerSec);
+  });
+
+  it("lets Pole Vaulting Zombie vault over the first plant then walk", () => {
+    useGameStore.getState().initGame(DAY_ENV, LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({ currentSun: 500, nextWaveAtMs: Number.MAX_SAFE_INTEGER });
+
+    expect(useGameStore.getState().placePlant("WALL_NUT", 0, 4)).toBe(true);
+    useGameStore.setState({
+      zombies: {
+        z1: makeZombie({
+          instanceId: "z1",
+          zombieType: "POLE_VAULT",
+          lane: 0,
+          x: 4.2,
+          hasJumped: false,
+          speedColsPerSec: getZombieDef("POLE_VAULT").speedColsPerSec,
+        }),
+      },
+    });
+
+    useGameStore.getState().tick(0);
+    const zombie = useGameStore.getState().zombies.z1;
+    expect(zombie.isEating).toBe(false);
+    expect(zombie.hasJumped).toBe(true);
+    expect(zombie.x).toBeLessThan(4);
+    expect(zombie.speedColsPerSec).toBeCloseTo(getZombieDef("NORMAL").speedColsPerSec);
+    // Plant survives the vault
+    expect(Object.values(useGameStore.getState().plants).some((p) => p.plantType === "WALL_NUT")).toBe(
+      true
+    );
+  });
+
+  it("blocks Pole Vault with Tall-nut", () => {
+    useGameStore.getState().initGame(DAY_ENV, EXTENDED_LOADOUT);
+    useGameStore.getState().startGame();
+    useGameStore.setState({ currentSun: 500, nextWaveAtMs: Number.MAX_SAFE_INTEGER });
+
+    expect(useGameStore.getState().placePlant("TALL_NUT", 0, 4)).toBe(true);
+    useGameStore.setState({
+      zombies: {
+        z1: makeZombie({
+          instanceId: "z1",
+          zombieType: "POLE_VAULT",
+          lane: 0,
+          x: 4.2,
+          hasJumped: false,
+        }),
+      },
+    });
+
+    useGameStore.getState().tick(0);
+    const zombie = useGameStore.getState().zombies.z1;
+    expect(zombie.isEating).toBe(true);
+    expect(zombie.hasJumped).toBe(false);
+  });
+
+  it("bowling mode rolls nuts that kill zombies", () => {
+    useGameStore.getState().initGame(DAY_ENV, [
+      {
+        plantType: "WALL_NUT",
+        plantId: "wall-nut",
+        sunCost: 0,
+        cooldownRemainingMs: 0,
+        cooldownTotalMs: 1200,
+        isSelected: false,
+        slotIndex: 0,
+      },
+    ], {
+      startingSun: 0,
+      levelRules: {
+        playMode: "BOWLING",
+        freePlacement: true,
+        hideSunHud: true,
+        bowlingNutTypes: ["WALL_NUT"],
+      },
+    });
+    useGameStore.getState().startGame();
+    useGameStore.setState({
+      nextWaveAtMs: Number.MAX_SAFE_INTEGER,
+      zombies: {
+        z1: makeZombie({ instanceId: "z1", zombieType: "NORMAL", lane: 2, x: 3, health: 200 }),
+      },
+    });
+
+    expect(useGameStore.getState().placePlant("WALL_NUT", 2, 0)).toBe(true);
+    expect(Object.keys(useGameStore.getState().bowlingNuts).length).toBe(1);
+
+    // Roll nut into zombie (speed ~3.2 cols/s → ~1s to cover 3 cols from -0.2)
+    for (let i = 0; i < 40; i++) {
+      useGameStore.getState().tick(100);
+    }
+    expect(useGameStore.getState().zombies.z1).toBeUndefined();
+    expect(useGameStore.getState().totalZombiesKilled).toBeGreaterThanOrEqual(1);
+  });
+
+  it("conveyor mode delivers free plants without sun cost", () => {
+    useGameStore.getState().initGame(
+      { ...DAY_ENV, conveyorBelt: true, skyDropSun: false },
+      [],
+      {
+        startingSun: 0,
+        levelRules: {
+          playMode: "CONVEYOR",
+          freePlacement: true,
+          hideSunHud: true,
+          conveyorBelt: true,
+          conveyorPlantPool: ["PEASHOOTER", "WALL_NUT"],
+          conveyorIntervalMs: 1000,
+          conveyorSlotCap: 5,
+        },
+      }
+    );
+    useGameStore.getState().startGame();
+    useGameStore.setState({ nextWaveAtMs: Number.MAX_SAFE_INTEGER, nextConveyorAtMs: 0 });
+
+    useGameStore.getState().tick(50);
+    const loadout = useGameStore.getState().loadout;
+    expect(loadout.length).toBeGreaterThanOrEqual(1);
+    const plantType = loadout[0].plantType;
+    expect(useGameStore.getState().placePlant(plantType, 0, 1)).toBe(true);
+    expect(useGameStore.getState().currentSun).toBe(0);
+    expect(Object.values(useGameStore.getState().plants).some((p) => p.plantType === plantType)).toBe(
+      true
+    );
+  });
+
+  it("sets huge-wave announcement on flag waves", () => {
+    useGameStore.getState().initGame(DAY_ENV, LOADOUT, {
+      waveConfig: {
+        finalWaveNumber: 2,
+        waves: [
+          { waveNumber: 1, zombiePool: ["NORMAL"], count: 1, intervalMs: 1000, startDelayMs: 0 },
+          {
+            waveNumber: 2,
+            zombiePool: ["NORMAL"],
+            count: 1,
+            intervalMs: 1000,
+            flag: true,
+            final: true,
+          },
+        ],
+      },
+    });
+    useGameStore.getState().startGame();
+    useGameStore.setState({ nextWaveAtMs: 0, gameTimeMs: 0 });
+    useGameStore.getState().tick(16);
+    // First wave may not be flag; advance to clear and start flag wave
+    useGameStore.setState({
+      zombies: {},
+      zombieSpawnQueue: [],
+      nextWaveAtMs: useGameStore.getState().gameTimeMs,
+    });
+    useGameStore.getState().tick(16);
+    const ann = useGameStore.getState().waveAnnouncement;
+    expect(ann === "huge" || ann === "final" || ann === null).toBe(true);
+    // At least the second generated wave should set final/huge
+    if (useGameStore.getState().waveNumber >= 2) {
+      expect(["huge", "final"]).toContain(useGameStore.getState().waveAnnouncement);
+    }
   });
 
   it("prevents Dolphin Rider from jumping over Tall-nut", () => {

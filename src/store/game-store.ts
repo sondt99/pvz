@@ -2,12 +2,15 @@ import { create } from "zustand";
 import type {
   GameEngineState,
   EnvironmentConfig,
+  LevelRuntimeRules,
   PlacementFailureReason,
+  RuntimeBowlingNut,
   RuntimeLawnMower,
   RuntimePlant,
   RuntimeSunDrop,
   RuntimeZombie,
   SeedPacketSlot,
+  WaveAnnouncementKind,
 } from "../engine/types";
 import {
   generateGrid,
@@ -30,6 +33,12 @@ import {
   DOOM_SHROOM_RADIUS_COLS,
   DOOM_SHROOM_RADIUS_LANES,
   DOLPHIN_RIDER_POST_JUMP_SPEED_COLS_PER_SEC,
+  POLE_VAULT_POST_JUMP_SPEED_COLS_PER_SEC,
+  BOWLING_NUT_SPEED_COLS_PER_SEC,
+  BOWLING_NUT_DAMAGE,
+  BOWLING_EXPLODE_DAMAGE,
+  CONVEYOR_DEFAULT_INTERVAL_MS,
+  HUGE_WAVE_BANNER_MS,
   GARGANTUAR_IMP_LANDING_MAX_X,
   GARGANTUAR_IMP_LANDING_MIN_X,
   GARGANTUAR_IMP_THROW_HEALTH_THRESHOLD,
@@ -204,7 +213,8 @@ function createRuntimeZombie(
     isAerial: def.isAerial,
     isFrozen: false,
     isSubmerged: zombieType === "SNORKEL" && isWaterLane(env, lane),
-    hasJumped: zombieType === "DOLPHIN_RIDER" ? false : undefined,
+    hasJumped:
+      zombieType === "DOLPHIN_RIDER" || zombieType === "POLE_VAULT" ? false : undefined,
     direction: "left",
     pogoStickActive: zombieType === "POGO" ? true : undefined,
     hasThrownImp: zombieType === "GARGANTUAR" ? false : undefined,
@@ -259,8 +269,80 @@ function jumpDolphinOverPlant(zombie: RuntimeZombie, plant: RuntimePlant): Runti
   };
 }
 
+function canPoleVaultJumpTarget(
+  zombie: RuntimeZombie,
+  plant: RuntimePlant,
+  plants: Record<string, RuntimePlant>
+): boolean {
+  return (
+    zombie.zombieType === "POLE_VAULT" &&
+    zombie.hasJumped !== true &&
+    !hasTallNutInCell(plant, plants)
+  );
+}
+
+function jumpPoleVaultOverPlant(zombie: RuntimeZombie, plant: RuntimePlant): RuntimeZombie {
+  return {
+    ...zombie,
+    x: Math.min(zombie.x, plant.col - 0.65),
+    hasJumped: true,
+    speedColsPerSec: POLE_VAULT_POST_JUMP_SPEED_COLS_PER_SEC,
+    isEating: false,
+    eatTargetId: null,
+  };
+}
+
 function isPogoStickActive(zombie: RuntimeZombie): boolean {
   return zombie.zombieType === "POGO" && zombie.pogoStickActive !== false;
+}
+
+const DEFAULT_LEVEL_RULES: LevelRuntimeRules = {
+  playMode: "NORMAL",
+  freePlacement: false,
+  hideSunHud: false,
+  conveyorBelt: false,
+  conveyorPlantPool: [],
+  conveyorIntervalMs: CONVEYOR_DEFAULT_INTERVAL_MS,
+  conveyorSlotCap: 10,
+  bowlingNutTypes: ["WALL_NUT"],
+};
+
+let _bowlingCounter = 0;
+function nextBowlingId(): string {
+  _bowlingCounter += 1;
+  return `bowl-${_bowlingCounter}`;
+}
+
+function makeConveyorSlot(plantType: string, slotIndex: number): SeedPacketSlot {
+  let def;
+  try {
+    def = getPlantDef(plantType);
+  } catch {
+    def = getPlantDef("PEASHOOTER");
+  }
+  return {
+    plantType,
+    plantId: plantType.toLowerCase().replace(/_/g, "-"),
+    sunCost: 0,
+    cooldownRemainingMs: 0,
+    cooldownTotalMs: 0,
+    isSelected: false,
+    slotIndex,
+  };
+}
+
+function createBowlingNut(nutType: string, lane: number): RuntimeBowlingNut {
+  const isExplosive = nutType === "EXPLODE_O_NUT";
+  return {
+    instanceId: nextBowlingId(),
+    nutType,
+    lane,
+    x: -0.2,
+    speedColsPerSec: BOWLING_NUT_SPEED_COLS_PER_SEC,
+    damage: isExplosive ? BOWLING_EXPLODE_DAMAGE : BOWLING_NUT_DAMAGE,
+    isExplosive,
+    hitZombieIds: [],
+  };
 }
 
 function canPogoJumpTarget(
@@ -716,6 +798,7 @@ const INITIAL_STATE: GameEngineState = {
   projectiles: {},
   sunDrops: {},
   lawnMowers: {},
+  bowlingNuts: {},
   currentSun: 50,
   cumulativeSun: 0,
   gameTimeMs: 0,
@@ -727,14 +810,20 @@ const INITIAL_STATE: GameEngineState = {
   loadout: [],
   selectedSlot: null,
   nextSkyDropAtMs: SKY_SUN_INTERVAL_MS,
+  nextConveyorAtMs: 1_500,
   waveConfig: null,
+  levelRules: { ...DEFAULT_LEVEL_RULES },
   zombieSpawnQueue: [],
   lastPlacementFailure: null,
+  waveAnnouncement: null,
+  waveAnnouncementUntilMs: 0,
 };
 
 interface InitGameOptions {
   waveConfig?: unknown;
   rngSeed?: unknown;
+  startingSun?: number;
+  levelRules?: Partial<LevelRuntimeRules>;
 }
 
 interface GameActions {
@@ -762,24 +851,42 @@ export const useGameStore = create<GameStore>()((set, get) => ({
     _plantCounter = 0;
     _zombieCounter = 0;
     _sunDropCounter = 0;
+    _bowlingCounter = 0;
     resetPlantAiCounters();
     const waveConfig = parseWaveConfig(options?.waveConfig);
+    const levelRules: LevelRuntimeRules = {
+      ...DEFAULT_LEVEL_RULES,
+      ...(options?.levelRules ?? {}),
+      conveyorBelt:
+        options?.levelRules?.conveyorBelt ??
+        env.conveyorBelt ??
+        DEFAULT_LEVEL_RULES.conveyorBelt,
+    };
+    // Conveyor starts empty; cards arrive on the belt over time.
+    const initialLoadout =
+      levelRules.playMode === "CONVEYOR" || levelRules.conveyorBelt ? [] : loadout;
     set({
       ...INITIAL_STATE,
       status: "idle",
       environment: env,
       grid: generateGrid(env),
       lawnMowers: createLawnMowers(env),
-      currentSun: getInitialSun(env),
-      loadout,
+      currentSun: getInitialSun(env, options?.startingSun),
+      loadout: initialLoadout,
       nextSkyDropAtMs: SKY_SUN_INTERVAL_MS,
       nextWaveAtMs: FIRST_WAVE_AT_MS,
+      nextConveyorAtMs: 1_500,
       waveConfig,
+      levelRules,
+      bowlingNuts: {},
+      waveAnnouncement: null,
+      waveAnnouncementUntilMs: 0,
       rngState: createInitialRngState([
         options?.rngSeed,
         env,
-        loadout.map((slot) => slot.plantType),
+        initialLoadout.map((slot) => slot.plantType),
         waveConfig,
+        levelRules,
       ]),
     });
   },
@@ -810,16 +917,52 @@ export const useGameStore = create<GameStore>()((set, get) => ({
     let def;
     try { def = getPlantDef(plantType); } catch { return fail("INVALID_PLANT_TYPE"); }
 
+    const freePlacement = state.levelRules.freePlacement || state.levelRules.playMode === "CONVEYOR";
+    const isBowling = state.levelRules.playMode === "BOWLING";
+    const isConveyor =
+      state.levelRules.playMode === "CONVEYOR" || state.levelRules.conveyorBelt;
+
+    // Wall-nut Bowling: launch a rolling nut down the chosen lane (row).
+    if (isBowling) {
+      const loadoutIndex = state.loadout.findIndex((slot) => slot.plantType === plantType);
+      if (loadoutIndex < 0) return fail("INVALID_PLANT_TYPE");
+      if (state.loadout[loadoutIndex].cooldownRemainingMs > 0) return fail("ON_COOLDOWN");
+      if (row < 0 || row >= state.environment.gridRows) return fail("INVALID_CELL");
+
+      const nut = createBowlingNut(plantType, row);
+      // Consume one bowling card; bowling packets recharge quickly like a mini-game supply.
+      const loadout = state.loadout.map((slot, index) =>
+        index === loadoutIndex
+          ? { ...slot, cooldownRemainingMs: Math.max(800, slot.cooldownTotalMs || 1_200) }
+          : slot
+      );
+      set({
+        bowlingNuts: { ...state.bowlingNuts, [nut.instanceId]: nut },
+        loadout,
+        selectedSlot: null,
+        lastPlacementFailure: null,
+      });
+      return true;
+    }
+
     const cell = getCell(state.grid, row, col);
     if (!cell) return fail("INVALID_CELL");
 
     const loadoutIndex = state.loadout.findIndex((slot) => slot.plantType === plantType);
     const loadoutSlot = loadoutIndex >= 0 ? state.loadout[loadoutIndex] : null;
     if (loadoutSlot && loadoutSlot.cooldownRemainingMs > 0) return fail("ON_COOLDOWN");
+    // Conveyor: must spend a card from the belt (not infinite free plants).
+    if (isConveyor && loadoutIndex < 0) return fail("INVALID_PLANT_TYPE");
 
     let loadout = state.loadout;
     const rechargeSeed = () => {
       if (!loadoutSlot) return loadout;
+      // Conveyor removes the spent card instead of recharging.
+      if (isConveyor) {
+        return state.loadout
+          .filter((_, index) => index !== loadoutIndex)
+          .map((slot, index) => ({ ...slot, slotIndex: index }));
+      }
       return state.loadout.map((slot, index) =>
         index === loadoutIndex
           ? { ...slot, cooldownRemainingMs: slot.cooldownTotalMs }
@@ -838,7 +981,9 @@ export const useGameStore = create<GameStore>()((set, get) => ({
       });
       if (!target) return fail("NO_SLEEPING_MUSHROOM");
 
-      const newSun = spendSun(state.currentSun, def.sunCost);
+      const newSun = freePlacement
+        ? state.currentSun
+        : spendSun(state.currentSun, def.sunCost);
       if (newSun === null) return fail("INSUFFICIENT_SUN");
 
       const targetDef = getPlantDef(target.plantType);
@@ -889,7 +1034,9 @@ export const useGameStore = create<GameStore>()((set, get) => ({
       return true;
     }
 
-    const newSun = spendSun(state.currentSun, def.sunCost);
+    const newSun = freePlacement
+      ? state.currentSun
+      : spendSun(state.currentSun, def.sunCost);
     if (newSun === null) return fail("INSUFFICIENT_SUN");
 
     const placementOpts = {
@@ -1073,6 +1220,10 @@ export const useGameStore = create<GameStore>()((set, get) => ({
     let nextWaveAtMs = state.nextWaveAtMs;
     let rngState = state.rngState;
     let zombieSpawnQueue = [...state.zombieSpawnQueue];
+    let waveAnnouncement: WaveAnnouncementKind = state.waveAnnouncement;
+    let waveAnnouncementUntilMs = state.waveAnnouncementUntilMs;
+    let nextConveyorAtMs = state.nextConveyorAtMs;
+    let bowlingNuts: Record<string, RuntimeBowlingNut> = { ...state.bowlingNuts };
     // Seeded RNG for all in-tick randomness (sky sun position, zombie spawn flavor,
     // dancing zombie lanes, etc.) so saved games replay deterministically.
     const nextRandom = () => {
@@ -1122,6 +1273,14 @@ export const useGameStore = create<GameStore>()((set, get) => ({
           zombieSpawnQueue = [...zombieSpawnQueue, ...graveAmbushes];
         }
         waveNumber = newWaveNumber;
+        // Huge / final wave announcement banner
+        if (waveProbe.isFinalWave) {
+          waveAnnouncement = "final";
+          waveAnnouncementUntilMs = newGameTimeMs + HUGE_WAVE_BANNER_MS;
+        } else if (waveProbe.isFlagWave) {
+          waveAnnouncement = "huge";
+          waveAnnouncementUntilMs = newGameTimeMs + HUGE_WAVE_BANNER_MS;
+        }
         const lastSpawnOffset = entries.reduce(
           (latest, entry) => Math.max(latest, entry.spawnAtMs),
           0
@@ -1132,6 +1291,12 @@ export const useGameStore = create<GameStore>()((set, get) => ({
           Math.max(WAVE_INTERVAL_MS, lastSpawnOffset + WAVE_REST_AFTER_SPAWN_MS);
       }
       // else: timer ready but lawn not clear yet — hold wave; keep nextWaveAtMs as-is
+    }
+
+    // Clear expired wave banner
+    if (waveAnnouncement && newGameTimeMs >= waveAnnouncementUntilMs) {
+      waveAnnouncement = null;
+      waveAnnouncementUntilMs = 0;
     }
 
     // -----------------------------------------------------------------------
@@ -1185,10 +1350,104 @@ export const useGameStore = create<GameStore>()((set, get) => ({
     // -----------------------------------------------------------------------
     let plants = { ...state.plants };
     let projectiles = { ...state.projectiles };
-    const loadout = state.loadout.map((slot) => ({
+    let loadout = state.loadout.map((slot) => ({
       ...slot,
       cooldownRemainingMs: Math.max(0, slot.cooldownRemainingMs - deltaMs),
     }));
+
+    // Conveyor-belt: deliver free plant cards over time.
+    const conveyorActive =
+      state.levelRules.playMode === "CONVEYOR" || state.levelRules.conveyorBelt;
+    if (conveyorActive && state.levelRules.conveyorPlantPool.length > 0) {
+      const cap = Math.max(1, state.levelRules.conveyorSlotCap);
+      const interval = Math.max(1_000, state.levelRules.conveyorIntervalMs || CONVEYOR_DEFAULT_INTERVAL_MS);
+      while (newGameTimeMs >= nextConveyorAtMs && loadout.length < cap) {
+        const pool = state.levelRules.conveyorPlantPool;
+        const plantType = pool[Math.floor(nextRandom() * pool.length)] ?? pool[0];
+        loadout = [...loadout, makeConveyorSlot(plantType, loadout.length)];
+        nextConveyorAtMs += interval;
+      }
+      if (loadout.length >= cap && newGameTimeMs >= nextConveyorAtMs) {
+        // Belt full — delay next card until a slot frees up.
+        nextConveyorAtMs = newGameTimeMs + interval;
+      }
+    }
+
+    // Bowling nuts: roll right and damage zombies once each.
+    if (Object.keys(bowlingNuts).length > 0) {
+      const advancedNuts: Record<string, RuntimeBowlingNut> = {};
+      for (const [id, nut] of Object.entries(bowlingNuts)) {
+        let current = {
+          ...nut,
+          x: nut.x + nut.speedColsPerSec * (deltaMs / 1000),
+          hitZombieIds: [...nut.hitZombieIds],
+        };
+        if (current.x > env.gridCols + 1) {
+          continue; // left the lawn
+        }
+
+        const laneZombies = Object.values(zombies).filter(
+          (z) =>
+            z.lane === current.lane &&
+            !z.isUnderground &&
+            Math.abs(z.x - current.x) <= 0.55 &&
+            !current.hitZombieIds.includes(z.instanceId)
+        );
+
+        if (laneZombies.length > 0) {
+          if (current.isExplosive) {
+            // Explode-o-nut: damage all zombies in lane near the nut.
+            for (const z of Object.values(zombies)) {
+              if (z.lane !== current.lane || z.isUnderground) continue;
+              if (Math.abs(z.x - current.x) > 1.2) continue;
+              const damaged = {
+                ...z,
+                health: Math.max(0, z.health - current.damage),
+                armorHealth: 0,
+              };
+              if (damaged.health <= 0) {
+                score += scoreKilledZombie(z);
+                totalZombiesKilled += 1;
+                const { [z.instanceId]: _dead, ...rest } = zombies;
+                zombies = rest;
+              } else {
+                zombies[z.instanceId] = damaged;
+              }
+            }
+            continue; // nut consumed
+          }
+
+          // Normal wall-nut: hit closest zombie once and keep rolling.
+          laneZombies.sort((a, b) => a.x - b.x);
+          const target = laneZombies[0];
+          current.hitZombieIds.push(target.instanceId);
+          let remaining = current.damage;
+          let armor = target.armorHealth;
+          let health = target.health;
+          if (armor > 0) {
+            const absorbed = Math.min(armor, remaining);
+            armor -= absorbed;
+            remaining -= absorbed;
+          }
+          health = Math.max(0, health - remaining);
+          if (health <= 0) {
+            score += scoreKilledZombie(target);
+            totalZombiesKilled += 1;
+            const { [target.instanceId]: _dead, ...rest } = zombies;
+            zombies = rest;
+          } else {
+            zombies[target.instanceId] = {
+              ...target,
+              health,
+              armorHealth: armor,
+            };
+          }
+        }
+
+        advancedNuts[id] = current;
+      }
+      bowlingNuts = advancedNuts;
+    }
 
     let gridChanged = false;
     let newGrid = state.grid;
@@ -1601,6 +1860,8 @@ export const useGameStore = create<GameStore>()((set, get) => ({
             z = startGargantuarSmash(z, newGameTimeMs);
           } else if (canDolphinJumpTarget(z, foundEatTarget, env, plants)) {
             z = jumpDolphinOverPlant(z, foundEatTarget);
+          } else if (canPoleVaultJumpTarget(z, foundEatTarget, plants)) {
+            z = jumpPoleVaultOverPlant(z, foundEatTarget);
           } else if (canPogoJumpTarget(z, foundEatTarget, plants)) {
             z = jumpPogoOverPlant(z, foundEatTarget);
           } else {
@@ -1812,14 +2073,18 @@ export const useGameStore = create<GameStore>()((set, get) => ({
         zombieSpawnQueue: remainingQueue,
         sunDrops,
         nextSkyDropAtMs,
+        nextConveyorAtMs,
         plants,
         zombies,
         lawnMowers,
         projectiles,
+        bowlingNuts,
         loadout,
         rngState,
         score,
         totalZombiesKilled,
+        waveAnnouncement,
+        waveAnnouncementUntilMs,
         ...(gridChanged ? { grid: newGrid } : {}),
       });
       return;
@@ -1835,14 +2100,18 @@ export const useGameStore = create<GameStore>()((set, get) => ({
       zombieSpawnQueue: remainingQueue,
       sunDrops,
       nextSkyDropAtMs,
+      nextConveyorAtMs,
       plants,
       zombies,
       lawnMowers,
       projectiles,
+      bowlingNuts,
       loadout,
       rngState,
       score,
       totalZombiesKilled,
+      waveAnnouncement,
+      waveAnnouncementUntilMs,
       ...(gridChanged ? { grid: newGrid } : {}),
     });
   },

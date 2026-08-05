@@ -17,6 +17,9 @@ interface SeedChooserProps {
   onStart: () => void;
   onBackHref?: string;
   starting?: boolean;
+  /** Fixed loadout / special mode — plants are not toggleable. */
+  lockSelection?: boolean;
+  modeLabel?: string;
 }
 
 export function SeedChooser({
@@ -29,10 +32,14 @@ export function SeedChooser({
   onStart,
   onBackHref = "/",
   starting = false,
+  lockSelection = false,
+  modeLabel = "CHOOSE YOUR SEEDS",
 }: SeedChooserProps) {
   const selected = new Set(selectedPlantTypes);
   const full = selectedPlantTypes.length >= seedSlots;
-  const canStart = selectedPlantTypes.length > 0 && !starting;
+  // Conveyor may start with 0 selected (belt fills in-game).
+  const canStart =
+    !starting && (selectedPlantTypes.length > 0 || modeLabel.includes("CONVEYOR"));
 
   return (
     <div
@@ -49,12 +56,14 @@ export function SeedChooser({
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, marginBottom: 10 }}>
         <div>
-          <div style={{ fontSize: 12, opacity: 0.7, fontWeight: 700, letterSpacing: 0.6 }}>CHOOSE YOUR SEEDS</div>
+          <div style={{ fontSize: 12, opacity: 0.7, fontWeight: 700, letterSpacing: 0.6 }}>{modeLabel}</div>
           <h2 style={{ margin: "4px 0 0", fontSize: 26, color: "#ffe56a" }}>{levelName}</h2>
         </div>
-        <div style={{ fontSize: 14, fontWeight: 800, color: full ? "#ffd700" : "#adffa0" }}>
-          {selectedPlantTypes.length} / {seedSlots} slots
-        </div>
+        {!lockSelection && (
+          <div style={{ fontSize: 14, fontWeight: 800, color: full ? "#ffd700" : "#adffa0" }}>
+            {selectedPlantTypes.length} / {seedSlots} slots
+          </div>
+        )}
       </div>
 
       {briefingText && (
@@ -87,8 +96,14 @@ export function SeedChooser({
               <button
                 key={`slot-${i}`}
                 type="button"
-                onClick={() => plantType && onToggle(plantType)}
-                title={plantType ? "Click to remove" : "Empty slot"}
+                onClick={() => !lockSelection && plantType && onToggle(plantType)}
+                title={
+                  lockSelection
+                    ? plantType ?? "Fixed loadout"
+                    : plantType
+                      ? "Click to remove"
+                      : "Empty slot"
+                }
                 style={{
                   width: 76,
                   height: 96,
@@ -97,7 +112,7 @@ export function SeedChooser({
                     ? "2px solid #ffd700"
                     : "2px dashed rgba(173,255,160,0.35)",
                   background: plant ? "rgba(42,90,20,0.9)" : "rgba(0,0,0,0.25)",
-                  cursor: plant ? "pointer" : "default",
+                  cursor: plant && !lockSelection ? "pointer" : "default",
                   display: "flex",
                   flexDirection: "column",
                   alignItems: "center",
@@ -123,65 +138,72 @@ export function SeedChooser({
         </div>
       </div>
 
-      {/* Available plants bank */}
-      <div style={{ marginBottom: 18 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, opacity: 0.75, marginBottom: 8 }}>
-          AVAILABLE PLANTS
-          {availablePlants.length <= seedSlots && (
-            <span style={{ marginLeft: 8, opacity: 0.8, fontWeight: 600 }}>
-              (all pre-selected — early level)
-            </span>
-          )}
+      {/* Available plants bank — hidden when loadout is fixed */}
+      {!lockSelection && (
+        <div style={{ marginBottom: 18 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, opacity: 0.75, marginBottom: 8 }}>
+            AVAILABLE PLANTS
+            {availablePlants.length <= seedSlots && (
+              <span style={{ marginLeft: 8, opacity: 0.8, fontWeight: 600 }}>
+                (all pre-selected — early level)
+              </span>
+            )}
+          </div>
+          <div
+            style={{
+              display: "flex",
+              gap: 8,
+              flexWrap: "wrap",
+              maxHeight: 220,
+              overflowY: "auto",
+              padding: 4,
+            }}
+          >
+            {availablePlants.map((plant) => {
+              const isOn = selected.has(plant.plantType);
+              const blocked = !isOn && full;
+              return (
+                <button
+                  key={plant.plantType}
+                  type="button"
+                  disabled={blocked}
+                  onClick={() => onToggle(plant.plantType)}
+                  style={{
+                    width: 80,
+                    height: 100,
+                    borderRadius: 10,
+                    border: isOn ? "3px solid #ffd700" : "2px solid #2a5a1a",
+                    background: isOn
+                      ? "linear-gradient(180deg,#4a8a28,#2a5a12)"
+                      : blocked
+                        ? "rgba(20,30,15,0.5)"
+                        : "linear-gradient(180deg,#2a4a18,#1a3010)",
+                    opacity: blocked ? 0.45 : 1,
+                    cursor: blocked ? "not-allowed" : "pointer",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 2,
+                    padding: 4,
+                  }}
+                >
+                  <PlantPreviewCanvas plantType={plant.plantType} size={48} />
+                  <span style={{ fontSize: 9, fontWeight: 800, color: "#e0ffe0", textAlign: "center", lineHeight: 1.1 }}>
+                    {(plant.displayName ?? plant.plantType).replace(/_/g, " ")}
+                  </span>
+                  <span style={{ fontSize: 10, color: "#ffd700", fontWeight: 700 }}>☀ {plant.sunCost}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
-        <div
-          style={{
-            display: "flex",
-            gap: 8,
-            flexWrap: "wrap",
-            maxHeight: 220,
-            overflowY: "auto",
-            padding: 4,
-          }}
-        >
-          {availablePlants.map((plant) => {
-            const isOn = selected.has(plant.plantType);
-            const blocked = !isOn && full;
-            return (
-              <button
-                key={plant.plantType}
-                type="button"
-                disabled={blocked}
-                onClick={() => onToggle(plant.plantType)}
-                style={{
-                  width: 80,
-                  height: 100,
-                  borderRadius: 10,
-                  border: isOn ? "3px solid #ffd700" : "2px solid #2a5a1a",
-                  background: isOn
-                    ? "linear-gradient(180deg,#4a8a28,#2a5a12)"
-                    : blocked
-                      ? "rgba(20,30,15,0.5)"
-                      : "linear-gradient(180deg,#2a4a18,#1a3010)",
-                  opacity: blocked ? 0.45 : 1,
-                  cursor: blocked ? "not-allowed" : "pointer",
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 2,
-                  padding: 4,
-                }}
-              >
-                <PlantPreviewCanvas plantType={plant.plantType} size={48} />
-                <span style={{ fontSize: 9, fontWeight: 800, color: "#e0ffe0", textAlign: "center", lineHeight: 1.1 }}>
-                  {(plant.displayName ?? plant.plantType).replace(/_/g, " ")}
-                </span>
-                <span style={{ fontSize: 10, color: "#ffd700", fontWeight: 700 }}>☀ {plant.sunCost}</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      )}
+      {lockSelection && (
+        <p style={{ margin: "0 0 16px", fontSize: 13, color: "#adffa0", opacity: 0.9 }}>
+          Fixed loadout for this level — press Let&apos;s Rock when ready.
+        </p>
+      )}
 
       <div style={{ display: "flex", gap: 12, justifyContent: "flex-end", alignItems: "center" }}>
         <a

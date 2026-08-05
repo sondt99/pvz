@@ -20,6 +20,8 @@ interface GameHUDProps {
   persistenceLabel?: string;
   /** Hide wave bar during seed chooser / pre-start */
   showWaveBar?: boolean;
+  /** Hide sun counter (bowling / conveyor). */
+  hideSun?: boolean;
 }
 
 export function GameHUD({
@@ -27,11 +29,14 @@ export function GameHUD({
   onResumeRequest,
   persistenceLabel,
   showWaveBar = true,
+  hideSun = false,
 }: GameHUDProps = {}) {
   const currentSun = useGameStore((s) => s.currentSun);
   const score = useGameStore((s) => s.score);
   const status = useGameStore((s) => s.status);
+  const hideSunFromRules = useGameStore((s) => s.levelRules.hideSunHud);
   const [isSyncing, setIsSyncing] = useState(false);
+  const showSun = !hideSun && !hideSunFromRules;
 
   const isPaused = status === "paused";
   const isPlaying = status === "playing";
@@ -72,6 +77,7 @@ export function GameHUD({
       }}
     >
       {/* Sun counter */}
+      {showSun && (
       <div
         style={{
           display: "flex",
@@ -98,6 +104,7 @@ export function GameHUD({
           {currentSun}
         </span>
       </div>
+      )}
 
       {/* Wave progress bar (PvZ-style flag strip) */}
       {showWaveBar && (isPlaying || isPaused || status === "victory" || status === "game-over") ? (

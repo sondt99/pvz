@@ -187,9 +187,26 @@ export default function GamePage() {
   const [selectedPlantTypes, setSelectedPlantTypes] = useState<string[]>([]);
   const [starting, setStarting] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [shovelUnlocked, setShovelUnlocked] = useState(true);
+  const [requireSeedChooser, setRequireSeedChooser] = useState(true);
+  const [hideSunHud, setHideSunHud] = useState(false);
   const pendingWaveConfig = useRef<unknown>(null);
   const pendingEnv = useRef<EnvironmentConfig | null>(null);
+  const pendingStartingSun = useRef<number | undefined>(undefined);
+  const pendingLevelRules = useRef<{
+    playMode?: "NORMAL" | "TUTORIAL_SCRIPT" | "BOWLING" | "CONVEYOR";
+    freePlacement?: boolean;
+    hideSunHud?: boolean;
+    conveyorBelt?: boolean;
+    conveyorPlantPool?: string[];
+    conveyorIntervalMs?: number;
+    conveyorSlotCap?: number;
+    bowlingNutTypes?: string[];
+  }>({});
   const victoryHandled = useRef(false);
+
+  const waveAnnouncement = useGameStore((s) => s.waveAnnouncement);
+  const playMode = useGameStore((s) => s.levelRules.playMode);
 
   const status = useGameStore((s) => s.status);
   const selectedSlot = useGameStore((s) => s.selectedSlot);
@@ -273,22 +290,39 @@ export default function GamePage() {
 
           pendingEnv.current = env;
           pendingWaveConfig.current = lvl.waveConfig;
+          pendingStartingSun.current = lvl.startingSun;
+          pendingLevelRules.current = {
+            playMode: lvl.playMode ?? "NORMAL",
+            freePlacement: lvl.freePlacement ?? false,
+            hideSunHud: lvl.hideSunHud ?? false,
+            conveyorBelt: lvl.conveyorBelt,
+            conveyorPlantPool: lvl.conveyorPlantPool ?? [],
+            conveyorIntervalMs: lvl.conveyorIntervalMs ?? 3500,
+            conveyorSlotCap: lvl.conveyorSlotCap ?? 10,
+            bowlingNutTypes: lvl.bowlingNutTypes ?? ["WALL_NUT"],
+          };
           setLevelMeta(lvl);
           setRewardPlantId(lvl.rewardPlantId);
           setActiveEnvironment(lvl.environmentType);
           setSeedSlots(levelConfig.seedSlots ?? lvl.seedSlots);
+          setShovelUnlocked(levelConfig.shovelUnlocked ?? true);
+          setHideSunHud(lvl.hideSunHud ?? false);
 
           const available = (levelConfig.availablePlants?.length
             ? levelConfig.availablePlants
             : levelConfig.loadout) as AvailablePlant[];
           setAvailablePlants(available);
 
-          // Early levels: auto-select all when plant count ≤ seed slots
+          const needChooser =
+            levelConfig.requireSeedChooser ??
+            !(lvl.skipSeedChooser ?? false);
+          setRequireSeedChooser(needChooser);
+
           const slots = levelConfig.seedSlots ?? lvl.seedSlots;
-          if (available.length <= slots) {
-            setSelectedPlantTypes(available.map((p) => p.plantType));
+          // Fixed / early / special modes: preselect all available (capped by slots)
+          if (!needChooser || available.length <= slots) {
+            setSelectedPlantTypes(available.slice(0, slots).map((p) => p.plantType));
           } else {
-            // Prefer peashooter + sunflower when present
             const preferred = ["PEASHOOTER", "SUNFLOWER", "SUN_SHROOM", "PUFF_SHROOM"];
             const auto: string[] = [];
             for (const t of preferred) {
@@ -301,8 +335,12 @@ export default function GamePage() {
             setSelectedPlantTypes(auto);
           }
 
-          // Warm idle board under the chooser
-          useGameStore.getState().initGame(env, [], { waveConfig: lvl.waveConfig });
+          // Warm idle board under the chooser / ready screen
+          useGameStore.getState().initGame(env, [], {
+            waveConfig: lvl.waveConfig,
+            startingSun: lvl.startingSun,
+            levelRules: pendingLevelRules.current,
+          });
           setPhase("choosing");
           setPersistenceState("choosing");
           updateGameUrl(env.type, null, levelNum);
@@ -405,25 +443,50 @@ export default function GamePage() {
   }
 
   async function handleStartGame() {
-    if (selectedPlantTypes.length === 0 || starting) return;
+    const isConveyor = pendingLevelRules.current.playMode === "CONVEYOR";
+    // Conveyor starts with an empty belt; bowling/normal need at least one packet.
+    if ((!isConveyor && selectedPlantTypes.length === 0) || starting) return;
     setStarting(true);
     setLoadError(null);
 
     const env = pendingEnv.current ?? ENVIRONMENTS[activeEnvironment];
-    const slots = makeLoadoutFromTypes(selectedPlantTypes);
+    const slots =
+      pendingLevelRules.current.playMode === "BOWLING"
+        ? selectedPlantTypes.map((plantType, index) => {
+            const def = getPlantDef(plantType);
+            return {
+              plantType,
+              plantId: plantType.toLowerCase().replace(/_/g, "-"),
+              sunCost: 0,
+              cooldownRemainingMs: 0,
+              cooldownTotalMs: Math.max(800, def.rechargeTime * 100 || 1_200),
+              isSelected: false,
+              slotIndex: index,
+            } satisfies SeedPacketSlot;
+          })
+        : makeLoadoutFromTypes(selectedPlantTypes);
     const waveConfig = pendingWaveConfig.current;
+    const startingSun = pendingStartingSun.current;
+    const levelRules = pendingLevelRules.current;
 
     try {
       // Create session in parallel with local start for snappier UX
       const createPromise =
         activeLevelNumber !== null
-          ? createGameSession(env.type, selectedPlantTypes, { levelNumber: activeLevelNumber })
+          ? createGameSession(env.type, selectedPlantTypes.length ? selectedPlantTypes : ["PEASHOOTER"], {
+              levelNumber: activeLevelNumber,
+            })
           : createGameSession(env.type, selectedPlantTypes);
 
-      useGameStore.getState().initGame(env, slots, { waveConfig });
+      useGameStore.getState().initGame(env, slots, {
+        waveConfig,
+        startingSun,
+        levelRules,
+      });
       useGameStore.getState().startGame();
       setPhase("playing");
       setPersistenceState("connecting");
+      setHideSunHud(levelRules.hideSunHud ?? false);
 
       try {
         const created = await createPromise;
@@ -544,6 +607,7 @@ export default function GamePage() {
         onResumeRequest={handleResume}
         persistenceLabel={PERSISTENCE_LABELS[persistenceState]}
         showWaveBar={showPlayUi}
+        hideSun={hideSunHud}
       />
 
       <div
@@ -640,6 +704,18 @@ export default function GamePage() {
             onToggle={handleTogglePlant}
             onStart={() => void handleStartGame()}
             starting={starting}
+            lockSelection={!requireSeedChooser}
+            modeLabel={
+              levelMeta?.playMode === "BOWLING"
+                ? "WALL-NUT BOWLING"
+                : levelMeta?.playMode === "CONVEYOR"
+                  ? "CONVEYOR BELT"
+                  : levelMeta?.playMode === "TUTORIAL_SCRIPT"
+                    ? "TUTORIAL"
+                    : requireSeedChooser
+                      ? "CHOOSE YOUR SEEDS"
+                      : "READY TO ROCK"
+            }
           />
         )}
 
@@ -655,7 +731,11 @@ export default function GamePage() {
               fontWeight: 800,
             }}
           >
-            <span>🌱 {toTitleCase(loadout[selectedSlot]?.plantType ?? "")}</span>
+            <span>
+              {playMode === "BOWLING" ? "🎳" : "🌱"}{" "}
+              {toTitleCase(loadout[selectedSlot]?.plantType ?? "")}
+              {playMode === "BOWLING" ? " — click a lane to roll" : ""}
+            </span>
           </div>
         )}
 
@@ -669,6 +749,41 @@ export default function GamePage() {
             }}
           >
             <GameCanvas onCellClick={handleSunClick} shovelMode={shovelSelected} />
+
+            {waveAnnouncement && !showOverlay && (
+              <div
+                style={{
+                  position: "absolute",
+                  left: 0,
+                  right: 0,
+                  top: "38%",
+                  display: "flex",
+                  justifyContent: "center",
+                  pointerEvents: "none",
+                  zIndex: 20,
+                }}
+              >
+                <div
+                  style={{
+                    padding: "14px 28px",
+                    borderRadius: 10,
+                    background: "rgba(20,0,0,0.82)",
+                    border: "3px solid #ffcc33",
+                    color: "#ffe56a",
+                    fontWeight: 900,
+                    fontSize: 22,
+                    letterSpacing: 0.5,
+                    textAlign: "center",
+                    boxShadow: "0 0 24px rgba(255,200,0,0.35)",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  {waveAnnouncement === "final"
+                    ? "Final wave!"
+                    : "A huge wave of zombies is approaching!"}
+                </div>
+              </div>
+            )}
 
             {showOverlay && (
               <div
@@ -751,7 +866,11 @@ export default function GamePage() {
       </div>
 
       {showPlayUi && (
-        <SeedPacketBar shovelSelected={shovelSelected} onShovelToggle={handleShovelToggle} />
+        <SeedPacketBar
+          shovelSelected={shovelSelected}
+          onShovelToggle={shovelUnlocked && playMode !== "BOWLING" ? handleShovelToggle : undefined}
+          showShovel={shovelUnlocked && playMode !== "BOWLING" && playMode !== "CONVEYOR"}
+        />
       )}
     </main>
   );

@@ -1577,8 +1577,45 @@ function drawZombie(ctx: CanvasRenderingContext2D, zombie: RuntimeZombie, gridRo
     ctx.stroke();
   }
 
+  // Pole Vaulting Zombie: draw pole while still vaulting (hasJumped !== true).
+  if (zombie.zombieType === "POLE_VAULT" && zombie.hasJumped !== true) {
+    ctx.strokeStyle = "#6b4a2a";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(cx - 28, ground - 8);
+    ctx.lineTo(cx + 26, ground - 88);
+    ctx.stroke();
+    ctx.fillStyle = "#c4a574";
+    ctx.beginPath();
+    ctx.arc(cx + 26, ground - 88, 4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
   ctx.restore();
   drawHealthBar(ctx, cx - 28, py + 8, 56, healthPct, "#ff685f");
+}
+
+function drawBowlingNut(
+  ctx: CanvasRenderingContext2D,
+  nut: { x: number; lane: number; isExplosive: boolean; nutType: string }
+): void {
+  const cx = HOUSE_W + nut.x * CELL_W + CELL_W * 0.35;
+  const cy = tileY(nut.lane) + CELL_H * 0.55;
+  ctx.save();
+  ctx.fillStyle = nut.isExplosive ? "#c0392b" : "#8B6914";
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, 22, 20, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = nut.isExplosive ? "#7b1a12" : "#5a4010";
+  ctx.lineWidth = 3;
+  ctx.stroke();
+  // Face / ridge
+  ctx.fillStyle = nut.isExplosive ? "#f5d76e" : "#c4a35a";
+  ctx.beginPath();
+  ctx.arc(cx - 6, cy - 4, 3, 0, Math.PI * 2);
+  ctx.arc(cx + 6, cy - 4, 3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
 }
 
 function drawProjectile(ctx: CanvasRenderingContext2D, proj: RuntimeProjectile): void {
@@ -1711,7 +1748,7 @@ export function GameCanvas({ onCellClick, shovelMode = false }: GameCanvasProps)
       if (!ctx) return;
 
       const state = useGameStore.getState();
-      const { environment: env, plants, zombies, projectiles, sunDrops, lawnMowers } = state;
+      const { environment: env, plants, zombies, projectiles, sunDrops, lawnMowers, bowlingNuts } = state;
 
       const now = performance.now();
 
@@ -1777,6 +1814,10 @@ export function GameCanvas({ onCellClick, shovelMode = false }: GameCanvasProps)
 
       for (const zombie of Object.values(zombies)) {
         drawZombie(ctx, zombie, env.gridRows, env.gridCols);
+      }
+
+      for (const nut of Object.values(bowlingNuts ?? {})) {
+        drawBowlingNut(ctx, nut);
       }
 
       for (const proj of Object.values(projectiles)) {

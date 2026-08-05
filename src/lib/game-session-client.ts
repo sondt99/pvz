@@ -175,10 +175,20 @@ export interface LevelConfigResult {
     rewardPlantId: string | null;
     briefingText?: string | null;
     waveConfig: unknown;
+    playMode?: "NORMAL" | "TUTORIAL_SCRIPT" | "BOWLING" | "CONVEYOR";
+    skipSeedChooser?: boolean;
+    freePlacement?: boolean;
+    hideSunHud?: boolean;
+    conveyorPlantPool?: string[];
+    conveyorIntervalMs?: number;
+    conveyorSlotCap?: number;
+    bowlingNutTypes?: string[];
   };
   /** All plants the player may pick for this level (adventure progression). */
   availablePlants: Array<SeedPacketSlot & { displayName?: string }>;
   seedSlots: number;
+  requireSeedChooser?: boolean;
+  shovelUnlocked?: boolean;
   /** Pre-filled when available plants ≤ seed slots; otherwise ignore for chooser. */
   loadout: SeedPacketSlot[];
 }

@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { getPlantDef, getAllPlantTypes, getPlantsByCategory, PLANT_DEFINITIONS } from "@/engine/entities/plant-defs";
 
 const ALL_PLANT_TYPES = [
-  "PEASHOOTER", "SUNFLOWER", "CHERRY_BOMB", "WALL_NUT", "POTATO_MINE",
+  "PEASHOOTER", "SUNFLOWER", "CHERRY_BOMB", "WALL_NUT", "EXPLODE_O_NUT", "POTATO_MINE",
   "SNOW_PEA", "CHOMPER", "REPEATER", "PUFF_SHROOM", "SUN_SHROOM",
   "FUME_SHROOM", "GRAVE_BUSTER", "HYPNO_SHROOM", "SCAREDY_SHROOM",
   "ICE_SHROOM", "DOOM_SHROOM", "LILY_PAD",
@@ -14,8 +14,8 @@ const ALL_PLANT_TYPES = [
 ];
 
 describe("PLANT_DEFINITIONS completeness", () => {
-  it("defines exactly 40 plants", () => {
-    expect(Object.keys(PLANT_DEFINITIONS)).toHaveLength(40);
+  it("defines exactly 41 plants", () => {
+    expect(Object.keys(PLANT_DEFINITIONS)).toHaveLength(41);
   });
 
   it("contains all expected plant types", () => {
@@ -121,8 +121,8 @@ describe("getPlantDef", () => {
 });
 
 describe("getAllPlantTypes", () => {
-  it("returns 40 plant types", () => {
-    expect(getAllPlantTypes()).toHaveLength(40);
+  it("returns 41 plant types", () => {
+    expect(getAllPlantTypes()).toHaveLength(41);
   });
 
   it("includes PEASHOOTER and MELON_PULT", () => {

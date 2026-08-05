@@ -18,11 +18,43 @@
 //       zombieType, lane ("random" | number | number[]), spawnAtMs
 // ---------------------------------------------------------------------------
 
+import {
+  BOWLING_NUT_TYPES,
+  DAY_CONVEYOR_PLANT_POOL,
+  DEFAULT_LEVEL_PLAY_RULES,
+  type PlayMode,
+} from "./level-play-modes";
+
+export interface LevelConfigMeta {
+  playMode?: PlayMode;
+  startingSun?: number;
+  conveyorBelt?: boolean;
+  skyDropSun?: boolean;
+  skipSeedChooser?: boolean;
+  freePlacement?: boolean;
+  hideSunHud?: boolean;
+  conveyorPlantPool?: string[];
+  conveyorIntervalMs?: number;
+  conveyorSlotCap?: number;
+  bowlingNutTypes?: string[];
+}
+
 export interface LevelConfig {
   rewardPlantId: string | null;
   briefingText: string | null;
   seedSlots: number;
   waveConfig: object;
+  playMode: PlayMode;
+  startingSun: number;
+  conveyorBelt: boolean;
+  skyDropSun: boolean | null;
+  skipSeedChooser: boolean;
+  freePlacement: boolean;
+  hideSunHud: boolean;
+  conveyorPlantPool: string[];
+  conveyorIntervalMs: number;
+  conveyorSlotCap: number;
+  bowlingNutTypes: string[];
 }
 
 // Helper: build a pool-based wave.
@@ -39,39 +71,72 @@ function wave(
   return { waveNumber, zombiePool, count, intervalMs: pacedInterval, ...opts };
 }
 
-// Helper: named tuple [rewardPlantId, briefingText, seedSlots, waveConfig]
-type LC = [string | null, string | null, number, object];
+/** Explicit spawn entry for tutorial-style scripts. */
+function entry(
+  zombieType: string,
+  lane: number | "random",
+  spawnAtMs: number
+): { zombieType: string; lane: number | "random"; spawnAtMs: number } {
+  return { zombieType, lane, spawnAtMs };
+}
+
+// Helper: named tuple [rewardPlantId, briefingText, seedSlots, waveConfig, meta?]
+type LC = [string | null, string | null, number, object, LevelConfigMeta?];
 
 // ---------------------------------------------------------------------------
-// WORLD 1 — DAY (Levels 1-10)
-// Zombie intro: NORMAL → CONEHEAD (1-3) → BUCKETHEAD (1-8)
+// WORLD 1 — DAY (Levels 1-10) — PvZ1-aligned modes, rewards, intros
+// Zombie intro: NORMAL → CONEHEAD (1-3) → POLE_VAULT (1-6) → BUCKETHEAD (1-8)
+// Modes: 1-1 tutorial, 1-5 bowling, 1-10 conveyor; chooser from 1-8
 // ---------------------------------------------------------------------------
 
 const W1: Record<number, LC> = {
   1: [
     "sunflower",
     "The zombies are approaching! Plant a Peashooter to stop them.",
-    2,
+    1,
     {
       finalWaveNumber: 2,
       waves: [
-        wave(1, ["NORMAL"], 3, 7000, { startDelayMs: 20000 }),
-        wave(2, ["NORMAL"], 4, 6000, { final: true }),
+        {
+          waveNumber: 1,
+          startDelayMs: 0,
+          entries: [
+            entry("NORMAL", 2, 0),
+            entry("NORMAL", 1, 12_000),
+            entry("NORMAL", 3, 22_000),
+          ],
+        },
+        {
+          waveNumber: 2,
+          final: true,
+          entries: [
+            entry("NORMAL", 0, 0),
+            entry("NORMAL", 4, 4_000),
+            entry("NORMAL", 2, 8_000),
+            entry("NORMAL", 1, 14_000),
+          ],
+        },
       ],
+    },
+    {
+      playMode: "TUTORIAL_SCRIPT",
+      startingSun: 150,
+      skipSeedChooser: true,
     },
   ],
   2: [
     "cherry-bomb",
     "Sunflowers produce sun you can use to plant more plants. Grow them first!",
-    3,
+    2,
     {
       finalWaveNumber: 3,
       waves: [
-        wave(1, ["NORMAL"], 3, 7000, { startDelayMs: 15000 }),
-        wave(2, ["NORMAL"], 4, 6000),
-        wave(3, ["NORMAL", "CONEHEAD"], 5, 5000, { final: true }),
+        wave(1, ["NORMAL"], 3, 8000, { startDelayMs: 18_000 }),
+        wave(2, ["NORMAL"], 4, 7000),
+        wave(3, ["NORMAL"], 5, 6000, { final: true }),
       ],
     },
+    { playMode: "NORMAL", startingSun: 50, skipSeedChooser: true },
   ],
   3: [
     "wall-nut",
@@ -80,12 +145,13 @@ const W1: Record<number, LC> = {
     {
       finalWaveNumber: 4,
       waves: [
-        wave(1, ["NORMAL"], 4, 6500, { startDelayMs: 12000 }),
-        wave(2, ["NORMAL", "CONEHEAD"], 4, 5500),
-        wave(3, ["NORMAL", "CONEHEAD"], 5, 5000),
-        wave(4, ["NORMAL", "CONEHEAD"], 6, 4500, { final: true }),
+        wave(1, ["NORMAL"], 3, 7500, { startDelayMs: 15_000 }),
+        wave(2, ["NORMAL", "CONEHEAD"], 4, 6500),
+        wave(3, ["NORMAL", "CONEHEAD"], 5, 5500),
+        wave(4, ["NORMAL", "CONEHEAD"], 6, 5000, { final: true }),
       ],
     },
+    { playMode: "NORMAL", startingSun: 50, skipSeedChooser: true },
   ],
   4: [
     "potato-mine",
@@ -95,44 +161,55 @@ const W1: Record<number, LC> = {
       finalWaveNumber: 4,
       flagEvery: 4,
       waves: [
-        wave(1, ["NORMAL"], 4, 6000, { startDelayMs: 10000 }),
-        wave(2, ["NORMAL", "CONEHEAD"], 5, 5000),
-        wave(3, ["NORMAL", "CONEHEAD"], 5, 4500),
-        wave(4, ["NORMAL", "CONEHEAD"], 7, 3500, { flag: true, final: true }),
+        wave(1, ["NORMAL"], 4, 7000, { startDelayMs: 12_000 }),
+        wave(2, ["NORMAL", "CONEHEAD"], 5, 6000),
+        wave(3, ["NORMAL", "CONEHEAD"], 5, 5500),
+        wave(4, ["NORMAL", "CONEHEAD"], 7, 4500, { flag: true, final: true }),
       ],
     },
+    { playMode: "NORMAL", startingSun: 50, skipSeedChooser: true },
   ],
   5: [
     "snow-pea",
-    "The zombies are coming in waves now! A flag means a huge wave is near!",
-    5,
+    "Wall-nut Bowling! Roll nuts down the lanes — no sun needed. Explode-o-nuts go boom!",
+    2,
     {
       finalWaveNumber: 5,
       flagEvery: 5,
       waves: [
-        wave(1, ["NORMAL"], 4, 5500, { startDelayMs: 10000 }),
-        wave(2, ["NORMAL", "CONEHEAD"], 5, 5000),
-        wave(3, ["NORMAL", "CONEHEAD"], 5, 4500),
-        wave(4, ["NORMAL", "CONEHEAD"], 6, 4000),
-        wave(5, ["NORMAL", "NORMAL", "CONEHEAD"], 8, 3000, { flag: true, final: true }),
+        wave(1, ["NORMAL"], 5, 5500, { startDelayMs: 8_000 }),
+        wave(2, ["NORMAL", "CONEHEAD"], 6, 5000),
+        wave(3, ["NORMAL", "CONEHEAD"], 7, 4500),
+        wave(4, ["NORMAL", "CONEHEAD"], 8, 4000),
+        wave(5, ["NORMAL", "CONEHEAD"], 10, 3500, { flag: true, final: true }),
       ],
+    },
+    {
+      playMode: "BOWLING",
+      startingSun: 0,
+      skyDropSun: false,
+      skipSeedChooser: true,
+      freePlacement: true,
+      hideSunHud: true,
+      bowlingNutTypes: [...BOWLING_NUT_TYPES],
     },
   ],
   6: [
     "chomper",
-    "Snow Pea slows zombies so other plants have more time to attack!",
+    "Pole Vaulting Zombies leap over your first plant! Snow Pea buys you time.",
     5,
     {
       finalWaveNumber: 5,
       flagEvery: 5,
       waves: [
-        wave(1, ["NORMAL", "CONEHEAD"], 5, 5000, { startDelayMs: 8000 }),
-        wave(2, ["NORMAL", "CONEHEAD"], 5, 4500),
-        wave(3, ["NORMAL", "CONEHEAD"], 6, 4000),
-        wave(4, ["NORMAL", "CONEHEAD"], 6, 3800),
-        wave(5, ["NORMAL", "CONEHEAD"], 9, 3000, { flag: true, final: true }),
+        wave(1, ["NORMAL", "CONEHEAD"], 4, 5500, { startDelayMs: 10_000 }),
+        wave(2, ["NORMAL", "CONEHEAD", "POLE_VAULT"], 5, 5000),
+        wave(3, ["NORMAL", "CONEHEAD", "POLE_VAULT"], 6, 4500),
+        wave(4, ["NORMAL", "CONEHEAD", "POLE_VAULT"], 6, 4200),
+        wave(5, ["NORMAL", "CONEHEAD", "POLE_VAULT"], 9, 3500, { flag: true, final: true }),
       ],
     },
+    { playMode: "NORMAL", startingSun: 50, skipSeedChooser: true },
   ],
   7: [
     "repeater",
@@ -142,31 +219,36 @@ const W1: Record<number, LC> = {
       finalWaveNumber: 6,
       flagEvery: 6,
       waves: [
-        wave(1, ["NORMAL", "CONEHEAD"], 5, 4800, { startDelayMs: 8000 }),
-        wave(2, ["NORMAL", "CONEHEAD"], 5, 4500),
-        wave(3, ["NORMAL", "CONEHEAD"], 6, 4000),
-        wave(4, ["NORMAL", "CONEHEAD"], 6, 3800),
-        wave(5, ["NORMAL", "CONEHEAD", "BUCKETHEAD"], 5, 4200),
-        wave(6, ["NORMAL", "CONEHEAD", "BUCKETHEAD"], 8, 3000, { flag: true, final: true }),
+        wave(1, ["NORMAL", "CONEHEAD"], 5, 5200, { startDelayMs: 10_000 }),
+        wave(2, ["NORMAL", "CONEHEAD", "POLE_VAULT"], 5, 4800),
+        wave(3, ["NORMAL", "CONEHEAD", "POLE_VAULT"], 6, 4500),
+        wave(4, ["NORMAL", "CONEHEAD", "POLE_VAULT"], 6, 4200),
+        wave(5, ["NORMAL", "CONEHEAD", "POLE_VAULT"], 7, 4000),
+        wave(6, ["NORMAL", "CONEHEAD", "POLE_VAULT"], 9, 3500, { flag: true, final: true }),
       ],
     },
+    { playMode: "NORMAL", startingSun: 50, skipSeedChooser: true },
   ],
   8: [
     null,
-    "Buckethead Zombies have a lot more health. Use Wall-nuts to buy time!",
+    "Choose your seeds! Buckethead Zombies have a lot more health — plan carefully.",
     6,
     {
       finalWaveNumber: 6,
       flagEvery: 6,
       waves: [
-        wave(1, ["NORMAL", "CONEHEAD"], 5, 4500, { startDelayMs: 8000 }),
-        wave(2, ["NORMAL", "CONEHEAD", "BUCKETHEAD"], 5, 4200),
-        wave(3, ["NORMAL", "CONEHEAD", "BUCKETHEAD"], 6, 3800),
-        wave(4, ["NORMAL", "CONEHEAD", "BUCKETHEAD"], 6, 3500),
-        wave(5, ["NORMAL", "CONEHEAD", "BUCKETHEAD"], 6, 3500),
-        wave(6, ["NORMAL", "CONEHEAD", "BUCKETHEAD"], 9, 3000, { flag: true, final: true }),
+        wave(1, ["NORMAL", "CONEHEAD"], 5, 5000, { startDelayMs: 10_000 }),
+        wave(2, ["NORMAL", "CONEHEAD", "BUCKETHEAD"], 5, 4500),
+        wave(3, ["NORMAL", "CONEHEAD", "BUCKETHEAD", "POLE_VAULT"], 6, 4200),
+        wave(4, ["NORMAL", "CONEHEAD", "BUCKETHEAD", "POLE_VAULT"], 6, 4000),
+        wave(5, ["NORMAL", "CONEHEAD", "BUCKETHEAD", "POLE_VAULT"], 7, 3800),
+        wave(6, ["NORMAL", "CONEHEAD", "BUCKETHEAD", "POLE_VAULT"], 10, 3200, {
+          flag: true,
+          final: true,
+        }),
       ],
     },
+    { playMode: "NORMAL", startingSun: 50, skipSeedChooser: false },
   ],
   9: [
     null,
@@ -176,35 +258,54 @@ const W1: Record<number, LC> = {
       finalWaveNumber: 7,
       flagEvery: 7,
       waves: [
-        wave(1, ["NORMAL", "CONEHEAD"], 5, 4500, { startDelayMs: 8000 }),
-        wave(2, ["NORMAL", "CONEHEAD", "BUCKETHEAD"], 5, 4000),
-        wave(3, ["NORMAL", "CONEHEAD", "BUCKETHEAD"], 6, 3800),
-        wave(4, ["NORMAL", "CONEHEAD", "BUCKETHEAD"], 6, 3500),
-        wave(5, ["NORMAL", "CONEHEAD", "BUCKETHEAD"], 6, 3200),
-        wave(6, ["NORMAL", "CONEHEAD", "BUCKETHEAD"], 7, 3000),
-        wave(7, ["NORMAL", "CONEHEAD", "BUCKETHEAD"], 10, 2500, { flag: true, final: true }),
+        wave(1, ["NORMAL", "CONEHEAD"], 5, 4800, { startDelayMs: 10_000 }),
+        wave(2, ["NORMAL", "CONEHEAD", "BUCKETHEAD"], 5, 4500),
+        wave(3, ["NORMAL", "CONEHEAD", "BUCKETHEAD", "POLE_VAULT"], 6, 4200),
+        wave(4, ["NORMAL", "CONEHEAD", "BUCKETHEAD", "POLE_VAULT"], 6, 4000),
+        wave(5, ["NORMAL", "CONEHEAD", "BUCKETHEAD", "POLE_VAULT"], 7, 3800),
+        wave(6, ["NORMAL", "CONEHEAD", "BUCKETHEAD", "POLE_VAULT"], 8, 3500),
+        wave(7, ["NORMAL", "CONEHEAD", "BUCKETHEAD", "POLE_VAULT"], 11, 3000, {
+          flag: true,
+          final: true,
+        }),
       ],
     },
+    { playMode: "NORMAL", startingSun: 50, skipSeedChooser: false },
   ],
   10: [
-    null,
-    "Huge wave incoming! This is the final level of the Day. Good luck!",
-    7,
+    "puff-shroom",
+    "Conveyor-belt level! Plants arrive for free — no sun needed. Night awaits!",
+    10,
     {
       finalWaveNumber: 10,
       flagEvery: 5,
       waves: [
-        wave(1, ["NORMAL", "CONEHEAD"], 5, 4500, { startDelayMs: 8000 }),
-        wave(2, ["NORMAL", "CONEHEAD"], 5, 4200),
-        wave(3, ["NORMAL", "CONEHEAD", "BUCKETHEAD"], 6, 3800),
-        wave(4, ["NORMAL", "CONEHEAD", "BUCKETHEAD"], 6, 3500),
-        wave(5, ["NORMAL", "CONEHEAD", "BUCKETHEAD"], 8, 3000, { flag: true }),
-        wave(6, ["NORMAL", "CONEHEAD", "BUCKETHEAD"], 6, 3800),
-        wave(7, ["NORMAL", "CONEHEAD", "BUCKETHEAD"], 7, 3500),
-        wave(8, ["NORMAL", "CONEHEAD", "BUCKETHEAD"], 7, 3200),
-        wave(9, ["NORMAL", "CONEHEAD", "BUCKETHEAD"], 8, 3000),
-        wave(10, ["NORMAL", "CONEHEAD", "BUCKETHEAD"], 10, 2500, { flag: true, final: true }),
+        wave(1, ["NORMAL", "CONEHEAD"], 5, 4800, { startDelayMs: 8_000 }),
+        wave(2, ["NORMAL", "CONEHEAD", "POLE_VAULT"], 5, 4500),
+        wave(3, ["NORMAL", "CONEHEAD", "BUCKETHEAD"], 6, 4200),
+        wave(4, ["NORMAL", "CONEHEAD", "BUCKETHEAD", "POLE_VAULT"], 6, 4000),
+        wave(5, ["NORMAL", "CONEHEAD", "BUCKETHEAD", "POLE_VAULT"], 9, 3200, { flag: true }),
+        wave(6, ["NORMAL", "CONEHEAD", "BUCKETHEAD"], 6, 4200),
+        wave(7, ["NORMAL", "CONEHEAD", "BUCKETHEAD", "POLE_VAULT"], 7, 3800),
+        wave(8, ["NORMAL", "CONEHEAD", "BUCKETHEAD", "POLE_VAULT"], 8, 3500),
+        wave(9, ["NORMAL", "CONEHEAD", "BUCKETHEAD", "POLE_VAULT"], 8, 3200),
+        wave(10, ["NORMAL", "CONEHEAD", "BUCKETHEAD", "POLE_VAULT"], 12, 2800, {
+          flag: true,
+          final: true,
+        }),
       ],
+    },
+    {
+      playMode: "CONVEYOR",
+      startingSun: 0,
+      conveyorBelt: true,
+      skyDropSun: false,
+      skipSeedChooser: true,
+      freePlacement: true,
+      hideSunHud: true,
+      conveyorPlantPool: [...DAY_CONVEYOR_PLANT_POOL],
+      conveyorIntervalMs: 3_200,
+      conveyorSlotCap: 10,
     },
   ],
 };
@@ -1049,24 +1150,71 @@ const W5: Record<number, LC> = {
 // Merge all worlds into the export
 // ---------------------------------------------------------------------------
 
-type LevelConfigEntry = {
-  rewardPlantId: string | null;
-  briefingText: string | null;
-  seedSlots: number;
-  waveConfig: object;
-};
+function toLevelConfig(tuple: LC): LevelConfig {
+  const meta = tuple[4] ?? {};
+  const playMode = meta.playMode ?? DEFAULT_LEVEL_PLAY_RULES.playMode;
+  const isBowling = playMode === "BOWLING";
+  const isConveyor = playMode === "CONVEYOR";
 
-function toLevelConfig(tuple: LC): LevelConfigEntry {
   return {
     rewardPlantId: tuple[0],
     briefingText: tuple[1],
     seedSlots: tuple[2],
     waveConfig: tuple[3],
+    playMode,
+    startingSun: meta.startingSun ?? DEFAULT_LEVEL_PLAY_RULES.startingSun,
+    conveyorBelt: meta.conveyorBelt ?? isConveyor,
+    skyDropSun:
+      meta.skyDropSun !== undefined
+        ? meta.skyDropSun
+        : isBowling || isConveyor
+          ? false
+          : DEFAULT_LEVEL_PLAY_RULES.skyDropSun,
+    skipSeedChooser:
+      meta.skipSeedChooser ??
+      (isBowling || isConveyor || DEFAULT_LEVEL_PLAY_RULES.skipSeedChooser),
+    freePlacement:
+      meta.freePlacement ??
+      (isBowling || isConveyor || DEFAULT_LEVEL_PLAY_RULES.freePlacement),
+    hideSunHud:
+      meta.hideSunHud ?? (isBowling || isConveyor || DEFAULT_LEVEL_PLAY_RULES.hideSunHud),
+    conveyorPlantPool: meta.conveyorPlantPool ?? DEFAULT_LEVEL_PLAY_RULES.conveyorPlantPool,
+    conveyorIntervalMs: meta.conveyorIntervalMs ?? DEFAULT_LEVEL_PLAY_RULES.conveyorIntervalMs,
+    conveyorSlotCap: meta.conveyorSlotCap ?? DEFAULT_LEVEL_PLAY_RULES.conveyorSlotCap,
+    bowlingNutTypes: meta.bowlingNutTypes ?? DEFAULT_LEVEL_PLAY_RULES.bowlingNutTypes,
+  };
+}
+
+/** Build serializable ruleConfig for Prisma Level.ruleConfig JSON. */
+export function levelRuleConfig(cfg: LevelConfig): Record<string, unknown> {
+  return {
+    playMode: cfg.playMode,
+    startingSun: cfg.startingSun,
+    skipSeedChooser: cfg.skipSeedChooser,
+    freePlacement: cfg.freePlacement,
+    hideSunHud: cfg.hideSunHud,
+    conveyorPlantPool: cfg.conveyorPlantPool,
+    conveyorIntervalMs: cfg.conveyorIntervalMs,
+    conveyorSlotCap: cfg.conveyorSlotCap,
+    bowlingNutTypes: cfg.bowlingNutTypes,
   };
 }
 
 const allWorlds = { ...W1, ...W2, ...W3, ...W4, ...W5 };
 
-export const LEVEL_CONFIGS: Record<number, LevelConfigEntry> = Object.fromEntries(
+export const LEVEL_CONFIGS: Record<number, LevelConfig> = Object.fromEntries(
   Object.entries(allWorlds).map(([k, v]) => [Number(k), toLevelConfig(v as LC)])
 );
+
+export function getLevelPlayRules(levelNumber: number): LevelConfig {
+  return (
+    LEVEL_CONFIGS[levelNumber] ?? {
+      rewardPlantId: null,
+      briefingText: null,
+      seedSlots: 6,
+      waveConfig: { finalWaveNumber: 5, waves: [] },
+      ...DEFAULT_LEVEL_PLAY_RULES,
+      skyDropSun: DEFAULT_LEVEL_PLAY_RULES.skyDropSun,
+    }
+  );
+}

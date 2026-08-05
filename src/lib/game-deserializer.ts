@@ -298,6 +298,7 @@ export function deserializeGameState(
     projectiles,
     sunDrops,
     lawnMowers,
+    bowlingNuts: {},
     currentSun: session.currentSun,
     cumulativeSun: session.cumulativeSun,
     gameTimeMs: restoredGameTimeMs,
@@ -309,8 +310,22 @@ export function deserializeGameState(
     loadout,
     selectedSlot: null,
     nextSkyDropAtMs: restoredGameTimeMs + nextSkyDropTimerMs,
+    nextConveyorAtMs: restoredGameTimeMs + 1_500,
     waveConfig,
+    levelRules: {
+      playMode: env.conveyorBelt ? "CONVEYOR" : "NORMAL",
+      freePlacement: Boolean(env.conveyorBelt),
+      hideSunHud: Boolean(env.conveyorBelt),
+      conveyorBelt: Boolean(env.conveyorBelt),
+      conveyorPlantPool: [],
+      conveyorIntervalMs: 3_500,
+      conveyorSlotCap: 10,
+      bowlingNutTypes: ["WALL_NUT"],
+    },
     zombieSpawnQueue,
+    lastPlacementFailure: null,
+    waveAnnouncement: null,
+    waveAnnouncementUntilMs: 0,
   };
 }
 

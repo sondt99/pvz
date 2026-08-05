@@ -27,6 +27,8 @@ export const ZOMBIE_DEFINITIONS: Record<string, ZombieDefinition> = {
   ZOMBONI:         { zombieType: "ZOMBONI",         health: 1350, armorHealth: 0,    armorLayers: 0, speedColsPerSec: FAST_SPEED_COLS_PER_SEC, eatDamagePerSec: 9999, scoreValue: 500,  isAerial: false, isUnderground: false, isBoss: false },
   BOBSLED:         { zombieType: "BOBSLED",         health: 250,  armorHealth: 0,    armorLayers: 0, speedColsPerSec: VERY_FAST_SPEED_COLS_PER_SEC, eatDamagePerSec: 100,  scoreValue: 250,  isAerial: false, isUnderground: false, isBoss: false },
   DOLPHIN_RIDER:   { zombieType: "DOLPHIN_RIDER",   health: 200,  armorHealth: 0,    armorLayers: 0, speedColsPerSec: VERY_FAST_SPEED_COLS_PER_SEC, eatDamagePerSec: 100,  scoreValue: 200,  isAerial: false, isUnderground: false, isBoss: false },
+  // Pole Vault: runs with pole (very fast), vaults over first plant, then walks at basic speed.
+  POLE_VAULT:      { zombieType: "POLE_VAULT",      health: 200,  armorHealth: 0,    armorLayers: 0, speedColsPerSec: VERY_FAST_SPEED_COLS_PER_SEC, eatDamagePerSec: 100,  scoreValue: 150,  isAerial: false, isUnderground: false, isBoss: false },
   JACK_IN_THE_BOX: { zombieType: "JACK_IN_THE_BOX", health: 200,  armorHealth: 0,    armorLayers: 0, speedColsPerSec: BASIC_SPEED_COLS_PER_SEC, eatDamagePerSec: 100,  scoreValue: 200,  isAerial: false, isUnderground: false, isBoss: false },
   // Balloon pop is effectively the aerial HP; after pop becomes a ground zombie (handled as death of aerial form here).
   BALLOON:         { zombieType: "BALLOON",         health: 200,  armorHealth: 0,    armorLayers: 0, speedColsPerSec: FAST_SPEED_COLS_PER_SEC, eatDamagePerSec: 100,  scoreValue: 200,  isAerial: true,  isUnderground: false, isBoss: false },

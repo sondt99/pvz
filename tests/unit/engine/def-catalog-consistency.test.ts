@@ -7,9 +7,13 @@ import { describe, it, expect } from "vitest";
 import { PLANT_DEFINITIONS } from "@/engine/entities/plant-defs";
 import { SEED_PLANT_CATALOG, SEED_PLANT_BY_TYPE } from "@/data/seed-catalog";
 
+/** Engine-only plants (mini-games) not sold as adventure seed packets. */
+const ENGINE_ONLY_PLANTS = new Set(["EXPLODE_O_NUT"]);
+
 describe("plant-defs vs seed-catalog coverage", () => {
-  it("every plant in PLANT_DEFINITIONS has a matching seed entry", () => {
+  it("every plant in PLANT_DEFINITIONS has a matching seed entry (except mini-game only)", () => {
     for (const plantType of Object.keys(PLANT_DEFINITIONS)) {
+      if (ENGINE_ONLY_PLANTS.has(plantType)) continue;
       expect(
         SEED_PLANT_BY_TYPE.has(plantType),
         `plant-defs has ${plantType} but seed-catalog does not`
@@ -26,8 +30,8 @@ describe("plant-defs vs seed-catalog coverage", () => {
     }
   });
 
-  it("both catalogs have the same count (40 plants)", () => {
-    expect(Object.keys(PLANT_DEFINITIONS)).toHaveLength(40);
+  it("catalog has 40 seed packets; engine has 41 defs (bowling explode-o-nut)", () => {
+    expect(Object.keys(PLANT_DEFINITIONS)).toHaveLength(41);
     expect(SEED_PLANT_CATALOG).toHaveLength(40);
   });
 });

@@ -41,6 +41,15 @@ export const PLANT_DEFINITIONS: Record<string, PlantDefinition> = {
     isInstantUse: false, produceSun: false, sunProduceIntervalMs: null, sunProduceAmount: null,
     isNightOnly: false, isMushroomType: false, blocksAerial: false, revealsFog: false, divertsZombies: false,
   },
+  // Bowling-only explosive nut (not in adventure seed catalog).
+  EXPLODE_O_NUT: {
+    plantType: "EXPLODE_O_NUT", sunCost: 0, rechargeTime: 0, health: 300,
+    attackDamage: 1800, attackCooldownMs: null, attackRange: "aoe",
+    projectileType: null, trajectory: null,
+    isAquatic: false, requiresLilyPad: false, requiresFlowerPot: false,
+    isInstantUse: false, produceSun: false, sunProduceIntervalMs: null, sunProduceAmount: null,
+    isNightOnly: false, isMushroomType: false, blocksAerial: false, revealsFog: false, divertsZombies: false,
+  },
   POTATO_MINE: {
     plantType: "POTATO_MINE", sunCost: 25, rechargeTime: 30, health: 300,
     attackDamage: 1800, attackCooldownMs: null, attackRange: "none",

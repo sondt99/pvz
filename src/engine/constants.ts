@@ -50,6 +50,18 @@ export const KERNEL_PULT_BUTTER_CHANCE = 0.25;
 export const KERNEL_PULT_BUTTER_DAMAGE = 40;
 export const KERNEL_PULT_BUTTER_STUN_MS = 5_000;
 export const DOLPHIN_RIDER_POST_JUMP_SPEED_COLS_PER_SEC = 1 / 4.7;
+/** Pole Vaulting Zombie walks at basic speed after losing the pole. */
+export const POLE_VAULT_POST_JUMP_SPEED_COLS_PER_SEC = 1 / 4.7;
+/** Wall-nut Bowling roll speed (cols per second, toward the right). */
+export const BOWLING_NUT_SPEED_COLS_PER_SEC = 3.2;
+/** Wall-nut bowling hit damage (one-shots NORMAL). */
+export const BOWLING_NUT_DAMAGE = 200;
+/** Explode-o-nut bowling damage (instant kill most early zombies). */
+export const BOWLING_EXPLODE_DAMAGE = 1800;
+/** Conveyor default interval if level omits one. */
+export const CONVEYOR_DEFAULT_INTERVAL_MS = 3_500;
+/** Huge-wave banner display duration. */
+export const HUGE_WAVE_BANNER_MS = 3_500;
 export const DIGGER_EMERGE_X = 0.15;
 export const DIGGER_EMERGE_PAUSE_MS = 5_000;
 export const DIGGER_EMERGED_SPEED_COLS_PER_SEC = 1 / 6.2;

@@ -7,6 +7,11 @@ import type { WaveConfig } from "./wave-generator";
 
 export type GameStatus = "idle" | "playing" | "paused" | "victory" | "game-over";
 
+export const PLAY_MODES = ["NORMAL", "TUTORIAL_SCRIPT", "BOWLING", "CONVEYOR"] as const;
+export type PlayMode = (typeof PLAY_MODES)[number];
+
+export type WaveAnnouncementKind = "huge" | "final" | null;
+
 export const ENVIRONMENT_TYPES = ["DAY", "NIGHT", "POOL", "FOG", "ROOF"] as const;
 export type EnvironmentType = (typeof ENVIRONMENT_TYPES)[number];
 
@@ -212,6 +217,30 @@ export interface SeedPacketSlot {
   slotIndex: number;
 }
 
+/** Rolling nut for Wall-nut Bowling mini-game. */
+export interface RuntimeBowlingNut {
+  instanceId: string;
+  nutType: string;
+  lane: number;
+  x: number;
+  speedColsPerSec: number;
+  damage: number;
+  isExplosive: boolean;
+  /** Zombies already damaged by this nut (prevent multi-hit). */
+  hitZombieIds: string[];
+}
+
+export interface LevelRuntimeRules {
+  playMode: PlayMode;
+  freePlacement: boolean;
+  hideSunHud: boolean;
+  conveyorBelt: boolean;
+  conveyorPlantPool: string[];
+  conveyorIntervalMs: number;
+  conveyorSlotCap: number;
+  bowlingNutTypes: string[];
+}
+
 export interface GameEngineState {
   status: GameStatus;
   environment: EnvironmentConfig;
@@ -221,6 +250,7 @@ export interface GameEngineState {
   projectiles: Record<string, RuntimeProjectile>;
   sunDrops: Record<string, RuntimeSunDrop>;
   lawnMowers: Record<string, RuntimeLawnMower>;
+  bowlingNuts: Record<string, RuntimeBowlingNut>;
   currentSun: number;
   cumulativeSun: number;
   gameTimeMs: number;
@@ -232,7 +262,9 @@ export interface GameEngineState {
   loadout: SeedPacketSlot[];
   selectedSlot: number | null;
   nextSkyDropAtMs: number;
+  nextConveyorAtMs: number;
   waveConfig?: WaveConfig | null;
+  levelRules: LevelRuntimeRules;
   zombieSpawnQueue: Array<{
     zombieType: string;
     lane: number;
@@ -240,4 +272,7 @@ export interface GameEngineState {
     x?: number;
   }>;
   lastPlacementFailure: PlacementFailureReason | null;
+  /** Active huge/final wave banner kind. */
+  waveAnnouncement: WaveAnnouncementKind;
+  waveAnnouncementUntilMs: number;
 }
