@@ -95,6 +95,11 @@ const ENVIRONMENT_LABELS: Record<EnvironmentType, { icon: string; label: string 
   ROOF: { icon: "🏠", label: "Roof" },
 };
 
+/** Last adventure level number (1-1 … 5-10). */
+const MAX_ADVENTURE_LEVEL = 50;
+/** Auto-advance to next level after victory (ms). */
+const VICTORY_AUTO_NEXT_MS = 4_000;
+
 function toTitleCase(s: string): string {
   return s.replace(/_/g, " ").replace(/\w\S*/g, (w) => w[0].toUpperCase() + w.slice(1).toLowerCase());
 }
@@ -190,6 +195,8 @@ export default function GamePage() {
   const [shovelUnlocked, setShovelUnlocked] = useState(true);
   const [requireSeedChooser, setRequireSeedChooser] = useState(true);
   const [hideSunHud, setHideSunHud] = useState(false);
+  /** Countdown seconds until auto next-level (null = off). */
+  const [nextLevelCountdown, setNextLevelCountdown] = useState<number | null>(null);
   const pendingWaveConfig = useRef<unknown>(null);
   const pendingEnv = useRef<EnvironmentConfig | null>(null);
   const pendingStartingSun = useRef<number | undefined>(undefined);
@@ -204,6 +211,7 @@ export default function GamePage() {
     bowlingNutTypes?: string[];
   }>({});
   const victoryHandled = useRef(false);
+  const autoNextCancelled = useRef(false);
 
   const waveAnnouncement = useGameStore((s) => s.waveAnnouncement);
   const playMode = useGameStore((s) => s.levelRules.playMode);
@@ -504,7 +512,7 @@ export default function GamePage() {
     }
   }
 
-  // Victory complete
+  // Victory complete — save progress
   useEffect(() => {
     if (status !== "victory" || victoryHandled.current) return;
     victoryHandled.current = true;
@@ -520,6 +528,75 @@ export default function GamePage() {
       console.warn("[GamePage] Failed to record victory", err);
     });
   }, [status, currentSessionId]);
+
+  const nextLevelNumber =
+    activeLevelNumber !== null && activeLevelNumber < MAX_ADVENTURE_LEVEL
+      ? activeLevelNumber + 1
+      : null;
+
+  function goToLevel(levelNumber: number) {
+    autoNextCancelled.current = true;
+    setNextLevelCountdown(null);
+    setCurrentSessionId(null);
+    setShovelSelected(false);
+    victoryHandled.current = false;
+    // Clear sessionId from URL so prepareLevel does not resume the finished session.
+    updateGameUrl(activeEnvironment, null, levelNumber);
+    setActiveLevelNumber(levelNumber);
+  }
+
+  function handleReplayLevel() {
+    autoNextCancelled.current = true;
+    setNextLevelCountdown(null);
+    setCurrentSessionId(null);
+    victoryHandled.current = false;
+    updateGameUrl(activeEnvironment, null, activeLevelNumber);
+    void prepareLevel({
+      levelNumber: activeLevelNumber,
+      envType: activeEnvironment,
+      forceNew: true,
+    });
+  }
+
+  function handleNextLevel() {
+    if (nextLevelNumber === null) return;
+    goToLevel(nextLevelNumber);
+  }
+
+  // Victory auto-advance to next adventure level
+  useEffect(() => {
+    if (status !== "victory" || nextLevelNumber === null) {
+      setNextLevelCountdown(null);
+      return;
+    }
+
+    autoNextCancelled.current = false;
+    const totalSec = Math.ceil(VICTORY_AUTO_NEXT_MS / 1000);
+    setNextLevelCountdown(totalSec);
+
+    const startedAt = Date.now();
+    const tick = window.setInterval(() => {
+      if (autoNextCancelled.current) {
+        window.clearInterval(tick);
+        return;
+      }
+      const elapsed = Date.now() - startedAt;
+      const left = Math.max(0, Math.ceil((VICTORY_AUTO_NEXT_MS - elapsed) / 1000));
+      setNextLevelCountdown(left);
+      if (elapsed >= VICTORY_AUTO_NEXT_MS) {
+        window.clearInterval(tick);
+        if (!autoNextCancelled.current) {
+          goToLevel(nextLevelNumber);
+        }
+      }
+    }, 200);
+
+    return () => {
+      window.clearInterval(tick);
+    };
+    // Only re-run when we enter victory for a given level / next target
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, nextLevelNumber, activeLevelNumber]);
 
   useGameLoop();
 
@@ -762,22 +839,65 @@ export default function GamePage() {
                   </p>
                 )}
 
-                <div style={{ display: "flex", gap: 14, flexWrap: "wrap", justifyContent: "center" }}>
+                {isVictory && nextLevelNumber !== null && nextLevelCountdown !== null && (
+                  <p
+                    className="pvz-muted"
+                    style={{ fontSize: "0.9rem", fontWeight: 700, margin: 0 }}
+                  >
+                    Next level in {nextLevelCountdown}s…
+                  </p>
+                )}
+
+                {isVictory &&
+                  nextLevelNumber === null &&
+                  activeLevelNumber === MAX_ADVENTURE_LEVEL && (
+                    <p className="pvz-badge pvz-badge--gold" style={{ fontSize: "0.95rem" }}>
+                      ★ Adventure complete!
+                    </p>
+                  )}
+
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 12,
+                    flexWrap: "wrap",
+                    justifyContent: "center",
+                    maxWidth: 420,
+                  }}
+                >
+                  {isVictory && nextLevelNumber !== null && (
+                    <button
+                      type="button"
+                      className="pvz-btn pvz-btn--gold pvz-btn--lg"
+                      onClick={handleNextLevel}
+                    >
+                      Next Level ▶
+                      {activeLevelNumber !== null
+                        ? ` ${Math.ceil(nextLevelNumber / 10)}-${((nextLevelNumber - 1) % 10) + 1}`
+                        : ""}
+                    </button>
+                  )}
+
                   <button
                     type="button"
-                    className="pvz-btn pvz-btn--primary pvz-btn--lg"
+                    className={
+                      isVictory && nextLevelNumber !== null
+                        ? "pvz-btn pvz-btn--secondary pvz-btn--lg"
+                        : "pvz-btn pvz-btn--primary pvz-btn--lg"
+                    }
+                    onClick={handleReplayLevel}
+                  >
+                    {isVictory ? "Play Again" : "Try Again"}
+                  </button>
+
+                  <Link
+                    href="/"
+                    className="pvz-btn pvz-btn--secondary pvz-btn--lg"
                     onClick={() => {
-                      setCurrentSessionId(null);
-                      void prepareLevel({
-                        levelNumber: activeLevelNumber,
-                        envType: activeEnvironment,
-                        forceNew: true,
-                      });
+                      autoNextCancelled.current = true;
+                      setNextLevelCountdown(null);
                     }}
                   >
-                    Play Again
-                  </button>
-                  <Link href="/" className="pvz-btn pvz-btn--secondary pvz-btn--lg">
                     Main Menu
                   </Link>
                 </div>
