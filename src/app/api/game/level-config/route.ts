@@ -11,7 +11,7 @@ import { authenticateRequest } from "@/lib/auth";
 import { PLANT_DEFINITIONS } from "@/engine/entities/plant-defs";
 import { plantIdsFromCompletedLevels, plantIdToType } from "@/data/plant-progression";
 import { SEED_PLANT_CATALOG } from "@/data/seed-catalog";
-import { LEVEL_CONFIGS } from "@/data/level-configs";
+import { LEVEL_CONFIGS, resolveLevelGridRows } from "@/data/level-configs";
 import {
   parseLevelRulesFromUnknown,
   shouldRequireSeedChooser,
@@ -169,12 +169,15 @@ export async function GET(request: Request): Promise<NextResponse> {
         ? availablePlants.slice(0, seedSlots).map((slot, index) => ({ ...slot, slotIndex: index }))
         : [];
 
+    // Prefer code-level lawn unlock (1/3/5) over stale DB defaults of always 5.
+    const gridRows = resolveLevelGridRows(levelNumber, level.gridRows);
+
     return NextResponse.json({
       level: {
         levelNumber: level.levelNumber,
         name: level.name,
         environmentType: level.environmentType,
-        gridRows: level.gridRows,
+        gridRows,
         gridCols: level.gridCols,
         waterLaneIndices: level.waterLaneIndices,
         gravesEnabled: level.gravesEnabled,

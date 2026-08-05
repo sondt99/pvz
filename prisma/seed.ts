@@ -212,11 +212,17 @@ async function main() {
       cfg?.skyDropSun === null || cfg?.skyDropSun === undefined
         ? defaults.skyDropSun
         : cfg.skyDropSun;
+    // PvZ1 Day lawn unlock: 1-1 = 1 row, 1-2/1-3 = 3 rows, else environment default.
+    const gridRows =
+      typeof cfg?.gridRows === "number" && cfg.gridRows > 0
+        ? cfg.gridRows
+        : defaults.gridRows;
     const ruleConfig = cfg
       ? (levelRuleConfig(cfg) as Prisma.InputJsonObject)
       : ({} as Prisma.InputJsonObject);
     const envFields = {
       ...defaults,
+      gridRows,
       startingSun,
       conveyorBelt,
       skyDropSun,

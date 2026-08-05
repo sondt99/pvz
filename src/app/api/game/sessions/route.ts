@@ -7,6 +7,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { ENVIRONMENT_TYPES, type EnvironmentType } from "@/engine/types";
 import { authenticateRequest } from "@/lib/auth";
+import { resolveLevelGridRows } from "@/data/level-configs";
 
 // ---------------------------------------------------------------------------
 // POST — create session
@@ -78,7 +79,12 @@ export async function POST(request: Request): Promise<NextResponse> {
     const fogEnabled = level?.fogEnabled ?? (envType === "FOG");
     const slopeEnabled = level?.slopeEnabled ?? (envType === "ROOF");
     const gravesEnabled = level?.gravesEnabled ?? (envType === "NIGHT");
-    const gridRows = level?.gridRows ?? (isWaterEnvironment ? 6 : 5);
+    // Prefer seeded level.gridRows; fall back to PvZ1 lawn-unlock curve for Day.
+    const defaultRows = isWaterEnvironment ? 6 : 5;
+    const gridRows =
+      levelNumber !== undefined
+        ? resolveLevelGridRows(levelNumber, level?.gridRows ?? defaultRows)
+        : (level?.gridRows ?? defaultRows);
     const gridCols = level?.gridCols ?? 9;
     const skyDropSun = level?.skyDropSun ?? !isNightLike;
     const startingSun = level?.startingSun ?? 50;

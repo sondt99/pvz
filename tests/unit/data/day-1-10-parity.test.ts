@@ -31,6 +31,31 @@ describe("Day 1–10 PvZ1 reward chain", () => {
   });
 });
 
+describe("Day 1–10 lawn row unlock (PvZ1)", () => {
+  it("starts with 1 row, then 3, then full 5", () => {
+    expect(LEVEL_CONFIGS[1].gridRows).toBe(1);
+    expect(LEVEL_CONFIGS[2].gridRows).toBe(3);
+    expect(LEVEL_CONFIGS[3].gridRows).toBe(3);
+    // Full lawn from 1-4 onward (null = environment default of 5)
+    expect(LEVEL_CONFIGS[4].gridRows).toBeNull();
+    expect(LEVEL_CONFIGS[5].gridRows).toBeNull();
+    expect(LEVEL_CONFIGS[10].gridRows).toBeNull();
+  });
+
+  it("scripts 1-1 zombies only on the single lane", () => {
+    const waves = (
+      LEVEL_CONFIGS[1].waveConfig as {
+        waves: Array<{ entries?: Array<{ lane: number | string }> }>;
+      }
+    ).waves;
+    for (const w of waves) {
+      for (const e of w.entries ?? []) {
+        expect(e.lane).toBe(0);
+      }
+    }
+  });
+});
+
 describe("Day 1–10 play modes", () => {
   it("assigns tutorial / bowling / conveyor correctly", () => {
     expect(LEVEL_CONFIGS[1].playMode).toBe("TUTORIAL_SCRIPT");

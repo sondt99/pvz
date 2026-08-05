@@ -28,6 +28,11 @@ import {
 export interface LevelConfigMeta {
   playMode?: PlayMode;
   startingSun?: number;
+  /**
+   * Playable lawn rows (PvZ1 Day unlock):
+   * 1-1 → 1, 1-2/1-3 → 3, otherwise full day lawn (5) / pool (6).
+   */
+  gridRows?: number;
   conveyorBelt?: boolean;
   skyDropSun?: boolean;
   skipSeedChooser?: boolean;
@@ -46,6 +51,8 @@ export interface LevelConfig {
   waveConfig: object;
   playMode: PlayMode;
   startingSun: number;
+  /** null = use environment default (5 day / 6 pool). */
+  gridRows: number | null;
   conveyorBelt: boolean;
   skyDropSun: boolean | null;
   skipSeedChooser: boolean;
@@ -97,13 +104,14 @@ const W1: Record<number, LC> = {
     {
       finalWaveNumber: 2,
       waves: [
+        // Single-lane tutorial lawn (PvZ1 1-1): only row 0 exists.
         {
           waveNumber: 1,
           startDelayMs: 0,
           entries: [
-            entry("NORMAL", 2, 0),
-            entry("NORMAL", 1, 12_000),
-            entry("NORMAL", 3, 22_000),
+            entry("NORMAL", 0, 0),
+            entry("NORMAL", 0, 12_000),
+            entry("NORMAL", 0, 22_000),
           ],
         },
         {
@@ -111,9 +119,9 @@ const W1: Record<number, LC> = {
           final: true,
           entries: [
             entry("NORMAL", 0, 0),
-            entry("NORMAL", 4, 4_000),
-            entry("NORMAL", 2, 8_000),
-            entry("NORMAL", 1, 14_000),
+            entry("NORMAL", 0, 5_000),
+            entry("NORMAL", 0, 10_000),
+            entry("NORMAL", 0, 16_000),
           ],
         },
       ],
@@ -122,6 +130,7 @@ const W1: Record<number, LC> = {
       playMode: "TUTORIAL_SCRIPT",
       startingSun: 150,
       skipSeedChooser: true,
+      gridRows: 1,
     },
   ],
   2: [
@@ -136,7 +145,7 @@ const W1: Record<number, LC> = {
         wave(3, ["NORMAL"], 5, 6000, { final: true }),
       ],
     },
-    { playMode: "NORMAL", startingSun: 50, skipSeedChooser: true },
+    { playMode: "NORMAL", startingSun: 50, skipSeedChooser: true, gridRows: 3 },
   ],
   3: [
     "wall-nut",
@@ -151,7 +160,7 @@ const W1: Record<number, LC> = {
         wave(4, ["NORMAL", "CONEHEAD"], 6, 5000, { final: true }),
       ],
     },
-    { playMode: "NORMAL", startingSun: 50, skipSeedChooser: true },
+    { playMode: "NORMAL", startingSun: 50, skipSeedChooser: true, gridRows: 3 },
   ],
   4: [
     "potato-mine",
@@ -1163,6 +1172,7 @@ function toLevelConfig(tuple: LC): LevelConfig {
     waveConfig: tuple[3],
     playMode,
     startingSun: meta.startingSun ?? DEFAULT_LEVEL_PLAY_RULES.startingSun,
+    gridRows: meta.gridRows ?? null,
     conveyorBelt: meta.conveyorBelt ?? isConveyor,
     skyDropSun:
       meta.skyDropSun !== undefined
@@ -1190,6 +1200,7 @@ export function levelRuleConfig(cfg: LevelConfig): Record<string, unknown> {
   return {
     playMode: cfg.playMode,
     startingSun: cfg.startingSun,
+    gridRows: cfg.gridRows,
     skipSeedChooser: cfg.skipSeedChooser,
     freePlacement: cfg.freePlacement,
     hideSunHud: cfg.hideSunHud,
@@ -1198,6 +1209,16 @@ export function levelRuleConfig(cfg: LevelConfig): Record<string, unknown> {
     conveyorSlotCap: cfg.conveyorSlotCap,
     bowlingNutTypes: cfg.bowlingNutTypes,
   };
+}
+
+/** Resolve playable lawn rows for a level (PvZ1 Day unlock curve). */
+export function resolveLevelGridRows(
+  levelNumber: number,
+  environmentDefaultRows: number
+): number {
+  const configured = LEVEL_CONFIGS[levelNumber]?.gridRows;
+  if (typeof configured === "number" && configured > 0) return configured;
+  return environmentDefaultRows;
 }
 
 const allWorlds = { ...W1, ...W2, ...W3, ...W4, ...W5 };
@@ -1213,6 +1234,7 @@ export function getLevelPlayRules(levelNumber: number): LevelConfig {
       briefingText: null,
       seedSlots: 6,
       waveConfig: { finalWaveNumber: 5, waves: [] },
+      gridRows: null,
       ...DEFAULT_LEVEL_PLAY_RULES,
       skyDropSun: DEFAULT_LEVEL_PLAY_RULES.skyDropSun,
     }
