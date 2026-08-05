@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Plants vs. Zombies Wiki (reference)
+    url: https://plantsvszombies.fandom.com/wiki/Adventure_Mode
+    about: Use when verifying original PvZ1 Adventure Mode behavior before filing a parity issue.

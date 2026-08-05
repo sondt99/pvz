@@ -1,0 +1,86 @@
+name: Bug report
+description: Something is broken or behaves incorrectly vs expected rules.
+title: "[bug] "
+labels: ["type: bug", "priority: p2"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe a **confirmed defect**. Prefer `level-parity` if the gap is intentional missing PvZ1 content rather than a regression.
+  - type: input
+    id: summary
+    attributes:
+      label: Summary
+      description: One-line description of the bug.
+      placeholder: e.g. Pea projectiles ignore Wall-nut collision on row 3
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What is wrong today? Include repro steps if possible.
+      placeholder: |
+        ## Repro
+        1. Start level …
+        2. …
+        ## Actual
+        …
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected
+      description: Correct behavior (cite original PvZ1 when relevant).
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Checklist for when this can be closed.
+      value: |
+        - [ ] Bug no longer reproduces
+        - [ ] Unit/integration tests cover the regression
+        - [ ] No new TypeScript / test failures
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Primary area
+      options:
+        - area: gameplay
+        - area: rendering
+        - area: save-load
+        - area: api
+        - area: security
+        - area: data
+        - area: db
+        - area: tests
+    validations:
+      required: true
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options:
+        - priority: p0
+        - priority: p1
+        - priority: p2
+        - priority: p3
+      default: 2
+    validations:
+      required: true
+  - type: input
+    id: level
+    attributes:
+      label: Level / environment (optional)
+      description: e.g. 1-5, Day, Night, Pool
+      placeholder: 1-6 / env: day
+  - type: textarea
+    id: notes
+    attributes:
+      label: Additional notes
+      description: Logs, screenshots, related commits/PRs.

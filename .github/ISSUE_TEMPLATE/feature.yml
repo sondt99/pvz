@@ -1,0 +1,72 @@
+name: Feature request
+description: New gameplay, UI, or product capability that is not a pure bugfix.
+title: "[feature] "
+labels: ["type: feature", "priority: p2"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this for **new capabilities**. For Adventure Mode fidelity to original PvZ1, prefer **Level / PvZ1 parity**.
+  - type: input
+    id: summary
+    attributes:
+      label: Summary
+      description: One-line feature title.
+      placeholder: e.g. Add in-game pause menu with restart level
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / motivation
+      description: Why do we need this?
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Proposed behavior
+      description: What should the player or system experience?
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      value: |
+        - [ ] Feature works in the main play path
+        - [ ] Tests cover the new behavior where practical
+        - [ ] Docs / briefings updated if player-facing
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Primary area
+      options:
+        - area: gameplay
+        - area: rendering
+        - area: save-load
+        - area: api
+        - area: data
+        - area: db
+        - area: tests
+    validations:
+      required: true
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options:
+        - priority: p0
+        - priority: p1
+        - priority: p2
+        - priority: p3
+      default: 2
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Design notes / references
+      description: Wireframes, wiki links, related issues.

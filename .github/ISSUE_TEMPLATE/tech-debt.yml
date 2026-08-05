@@ -1,0 +1,59 @@
+name: Tech debt
+description: Architecture, maintainability, cleanup, or test-infra work.
+title: "[tech-debt] "
+labels: ["type: tech-debt", "priority: p2"]
+body:
+  - type: input
+    id: summary
+    attributes:
+      label: Summary
+      placeholder: e.g. Extract level mode config from ad-hoc flags
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Current state
+      description: What is painful or risky today?
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Desired end state
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      value: |
+        - [ ] Debt item resolved without changing intended gameplay
+        - [ ] Tests still pass
+        - [ ] Follow-up issues filed if scope was reduced
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Primary area
+      options:
+        - area: data
+        - area: gameplay
+        - area: tests
+        - area: db
+        - area: api
+        - area: save-load
+    validations:
+      required: true
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options:
+        - priority: p1
+        - priority: p2
+        - priority: p3
+      default: 1
+    validations:
+      required: true

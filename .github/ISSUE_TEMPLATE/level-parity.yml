@@ -1,0 +1,95 @@
+name: Level / PvZ1 parity
+description: Align a level, reward, mode, or mechanic with original Plants vs. Zombies 1 Adventure Mode.
+title: "[parity] "
+labels: ["type: feature", "priority: p1", "area: gameplay", "mechanic: progression"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        File when the clone **diverges from original PvZ1** for Adventure Mode (levels, waves, rewards, mini-modes, unlocks).
+  - type: input
+    id: level_id
+    attributes:
+      label: Level ID
+      description: Adventure stage id (e.g. 1-1, 1-5, 1-10). Use `Day 1–10` for cross-level work.
+      placeholder: 1-5
+    validations:
+      required: true
+  - type: dropdown
+    id: parity_kind
+    attributes:
+      label: Parity category
+      options:
+        - Wave / spawn script
+        - Plant reward / unlock
+        - Level mode (tutorial / bowling / conveyor)
+        - Zombie intro / ability
+        - Tool unlock (shovel, etc.)
+        - Seed chooser / loadout rules
+        - Starting sun / economy
+        - UI / briefing / huge-wave presentation
+        - Other mechanic
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Current clone behavior
+      description: What the web clone does today (cite files if known).
+      placeholder: |
+        `src/data/level-configs.ts` level N uses normal DAY waves; no special mode flag…
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Original PvZ1 behavior
+      description: Expected Adventure Mode behavior (wiki / original game).
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      value: |
+        - [ ] Level config / mode matches original intent
+        - [ ] Playable end-to-end on that level
+        - [ ] Progression / rewards updated if needed
+        - [ ] Engine/store tests for new rules
+        - [ ] No regressions on neighboring Day levels
+    validations:
+      required: true
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Environment
+      options:
+        - env: day
+        - env: night
+        - env: pool
+        - env: fog
+        - env: roof
+        - multi / n/a
+      default: 0
+    validations:
+      required: true
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options:
+        - priority: p0
+        - priority: p1
+        - priority: p2
+        - priority: p3
+      default: 1
+    validations:
+      required: true
+  - type: textarea
+    id: references
+    attributes:
+      label: References
+      description: Wiki pages, prior research notes, related issues.
+      placeholder: |
+        - https://plantsvszombies.wiki.gg/wiki/…
+        - Related: #…
