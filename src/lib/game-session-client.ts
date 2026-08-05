@@ -173,8 +173,13 @@ export interface LevelConfigResult {
     startingSun: number;
     seedSlots: number;
     rewardPlantId: string | null;
+    briefingText?: string | null;
     waveConfig: unknown;
   };
+  /** All plants the player may pick for this level (adventure progression). */
+  availablePlants: Array<SeedPacketSlot & { displayName?: string }>;
+  seedSlots: number;
+  /** Pre-filled when available plants ≤ seed slots; otherwise ignore for chooser. */
   loadout: SeedPacketSlot[];
 }
 

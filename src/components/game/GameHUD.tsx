@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useGameStore } from "@/store/game-store";
+import { WaveProgressBar } from "./WaveProgressBar";
 
 function persistenceIcon(label: string): string {
   if (label === "Cloud" || label === "Loaded") return "☁️ ";
@@ -17,15 +18,17 @@ interface GameHUDProps {
   onPauseRequest?: () => Promise<void> | void;
   onResumeRequest?: () => Promise<void> | void;
   persistenceLabel?: string;
+  /** Hide wave bar during seed chooser / pre-start */
+  showWaveBar?: boolean;
 }
 
 export function GameHUD({
   onPauseRequest,
   onResumeRequest,
   persistenceLabel,
+  showWaveBar = true,
 }: GameHUDProps = {}) {
   const currentSun = useGameStore((s) => s.currentSun);
-  const waveNumber = useGameStore((s) => s.waveNumber);
   const score = useGameStore((s) => s.score);
   const status = useGameStore((s) => s.status);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -60,7 +63,7 @@ export function GameHUD({
         display: "flex",
         flexDirection: "row",
         alignItems: "center",
-        gap: 24,
+        gap: 16,
         padding: "8px 16px",
         background: "linear-gradient(to bottom, #0d2205, #1a3a0a)",
         borderBottom: "3px solid #2a5a0a",
@@ -79,6 +82,7 @@ export function GameHUD({
           padding: "4px 12px",
           border: "2px solid #ffd700",
           minWidth: 80,
+          flexShrink: 0,
         }}
       >
         <span style={{ fontSize: 20 }}>☀️</span>
@@ -95,30 +99,22 @@ export function GameHUD({
         </span>
       </div>
 
-      {/* Wave number */}
-      <div style={{ color: "#c0e8a0", fontSize: 14 }}>
-        {waveNumber === 0 ? (
-          <span style={{ opacity: 0.6 }}>Ready</span>
-        ) : (
-          <>
-            <span style={{ opacity: 0.7 }}>Wave </span>
-            <span style={{ fontWeight: "bold", fontSize: 16, color: "#e0ffe0" }}>
-              {waveNumber}
-            </span>
-          </>
-        )}
-      </div>
+      {/* Wave progress bar (PvZ-style flag strip) */}
+      {showWaveBar && (isPlaying || isPaused || status === "victory" || status === "game-over") ? (
+        <WaveProgressBar />
+      ) : (
+        <div style={{ color: "#c0e8a0", fontSize: 13, opacity: 0.7, flex: 1 }}>
+          {status === "idle" ? "Choose your seeds" : "Ready"}
+        </div>
+      )}
 
       {/* Score */}
-      <div style={{ color: "#c0e8a0", fontSize: 14 }}>
+      <div style={{ color: "#c0e8a0", fontSize: 14, flexShrink: 0 }}>
         <span style={{ opacity: 0.7 }}>Score </span>
         <span style={{ fontWeight: "bold", fontSize: 16, color: "#e0ffe0" }}>
           {score.toLocaleString()}
         </span>
       </div>
-
-      {/* Spacer */}
-      <div style={{ flex: 1 }} />
 
       {/* Status badge */}
       {persistenceLabel && (
@@ -128,6 +124,7 @@ export function GameHUD({
             fontSize: 12,
             fontWeight: 700,
             opacity: 0.86,
+            flexShrink: 0,
           }}
         >
           {persistenceIcon(persistenceLabel)}{persistenceLabel}
@@ -144,6 +141,7 @@ export function GameHUD({
             fontWeight: "bold",
             fontSize: 13,
             letterSpacing: 1,
+            flexShrink: 0,
           }}
         >
           PAUSED
@@ -166,6 +164,7 @@ export function GameHUD({
             cursor: isSyncing ? "wait" : "pointer",
             letterSpacing: 0.5,
             opacity: isSyncing ? 0.72 : 1,
+            flexShrink: 0,
           }}
         >
           {isSyncing ? "Syncing..." : isPaused ? "▶ Resume" : "⏸ Pause"}
