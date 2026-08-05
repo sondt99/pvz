@@ -149,7 +149,7 @@ const W1: Record<number, LC> = {
     },
   ],
   8: [
-    "puff-shroom",
+    null,
     "Buckethead Zombies have a lot more health. Use Wall-nuts to buy time!",
     6,
     {
@@ -166,8 +166,8 @@ const W1: Record<number, LC> = {
     },
   ],
   9: [
-    "sun-shroom",
-    "Puff-shroom is free but disappears after a while. Use it as a distraction!",
+    null,
+    "Survive the day assault! Night levels are coming — free mushrooms await.",
     6,
     {
       finalWaveNumber: 7,
@@ -184,7 +184,7 @@ const W1: Record<number, LC> = {
     },
   ],
   10: [
-    "fume-shroom",
+    null,
     "Huge wave incoming! This is the final level of the Day. Good luck!",
     7,
     {
@@ -213,8 +213,8 @@ const W1: Record<number, LC> = {
 
 const W2: Record<number, LC> = {
   11: [
-    "scaredy-shroom",
-    "It's night! Mushrooms grow stronger here. Sun falls from the sky less often.",
+    "puff-shroom",
+    "It's night! Free Puff-shrooms are awake here. No sun falls from the sky — plant Sun-shrooms!",
     5,
     {
       finalWaveNumber: 4,
@@ -227,7 +227,7 @@ const W2: Record<number, LC> = {
     },
   ],
   12: [
-    "ice-shroom",
+    "sun-shroom",
     "Newspaper Zombies move faster when their newspaper is destroyed!",
     5,
     {
@@ -243,8 +243,8 @@ const W2: Record<number, LC> = {
     },
   ],
   13: [
-    "doom-shroom",
-    "Ice-shroom freezes all zombies! Use it when overwhelmed to buy time!",
+    "fume-shroom",
+    "Fume-shroom's fumes pierce Screen Door shields and hit every zombie in range!",
     6,
     {
       finalWaveNumber: 5,
@@ -259,8 +259,8 @@ const W2: Record<number, LC> = {
     },
   ],
   14: [
-    "lily-pad",
-    "Doom-shroom destroys everything nearby! It leaves a crater that blocks planting.",
+    "grave-buster",
+    "Graves block planting and spawn ambushes. Grave Buster eats a grave in a few seconds!",
     6,
     {
       finalWaveNumber: 5,
@@ -275,8 +275,8 @@ const W2: Record<number, LC> = {
     },
   ],
   15: [
-    "squash",
-    "Screen Door Zombies have strong shields — use Magnet-shroom to strip their armor!",
+    "hypno-shroom",
+    "Hypno-shroom turns a zombie into your ally when eaten. Great on Football Zombies!",
     6,
     {
       finalWaveNumber: 6,
@@ -292,8 +292,8 @@ const W2: Record<number, LC> = {
     },
   ],
   16: [
-    "threepeater",
-    "Squash squashes the nearest zombie. Perfect for emergencies!",
+    "scaredy-shroom",
+    "Scaredy-shroom shoots far but hides when zombies get too close!",
     6,
     {
       finalWaveNumber: 6,
@@ -309,8 +309,8 @@ const W2: Record<number, LC> = {
     },
   ],
   17: [
-    "tangle-kelp",
-    "Football Zombie is fast and armored. Use a Chomper or Cherry Bomb to stop it!",
+    "ice-shroom",
+    "Ice-shroom freezes every zombie on the lawn, then leaves them chilled!",
     7,
     {
       finalWaveNumber: 7,
@@ -327,8 +327,8 @@ const W2: Record<number, LC> = {
     },
   ],
   18: [
-    "jalapeno",
-    "Dancing Zombie calls backup dancers when he moonwalks onto the lawn!",
+    "doom-shroom",
+    "Doom-shroom destroys everything nearby! It leaves a crater that blocks planting.",
     7,
     {
       finalWaveNumber: 7,
@@ -345,8 +345,8 @@ const W2: Record<number, LC> = {
     },
   ],
   19: [
-    "spikeweed",
-    "Jalapeno burns an entire lane! Great for clearing out groups of zombies!",
+    null,
+    "Dancing Zombie calls backup dancers when he moonwalks onto the lawn!",
     7,
     {
       finalWaveNumber: 8,
@@ -364,7 +364,7 @@ const W2: Record<number, LC> = {
     },
   ],
   20: [
-    "torchwood",
+    null,
     "Final night level! The zombies will give everything they've got!",
     8,
     {
@@ -398,7 +398,7 @@ const POOL_MIX = [...POOL_LAND, ...POOL_WATER];
 
 const W3: Record<number, LC> = {
   21: [
-    "tall-nut",
+    "lily-pad",
     "Welcome to the Pool! Zombies can swim now. Use Lily Pad to plant on water.",
     6,
     {
@@ -414,8 +414,8 @@ const W3: Record<number, LC> = {
     },
   ],
   22: [
-    "sea-shroom",
-    "Snorkel Zombie submerges in water to dodge your plants. Sea-shroom can hit them!",
+    "squash",
+    "Squash squashes the nearest zombie. Perfect for emergencies!",
     6,
     {
       finalWaveNumber: 6,
@@ -431,8 +431,8 @@ const W3: Record<number, LC> = {
     },
   ],
   23: [
-    "plantern",
-    "Dolphin Rider jumps over one plant! Place Wall-nuts behind your front row!",
+    "threepeater",
+    "Threepeater shoots peas in three lanes at once!",
     7,
     {
       finalWaveNumber: 6,
@@ -448,8 +448,8 @@ const W3: Record<number, LC> = {
     },
   ],
   24: [
-    "cactus",
-    "Cactus can shoot down Balloon Zombies — watch the skies in later levels!",
+    "tangle-kelp",
+    "Tangle Kelp pulls one swimming zombie underwater. Water-only plant!",
     7,
     {
       finalWaveNumber: 7,
@@ -466,8 +466,8 @@ const W3: Record<number, LC> = {
     },
   ],
   25: [
-    "blover",
-    "Blover blows away all aerial zombies — and clears the fog too!",
+    "jalapeno",
+    "Jalapeno burns an entire lane! Great for clearing out groups of zombies!",
     7,
     {
       finalWaveNumber: 7,
@@ -484,8 +484,8 @@ const W3: Record<number, LC> = {
     },
   ],
   26: [
-    "split-pea",
-    "Split Pea shoots forward AND backward — great for dealing with diggers!",
+    "spikeweed",
+    "Spikeweed damages zombies walking over it and pops Zomboni tires instantly!",
     7,
     {
       finalWaveNumber: 8,
@@ -503,8 +503,8 @@ const W3: Record<number, LC> = {
     },
   ],
   27: [
-    "starfruit",
-    "Zomboni drives over your plants! Use Spikeweed to stop it!",
+    "torchwood",
+    "Torchwood turns peas into fire peas that deal double damage!",
     7,
     {
       finalWaveNumber: 8,
@@ -522,8 +522,8 @@ const W3: Record<number, LC> = {
     },
   ],
   28: [
-    "pumpkin",
-    "Bobsled teams slide in on Zomboni ice! Melt the ice with Jalapeno!",
+    "tall-nut",
+    "Tall-nut is tougher than Wall-nut and blocks jumping/pogo zombies!",
     7,
     {
       finalWaveNumber: 9,
@@ -542,8 +542,8 @@ const W3: Record<number, LC> = {
     },
   ],
   29: [
-    "magnet-shroom",
-    "Catapult Zombie launches basketballs at your plants! Umbrella Leaf protects them!",
+    "sea-shroom",
+    "Sea-shroom is a free aquatic short-range shooter — perfect in the pool!",
     7,
     {
       finalWaveNumber: 9,
@@ -562,8 +562,8 @@ const W3: Record<number, LC> = {
     },
   ],
   30: [
-    "cabbage-pult",
-    "Final pool level! Catapults, Zomboni, and every pool zombie will attack!",
+    "plantern",
+    "Plantern lights up the fog! Final pool level — prepare for fog next!",
     8,
     {
       finalWaveNumber: 10,
@@ -594,8 +594,8 @@ const FOG_WATER = ["DUCKY_TUBE", "SNORKEL", "DOLPHIN_RIDER"];
 
 const W4: Record<number, LC> = {
   31: [
-    "flower-pot",
-    "Fog hides most of the lawn! Plantern clears fog around it. Keep your eyes open!",
+    "cactus",
+    "Fog hides most of the lawn! Cactus pops Balloon Zombies floating overhead!",
     7,
     {
       finalWaveNumber: 7,
@@ -612,8 +612,8 @@ const W4: Record<number, LC> = {
     },
   ],
   32: [
-    "kernel-pult",
-    "Kernel-pult launches corn! Butter slows zombies and turns them golden!",
+    "blover",
+    "Blover blows away all Balloon Zombies and clears the fog!",
     7,
     {
       finalWaveNumber: 8,
@@ -631,8 +631,8 @@ const W4: Record<number, LC> = {
     },
   ],
   33: [
-    "coffee-bean",
-    "Jack-in-the-Box Zombie can explode! It's unpredictable — take it out fast!",
+    "split-pea",
+    "Split Pea shoots forward AND backward — great for dealing with diggers!",
     7,
     {
       finalWaveNumber: 8,
@@ -650,8 +650,8 @@ const W4: Record<number, LC> = {
     },
   ],
   34: [
-    "garlic",
-    "Garlic diverts zombies to other lanes — use it to redirect threats!",
+    "starfruit",
+    "Starfruit fires stars in five directions!",
     7,
     {
       finalWaveNumber: 9,
@@ -670,8 +670,8 @@ const W4: Record<number, LC> = {
     },
   ],
   35: [
-    "umbrella-leaf",
-    "Umbrella Leaf protects nearby plants from catapult and bungee attacks!",
+    "pumpkin",
+    "Pumpkin protects any plant inside it with Wall-nut toughness!",
     7,
     {
       finalWaveNumber: 9,
@@ -690,8 +690,8 @@ const W4: Record<number, LC> = {
     },
   ],
   36: [
-    "marigold",
-    "Balloon Zombie floats over your ground plants! Only aerial shooters can hit them!",
+    "magnet-shroom",
+    "Magnet-shroom strips metal armor (bucket, screen door, football helmet, ladder)!",
     7,
     {
       finalWaveNumber: 9,
@@ -710,8 +710,8 @@ const W4: Record<number, LC> = {
     },
   ],
   37: [
-    "melon-pult",
-    "Digger Zombie tunnels underground! Split Pea can shoot backward to stop them!",
+    "cabbage-pult",
+    "Cabbage-pult lobs over shields and roof slopes!",
     7,
     {
       finalWaveNumber: 10,
@@ -731,8 +731,8 @@ const W4: Record<number, LC> = {
     },
   ],
   38: [
-    null,
-    "Pogo Zombie leaps over your Wall-nuts! Tall-nut stops them cold!",
+    "flower-pot",
+    "Flower Pot lets you plant on the roof. You'll need it soon!",
     7,
     {
       finalWaveNumber: 10,
@@ -752,8 +752,8 @@ const W4: Record<number, LC> = {
     },
   ],
   39: [
-    null,
-    "Ladder Zombie places a ladder to climb over Wall-nuts! Use a Tall-nut or destroy it!",
+    "kernel-pult",
+    "Kernel-pult launches corn — butter stuns zombies in place!",
     8,
     {
       finalWaveNumber: 11,
@@ -774,8 +774,8 @@ const W4: Record<number, LC> = {
     },
   ],
   40: [
-    null,
-    "Gargantuar is almost unstoppable! Use instant plants like Cherry Bomb and Ice-shroom!",
+    "coffee-bean",
+    "Coffee Bean wakes sleeping mushrooms during the day or on the roof!",
     8,
     {
       finalWaveNumber: 12,
@@ -812,7 +812,7 @@ const ROOF_POOL = [
 
 const W5: Record<number, LC> = {
   41: [
-    null,
+    "garlic",
     "You're on the roof! Only lobbed plants can shoot over the slope. Flower Pot is your foundation!",
     7,
     {
@@ -831,7 +831,7 @@ const W5: Record<number, LC> = {
     },
   ],
   42: [
-    null,
+    "umbrella-leaf",
     "Bungee Zombie drops from the sky and steals your plants! Umbrella Leaf protects them!",
     7,
     {
@@ -851,8 +851,8 @@ const W5: Record<number, LC> = {
     },
   ],
   43: [
-    null,
-    "Gargantuar smashes your plants and throws an Imp when damaged! Target it first!",
+    "marigold",
+    "Marigold drops silver and gold coins (not sun). Stack them for pocket money!",
     7,
     {
       finalWaveNumber: 9,
@@ -871,8 +871,8 @@ const W5: Record<number, LC> = {
     },
   ],
   44: [
-    null,
-    "Stack Melon-pults behind Kernel-pults — the area damage decimates groups!",
+    "melon-pult",
+    "Melon-pult deals heavy lobbed damage with splash to neighboring zombies!",
     7,
     {
       finalWaveNumber: 10,

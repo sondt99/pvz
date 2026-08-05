@@ -1294,6 +1294,20 @@ export function renderPlantPreview(
     ctx.beginPath();
     ctx.arc(cx + 30, cy - 27, 13, 0, Math.PI * 2);
     ctx.fill();
+  } else if (pt === "GRAVE_BUSTER") {
+    // Simple brown rooting plant over a grave.
+    ctx.fillStyle = "#6b4423";
+    ctx.beginPath();
+    ctx.ellipse(cx, cy + 14, 22, 10, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#4a2f18";
+    ctx.lineWidth = 4;
+    for (let i = -1; i <= 1; i++) {
+      ctx.beginPath();
+      ctx.moveTo(cx + i * 10, cy + 10);
+      ctx.quadraticCurveTo(cx + i * 14, cy - 4, cx + i * 6, cy - 18);
+      ctx.stroke();
+    }
   } else if (pt.includes("SHROOM")) {
     const shroomColors: Record<string, string> = {
       PUFF_SHROOM: "#a87ccd",
@@ -1303,6 +1317,8 @@ export function renderPlantPreview(
       ICE_SHROOM: "#3bbcd6",
       DOOM_SHROOM: "#2a1a40",
       SEA_SHROOM: "#2e8c7a",
+      MAGNET_SHROOM: "#c94a4a",
+      HYPNO_SHROOM: "#d94ad9",
     };
     drawMushroom(ctx, cx, cy, shroomColors[pt] ?? "#8e67c7");
   } else {
@@ -1380,6 +1396,19 @@ function drawPlant(ctx: CanvasRenderingContext2D, plant: RuntimePlant, now: numb
     drawCoffeeBean(ctx, cx, cy);
   } else if (pt === "MAGNET_SHROOM") {
     drawMagnetShroom(ctx, cx, cy);
+  } else if (pt === "GRAVE_BUSTER") {
+    ctx.fillStyle = "#6b4423";
+    ctx.beginPath();
+    ctx.ellipse(cx, cy + 14, 22, 10, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#4a2f18";
+    ctx.lineWidth = 4;
+    for (let i = -1; i <= 1; i++) {
+      ctx.beginPath();
+      ctx.moveTo(cx + i * 10, cy + 10);
+      ctx.quadraticCurveTo(cx + i * 14, cy - 4, cx + i * 6, cy - 18);
+      ctx.stroke();
+    }
   } else if (pt.includes("SHROOM")) {
     const shroomColors: Record<string, string> = {
       PUFF_SHROOM: "#a87ccd",
@@ -1389,6 +1418,7 @@ function drawPlant(ctx: CanvasRenderingContext2D, plant: RuntimePlant, now: numb
       ICE_SHROOM: "#3bbcd6",
       DOOM_SHROOM: "#2a1a40",
       SEA_SHROOM: "#2e8c7a",
+      HYPNO_SHROOM: "#d94ad9",
     };
     drawMushroom(ctx, cx, cy, shroomColors[pt] ?? "#8e67c7");
   } else if (pt === "LILY_PAD") {

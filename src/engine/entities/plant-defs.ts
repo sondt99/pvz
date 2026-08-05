@@ -1,5 +1,7 @@
 import type { PlantDefinition } from "../types";
 import {
+  MAGNET_SHROOM_COOLDOWN_MS,
+  MARIGOLD_COIN_INTERVAL_MS,
   SUNFLOWER_PRODUCE_INTERVAL_MS,
   SUNSHROOM_PRODUCE_INTERVAL_MS,
   SUNSHROOM_SMALL_VALUE,
@@ -169,7 +171,7 @@ export const PLANT_DEFINITIONS: Record<string, PlantDefinition> = {
     isNightOnly: false, isMushroomType: false, blocksAerial: false, revealsFog: false, divertsZombies: false,
   },
   TORCHWOOD: {
-    plantType: "TORCHWOOD", sunCost: 175, rechargeTime: 7, health: 450,
+    plantType: "TORCHWOOD", sunCost: 175, rechargeTime: 7, health: 300,
     attackDamage: null, attackCooldownMs: null, attackRange: "none",
     projectileType: null, trajectory: null,
     isAquatic: false, requiresLilyPad: false, requiresFlowerPot: false,
@@ -209,8 +211,9 @@ export const PLANT_DEFINITIONS: Record<string, PlantDefinition> = {
     isNightOnly: false, isMushroomType: false, blocksAerial: true, revealsFog: false, divertsZombies: false,
   },
   BLOVER: {
+    // PvZ1: blows fog + Balloon zombies only; no ground damage.
     plantType: "BLOVER", sunCost: 100, rechargeTime: 30, health: 300,
-    attackDamage: 1800, attackCooldownMs: null, attackRange: "aoe",
+    attackDamage: 0, attackCooldownMs: null, attackRange: "aoe",
     projectileType: null, trajectory: null,
     isAquatic: false, requiresLilyPad: false, requiresFlowerPot: false,
     isInstantUse: true, produceSun: false, sunProduceIntervalMs: null, sunProduceAmount: null,
@@ -242,7 +245,7 @@ export const PLANT_DEFINITIONS: Record<string, PlantDefinition> = {
   },
   MAGNET_SHROOM: {
     plantType: "MAGNET_SHROOM", sunCost: 100, rechargeTime: 30, health: 300,
-    attackDamage: 0, attackCooldownMs: 3000, attackRange: "aoe",
+    attackDamage: 0, attackCooldownMs: MAGNET_SHROOM_COOLDOWN_MS, attackRange: "aoe",
     projectileType: null, trajectory: null,
     isAquatic: false, requiresLilyPad: false, requiresFlowerPot: false,
     isInstantUse: false, produceSun: false, sunProduceIntervalMs: null, sunProduceAmount: null,
@@ -297,11 +300,12 @@ export const PLANT_DEFINITIONS: Record<string, PlantDefinition> = {
     isNightOnly: false, isMushroomType: false, blocksAerial: false, revealsFog: false, divertsZombies: false,
   },
   MARIGOLD: {
+    // PvZ1: money plant (silver/gold coins), never produces sun and does not expire.
     plantType: "MARIGOLD", sunCost: 50, rechargeTime: 30, health: 300,
-    attackDamage: null, attackCooldownMs: null, attackRange: "none",
+    attackDamage: null, attackCooldownMs: MARIGOLD_COIN_INTERVAL_MS, attackRange: "none",
     projectileType: null, trajectory: null,
     isAquatic: false, requiresLilyPad: false, requiresFlowerPot: false,
-    isInstantUse: false, produceSun: true, sunProduceIntervalMs: 30_000, sunProduceAmount: 25,
+    isInstantUse: false, produceSun: false, sunProduceIntervalMs: null, sunProduceAmount: null,
     isNightOnly: false, isMushroomType: false, blocksAerial: false, revealsFog: false, divertsZombies: false,
   },
   MELON_PULT: {
@@ -311,6 +315,23 @@ export const PLANT_DEFINITIONS: Record<string, PlantDefinition> = {
     isAquatic: false, requiresLilyPad: false, requiresFlowerPot: false,
     isInstantUse: false, produceSun: false, sunProduceIntervalMs: null, sunProduceAmount: null,
     isNightOnly: false, isMushroomType: false, blocksAerial: false, revealsFog: false, divertsZombies: false,
+  },
+  // Adventure unlocks 2-4 / 2-5 — missing from earlier catalog.
+  GRAVE_BUSTER: {
+    plantType: "GRAVE_BUSTER", sunCost: 75, rechargeTime: 7, health: 300,
+    attackDamage: null, attackCooldownMs: null, attackRange: "none",
+    projectileType: null, trajectory: null,
+    isAquatic: false, requiresLilyPad: false, requiresFlowerPot: false,
+    isInstantUse: false, produceSun: false, sunProduceIntervalMs: null, sunProduceAmount: null,
+    isNightOnly: false, isMushroomType: false, blocksAerial: false, revealsFog: false, divertsZombies: false,
+  },
+  HYPNO_SHROOM: {
+    plantType: "HYPNO_SHROOM", sunCost: 75, rechargeTime: 30, health: 300,
+    attackDamage: null, attackCooldownMs: null, attackRange: "none",
+    projectileType: null, trajectory: null,
+    isAquatic: false, requiresLilyPad: false, requiresFlowerPot: false,
+    isInstantUse: false, produceSun: false, sunProduceIntervalMs: null, sunProduceAmount: null,
+    isNightOnly: true, isMushroomType: true, blocksAerial: false, revealsFog: false, divertsZombies: false,
   },
 };
 

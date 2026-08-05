@@ -97,10 +97,14 @@ export function canPlantHere(
     isLilyPad?: boolean;
     isFlowerPot?: boolean;
     isPumpkin?: boolean;
+    isGraveBuster?: boolean;
   }
 ): boolean {
   const cell = getCell(grid, row, col);
   if (!cell) return false;
+  if (opts.isGraveBuster) {
+    return cell.graveId !== null && cell.plantInstanceId === null;
+  }
   if (cell.graveId !== null) return false;
   if (cell.craterExpiresAtMs !== null) return false;
 
@@ -157,10 +161,19 @@ export function getPlacementFailureReason(
     isLilyPad?: boolean;
     isFlowerPot?: boolean;
     isPumpkin?: boolean;
+    isGraveBuster?: boolean;
   }
 ): PlacementFailureReason | null {
   const cell = getCell(grid, row, col);
   if (!cell) return "INVALID_CELL";
+
+  // PvZ1 Grave Buster must be planted directly on a grave.
+  if (opts.isGraveBuster) {
+    if (cell.graveId === null) return "INVALID_TERRAIN";
+    if (cell.plantInstanceId !== null) return "OCCUPIED";
+    return null;
+  }
+
   if (cell.graveId !== null) return "GRAVE_BLOCKING";
   if (cell.craterExpiresAtMs !== null) return "CRATER_BLOCKING";
 

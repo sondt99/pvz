@@ -48,6 +48,8 @@ function plantCategoryFor(plantType: PlantType): PlantCategory {
     case PlantType.GARLIC:
     case PlantType.UMBRELLA_LEAF:
     case PlantType.SPIKEWEED:
+    case PlantType.GRAVE_BUSTER:
+    case PlantType.HYPNO_SHROOM:
       return PlantCategory.SUPPORT;
     default:
       return PlantCategory.SHOOTER;

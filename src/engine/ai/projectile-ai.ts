@@ -117,6 +117,7 @@ export function findStraightHits(
     Math.abs(z.lane - proj.lane) <= STRAIGHT_LANE_HIT_RADIUS &&
     !z.isUnderground &&
     !z.isSubmerged &&
+    !z.statusEffects.some((e) => e.type === "HYPNOTIZED") &&
     (!z.isAerial || proj.canHitAerial === true) &&
     isInProjectileTravelDirection(proj, z) &&
     (
@@ -146,6 +147,7 @@ export function findLobbedHits(
 
   const candidates = Object.entries(zombies).filter(([, z]) =>
       !z.isUnderground &&
+      !z.statusEffects.some((e) => e.type === "HYPNOTIZED") &&
       (!z.isAerial || proj.canHitAerial === true) &&
       Math.abs(z.x - tgtCol) <= LOBBED_HIT_RADIUS
   );
@@ -180,10 +182,27 @@ export function applyProjectileHits(
   const updatedZombies = { ...zombies };
   const killedZombieIds: string[] = [];
 
+  // PvZ1 Melon-pult: primary target takes full damage; splash targets take half.
+  const primaryHitId =
+    proj.projectileType === "MELON" && hitIds.length > 0
+      ? hitIds.reduce((best, id) => {
+          const z = zombies[id];
+          const bestZ = zombies[best];
+          if (!z) return best;
+          if (!bestZ) return id;
+          const tgtCol = proj.targetCol ?? proj.x;
+          return Math.abs(z.x - tgtCol) < Math.abs(bestZ.x - tgtCol) ? id : best;
+        }, hitIds[0])
+      : null;
+
   for (const id of hitIds) {
     const zombie = updatedZombies[id];
     if (!zombie) continue;
-    let damaged = applyProjectileDamage(zombie, proj.damage);
+    const damage =
+      primaryHitId !== null && id !== primaryHitId
+        ? Math.floor(proj.damage / 2)
+        : proj.damage;
+    let damaged = applyProjectileDamage(zombie, damage);
 
     if (proj.slowFactor !== undefined) {
       damaged = {

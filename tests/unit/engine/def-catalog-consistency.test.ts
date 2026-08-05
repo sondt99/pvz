@@ -26,9 +26,9 @@ describe("plant-defs vs seed-catalog coverage", () => {
     }
   });
 
-  it("both catalogs have the same count (38 plants)", () => {
-    expect(Object.keys(PLANT_DEFINITIONS)).toHaveLength(38);
-    expect(SEED_PLANT_CATALOG).toHaveLength(38);
+  it("both catalogs have the same count (40 plants)", () => {
+    expect(Object.keys(PLANT_DEFINITIONS)).toHaveLength(40);
+    expect(SEED_PLANT_CATALOG).toHaveLength(40);
   });
 });
 

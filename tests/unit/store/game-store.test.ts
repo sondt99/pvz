@@ -1630,6 +1630,8 @@ describe("selectSlot", () => {
 });
 
 describe("Magnet-shroom — strip magnetic armor", () => {
+  // PvZ1 Magnet-shroom recharges ~15s between pulls.
+  const MAGNET_READY_MS = 15_000;
   const NIGHT_ENV: EnvironmentConfig = {
     type: "NIGHT", gridRows: 5, gridCols: 9,
     waterLaneIndices: [], gravesEnabled: true, fogEnabled: false,
@@ -1644,9 +1646,9 @@ describe("Magnet-shroom — strip magnetic armor", () => {
     expect(useGameStore.getState().placePlant("MAGNET_SHROOM", 0, 4)).toBe(true);
     const magnetId = Object.keys(useGameStore.getState().plants)[0];
 
-    // Force cooldown to have elapsed (lastAttackAtMs = 0, so any tick ≥ 3000 fires)
+    // Force cooldown to have elapsed (lastAttackAtMs = 0, tick at MAGNET_READY_MS fires)
     useGameStore.setState({
-      gameTimeMs: 3000,
+      gameTimeMs: MAGNET_READY_MS,
       zombies: {
         z1: makeZombie({ instanceId: "z1", zombieType: "BUCKETHEAD", lane: 0, x: 5.5 }),
       },
@@ -1656,7 +1658,7 @@ describe("Magnet-shroom — strip magnetic armor", () => {
     const zombie = useGameStore.getState().zombies.z1;
     expect(zombie).toBeDefined();
     expect(zombie.armorHealth).toBe(0);
-    expect(useGameStore.getState().plants[magnetId].lastAttackAtMs).toBe(3000);
+    expect(useGameStore.getState().plants[magnetId].lastAttackAtMs).toBe(MAGNET_READY_MS);
   });
 
   it("strips armor from Screen Door zombie in range", () => {
@@ -1666,7 +1668,7 @@ describe("Magnet-shroom — strip magnetic armor", () => {
 
     expect(useGameStore.getState().placePlant("MAGNET_SHROOM", 0, 4)).toBe(true);
     useGameStore.setState({
-      gameTimeMs: 3000,
+      gameTimeMs: MAGNET_READY_MS,
       zombies: {
         z1: makeZombie({ instanceId: "z1", zombieType: "SCREEN_DOOR", lane: 0, x: 5.0 }),
       },
@@ -1684,7 +1686,7 @@ describe("Magnet-shroom — strip magnetic armor", () => {
     expect(useGameStore.getState().placePlant("MAGNET_SHROOM", 0, 4)).toBe(true);
     const coneArmorHealth = getZombieDef("CONEHEAD").armorHealth;
     useGameStore.setState({
-      gameTimeMs: 3000,
+      gameTimeMs: MAGNET_READY_MS,
       zombies: {
         z1: makeZombie({ instanceId: "z1", zombieType: "CONEHEAD", lane: 0, x: 5.0 }),
       },
@@ -1702,7 +1704,7 @@ describe("Magnet-shroom — strip magnetic armor", () => {
     expect(useGameStore.getState().placePlant("MAGNET_SHROOM", 0, 4)).toBe(true);
     const bucketArmor = getZombieDef("BUCKETHEAD").armorHealth;
     useGameStore.setState({
-      gameTimeMs: 3000,
+      gameTimeMs: MAGNET_READY_MS,
       zombies: {
         // x=8.5 is more than 2.5 cols away from plant.col=4
         z1: makeZombie({ instanceId: "z1", zombieType: "BUCKETHEAD", lane: 0, x: 8.5 }),
@@ -1723,25 +1725,25 @@ describe("Magnet-shroom — strip magnetic armor", () => {
 
     const bucketArmor = getZombieDef("BUCKETHEAD").armorHealth;
     useGameStore.setState({
-      gameTimeMs: 3000,
+      gameTimeMs: MAGNET_READY_MS,
       zombies: {
         z1: makeZombie({ instanceId: "z1", zombieType: "BUCKETHEAD", lane: 0, x: 5.0, armorHealth: bucketArmor }),
       },
     });
     useGameStore.getState().tick(0);
-    // First tick: strips armor, lastAttackAtMs = 3000
+    // First tick: strips armor, lastAttackAtMs = MAGNET_READY_MS
 
-    // Second zombie with armor appears but cooldown hasn't reset (3000ms elapsed = lastAttackAtMs)
+    // Second zombie with armor appears but 15s cooldown has not reset yet
     useGameStore.setState({
       zombies: {
         ...useGameStore.getState().zombies,
         z2: makeZombie({ instanceId: "z2", zombieType: "BUCKETHEAD", lane: 0, x: 5.5, armorHealth: bucketArmor }),
       },
     });
-    useGameStore.getState().tick(1000); // gameTimeMs = 4000, cooldown ends at 3000+3000=6000
+    useGameStore.getState().tick(1000); // gameTimeMs = 16000; next pull at 30000
 
     expect(useGameStore.getState().zombies.z2.armorHealth).toBe(bucketArmor);
-    expect(useGameStore.getState().plants[magnetId].lastAttackAtMs).toBe(3000);
+    expect(useGameStore.getState().plants[magnetId].lastAttackAtMs).toBe(MAGNET_READY_MS);
   });
 });
 

@@ -4,7 +4,8 @@ import { getPlantDef, getAllPlantTypes, getPlantsByCategory, PLANT_DEFINITIONS }
 const ALL_PLANT_TYPES = [
   "PEASHOOTER", "SUNFLOWER", "CHERRY_BOMB", "WALL_NUT", "POTATO_MINE",
   "SNOW_PEA", "CHOMPER", "REPEATER", "PUFF_SHROOM", "SUN_SHROOM",
-  "FUME_SHROOM", "SCAREDY_SHROOM", "ICE_SHROOM", "DOOM_SHROOM", "LILY_PAD",
+  "FUME_SHROOM", "GRAVE_BUSTER", "HYPNO_SHROOM", "SCAREDY_SHROOM",
+  "ICE_SHROOM", "DOOM_SHROOM", "LILY_PAD",
   "SQUASH", "THREEPEATER", "TANGLE_KELP", "JALAPENO", "SPIKEWEED",
   "TORCHWOOD", "TALL_NUT", "SEA_SHROOM", "PLANTERN", "CACTUS",
   "BLOVER", "SPLIT_PEA", "STARFRUIT", "PUMPKIN", "MAGNET_SHROOM",
@@ -13,8 +14,8 @@ const ALL_PLANT_TYPES = [
 ];
 
 describe("PLANT_DEFINITIONS completeness", () => {
-  it("defines exactly 38 plants", () => {
-    expect(Object.keys(PLANT_DEFINITIONS)).toHaveLength(38);
+  it("defines exactly 40 plants", () => {
+    expect(Object.keys(PLANT_DEFINITIONS)).toHaveLength(40);
   });
 
   it("contains all expected plant types", () => {
@@ -120,8 +121,8 @@ describe("getPlantDef", () => {
 });
 
 describe("getAllPlantTypes", () => {
-  it("returns 38 plant types", () => {
-    expect(getAllPlantTypes()).toHaveLength(38);
+  it("returns 40 plant types", () => {
+    expect(getAllPlantTypes()).toHaveLength(40);
   });
 
   it("includes PEASHOOTER and MELON_PULT", () => {
@@ -153,7 +154,8 @@ describe("getPlantsByCategory", () => {
     const types = producers.map((d) => d.plantType);
     expect(types).toContain("SUNFLOWER");
     expect(types).toContain("SUN_SHROOM");
-    expect(types).toContain("MARIGOLD");
+    // PvZ1 Marigold produces coins, not sun.
+    expect(types).not.toContain("MARIGOLD");
   });
 
   it("returns only mushroom-type plants when isMushroomType=true", () => {

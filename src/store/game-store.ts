@@ -35,6 +35,9 @@ import {
   GARGANTUAR_IMP_THROW_HEALTH_THRESHOLD,
   GARGANTUAR_IMP_THROW_MIN_X,
   GARGANTUAR_SMASH_RECOVERY_MS,
+  GRAVE_BUSTER_DURATION_MS,
+  ICE_SHROOM_CHILL_MS,
+  ICE_SHROOM_FREEZE_MS,
   LAWN_MOWER_READY_X,
   LAWN_MOWER_SPEED_COLS_PER_SEC,
   LAWN_MOWER_TRIGGER_X,
@@ -48,10 +51,12 @@ import {
   MAGNET_SHROOM_RANGE_COLS,
   MAGNET_SHROOM_RANGE_LANES,
   MAGNETIC_ZOMBIE_TYPES,
-  MARIGOLD_LIFETIME_MS,
+  MARIGOLD_COIN_INTERVAL_MS,
+  MARIGOLD_GOLD_CHANCE,
+  MARIGOLD_GOLD_COIN_SCORE,
+  MARIGOLD_SILVER_COIN_SCORE,
   NEWSPAPER_ENRAGED_SPEED_COLS_PER_SEC,
   POGO_WITHOUT_STICK_SPEED_COLS_PER_SEC,
-  PUFF_SHROOM_LIFETIME_MS,
   UMBRELLA_LEAF_RADIUS_COLS,
   UMBRELLA_LEAF_RADIUS_LANES,
   POTATO_MINE_ARM_MS,
@@ -553,18 +558,43 @@ function freezeAllZombies(
 ): Record<string, RuntimeZombie> {
   const updated: Record<string, RuntimeZombie> = {};
   for (const [id, zombie] of Object.entries(zombies)) {
+    // PvZ1: hard freeze, then residual chill (half speed) after thaw.
     updated[id] = {
       ...zombie,
       isEating: false,
       eatTargetId: null,
       isFrozen: true,
       statusEffects: [
-        ...zombie.statusEffects.filter((effect) => effect.type !== "FROZEN"),
-        { type: "FROZEN", expiresAtMs: gameTimeMs + 4000 },
+        ...zombie.statusEffects.filter(
+          (effect) => effect.type !== "FROZEN" && effect.type !== "SLOWED"
+        ),
+        { type: "FROZEN", expiresAtMs: gameTimeMs + ICE_SHROOM_FREEZE_MS },
+        {
+          type: "SLOWED",
+          expiresAtMs: gameTimeMs + ICE_SHROOM_FREEZE_MS + ICE_SHROOM_CHILL_MS,
+          factor: 0.5,
+        },
       ],
     };
   }
   return updated;
+}
+
+function isHypnotizedZombie(zombie: RuntimeZombie): boolean {
+  return zombie.statusEffects.some((effect) => effect.type === "HYPNOTIZED");
+}
+
+function hypnotizeZombie(zombie: RuntimeZombie): RuntimeZombie {
+  return {
+    ...zombie,
+    isEating: false,
+    eatTargetId: null,
+    direction: "right",
+    statusEffects: [
+      ...zombie.statusEffects.filter((effect) => effect.type !== "HYPNOTIZED"),
+      { type: "HYPNOTIZED", expiresAtMs: Infinity },
+    ],
+  };
 }
 
 function cloneGrid(grid: GameEngineState["grid"]): GameEngineState["grid"] {
@@ -865,6 +895,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
       isLilyPad: isLilyPadPlant(plantType),
       isFlowerPot: isFlowerPotPlant(plantType),
       isPumpkin: isPumpkinPlant(plantType),
+      isGraveBuster: plantType === "GRAVE_BUSTER",
     };
     if (!canPlantHere(state.grid, row, col, placementOpts)) {
       return fail(getPlacementFailureReason(state.grid, row, col, placementOpts) ?? "OCCUPIED");
@@ -940,8 +971,13 @@ export const useGameStore = create<GameStore>()((set, get) => ({
       lastSunAtMs: initialSunClock,
       plantedAtMs: state.gameTimeMs,
       isSleeping: shouldMushroomSleep(def, state.environment),
-      isCharging: plantType === "POTATO_MINE",
-      chargeEndsAtMs: plantType === "POTATO_MINE" ? state.gameTimeMs + POTATO_MINE_ARM_MS : 0,
+      isCharging: plantType === "POTATO_MINE" || plantType === "GRAVE_BUSTER",
+      chargeEndsAtMs:
+        plantType === "POTATO_MINE"
+          ? state.gameTimeMs + POTATO_MINE_ARM_MS
+          : plantType === "GRAVE_BUSTER"
+            ? state.gameTimeMs + GRAVE_BUSTER_DURATION_MS
+            : 0,
       armedAtMs: null,
       blocksAerial: def.blocksAerial,
     };
@@ -1133,16 +1169,32 @@ export const useGameStore = create<GameStore>()((set, get) => ({
       let def;
       try { def = getPlantDef(currentPlant.plantType); } catch { continue; }
 
-      // 7a. Temporary plant lifespan (Puff-shroom 2 min, Marigold 2 min)
+      // 7a. PvZ1: Puff-shroom / Marigold never expire on a timer.
+
+      // Grave Buster removes the grave after a short chomp animation, then is spent.
       if (
-        (currentPlant.plantType === "PUFF_SHROOM" && newGameTimeMs - currentPlant.plantedAtMs >= PUFF_SHROOM_LIFETIME_MS) ||
-        (currentPlant.plantType === "MARIGOLD" && newGameTimeMs - currentPlant.plantedAtMs >= MARIGOLD_LIFETIME_MS)
+        currentPlant.plantType === "GRAVE_BUSTER" &&
+        currentPlant.isCharging &&
+        newGameTimeMs >= currentPlant.chargeEndsAtMs
       ) {
         if (!gridChanged) { newGrid = cloneGrid(state.grid); gridChanged = true; }
+        const cell = newGrid[currentPlant.row]?.[currentPlant.col];
+        if (cell) cell.graveId = null;
         setPlantInCorrectSlot(newGrid, currentPlant.row, currentPlant.col, currentPlant.plantType, null);
-        const { [plantId]: _expired, ...remainingPlants } = plants;
+        const { [plantId]: _spentGraveBuster, ...remainingPlants } = plants;
         plants = remainingPlants;
         continue;
+      }
+
+      // Marigold produces coins (score), never sun.
+      if (
+        currentPlant.plantType === "MARIGOLD" &&
+        !currentPlant.isSleeping &&
+        newGameTimeMs - currentPlant.lastAttackAtMs >= MARIGOLD_COIN_INTERVAL_MS
+      ) {
+        const gold = nextRandom() < MARIGOLD_GOLD_CHANCE;
+        score += gold ? MARIGOLD_GOLD_COIN_SCORE : MARIGOLD_SILVER_COIN_SCORE;
+        currentPlant = { ...currentPlant, lastAttackAtMs: newGameTimeMs };
       }
 
       if (
@@ -1246,20 +1298,40 @@ export const useGameStore = create<GameStore>()((set, get) => ({
         if (def.attackCooldownMs === null || newGameTimeMs - plant.lastAttackAtMs < def.attackCooldownMs) {
           continue;
         }
-        const hasTarget = Object.values(zombies).some((zombie) =>
+        const onSpike = Object.entries(zombies).filter(([, zombie]) =>
           zombie.lane === plant.row &&
           !zombie.isUnderground &&
           !zombie.isAerial &&
+          !isHypnotizedZombie(zombie) &&
           zombie.x >= plant.col - 0.45 &&
           zombie.x <= plant.col + 0.45
         );
-        if (!hasTarget) continue;
+        if (onSpike.length === 0) continue;
+
+        // PvZ1: Spikeweed punctures Zomboni / Catapult in one hit and is destroyed.
+        const vehicle = onSpike.find(([, z]) => z.zombieType === "ZOMBONI" || z.zombieType === "CATAPULT");
+        if (vehicle) {
+          const [zombieId, zombie] = vehicle;
+          score += scoreKilledZombie(zombie);
+          totalZombiesKilled += 1;
+          const { [zombieId]: _killedVehicle, ...remainingZombies } = zombies;
+          zombies = remainingZombies;
+          if (!gridChanged) {
+            newGrid = cloneGrid(state.grid);
+            gridChanged = true;
+          }
+          setPlantInCorrectSlot(newGrid, plant.row, plant.col, plant.plantType, null);
+          const { [plantId]: _spentSpike, ...remainingPlants } = plants;
+          plants = remainingPlants;
+          continue;
+        }
 
         const result = damageZombiesInArea(
           zombies,
           (zombie) =>
             zombie.lane === plant.row &&
             !zombie.isAerial &&
+            !isHypnotizedZombie(zombie) &&
             zombie.x >= plant.col - 0.45 &&
             zombie.x <= plant.col + 0.45,
           def.attackDamage ?? 20
@@ -1380,19 +1452,40 @@ export const useGameStore = create<GameStore>()((set, get) => ({
         continue; // zombie itself is consumed in the explosion
       }
 
-      // 8a-dancing. Call up to 4 Backup Dancers when crossing DANCING_ZOMBIE_CALL_X
+      // 8a-dancing. PvZ1: summon a cross of 4 Backup Dancers (front, back, up, down).
       if (z.zombieType === "DANCING" && !z.hasCalledDancers && z.x <= DANCING_ZOMBIE_CALL_X) {
         z = { ...z, hasCalledDancers: true };
-        const usedLanes = new Set<number>([z.lane]);
-        const allLanes = Array.from({ length: env.gridRows }, (_, i) => i);
-        const spawnX = z.x + 0.5;
-        for (let i = 0; i < 4; i++) {
-          const candidates = allLanes.filter((l) => !usedLanes.has(l));
-          if (candidates.length === 0) break;
-          const lane = candidates[Math.floor(nextRandom() * candidates.length)];
-          usedLanes.add(lane);
-          dancerSpawns.push({ lane, x: spawnX + i * 0.3 });
+        dancerSpawns.push({ lane: z.lane, x: z.x - 0.8 }); // front (toward house)
+        dancerSpawns.push({ lane: z.lane, x: z.x + 0.8 }); // back
+        if (z.lane - 1 >= 0) dancerSpawns.push({ lane: z.lane - 1, x: z.x });
+        if (z.lane + 1 < env.gridRows) dancerSpawns.push({ lane: z.lane + 1, x: z.x });
+      }
+
+      // Hypnotized zombies fight other zombies instead of plants (walk right, bite enemies).
+      if (isHypnotizedZombie(z) && !isZombieImmobilized(z)) {
+        const enemy = Object.entries(zombies).find(([, other]) =>
+          other.instanceId !== z.instanceId &&
+          !isHypnotizedZombie(other) &&
+          other.lane === z.lane &&
+          Math.abs(other.x - z.x) <= 0.55
+        );
+        if (enemy) {
+          const [enemyId, enemyZombie] = enemy;
+          const damagedEnemy = applyProjectileDamage(enemyZombie, z.eatDamagePerSec * (deltaMs / 1000));
+          if (isZombieDead(damagedEnemy)) {
+            score += scoreKilledZombie(enemyZombie);
+            totalZombiesKilled += 1;
+            const { [enemyId]: _killed, ...rest } = zombies;
+            zombies = rest;
+          } else {
+            zombies[enemyId] = damagedEnemy;
+          }
+          z = { ...z, isEating: true, eatTargetId: enemyId };
+        } else {
+          z = stopEating(z);
         }
+        zombies[zombieId] = z;
+        continue;
       }
 
       // 8b. If eating, check if target plant still exists and is alive
@@ -1409,6 +1502,25 @@ export const useGameStore = create<GameStore>()((set, get) => ({
               ...z,
               lane: chooseGarlicDiversionLane(z, env.gridRows),
             });
+          }
+
+          // PvZ1 Hypno-shroom: when fully eaten while awake, the eater becomes friendly.
+          // Sleeping Hypno-shroom is just a snack (no hypnosis).
+          if (
+            isPlantDead(damagedPlant) &&
+            targetPlant.plantType === "HYPNO_SHROOM" &&
+            !targetPlant.isSleeping
+          ) {
+            if (!gridChanged) {
+              newGrid = state.grid.map((r) => r.map((c) => ({ ...c })));
+              gridChanged = true;
+            }
+            setPlantInCorrectSlot(newGrid, damagedPlant.row, damagedPlant.col, damagedPlant.plantType, null);
+            const { [targetId]: _dead, ...remainingPlants } = plants;
+            plants = remainingPlants;
+            z = hypnotizeZombie(z);
+            zombies[zombieId] = z;
+            continue;
           }
 
           // If plant just died from eating damage, remove it
@@ -1544,6 +1656,13 @@ export const useGameStore = create<GameStore>()((set, get) => ({
 
       if (hasDiggerExitedLawn(z, env)) {
         const { [zombieId]: _escapedDigger, ...remainingZombies } = zombies;
+        zombies = remainingZombies;
+        continue;
+      }
+
+      // Hypnotized zombies that walk off the right edge of the lawn leave play.
+      if (isHypnotizedZombie(z) && z.x > env.gridCols + 0.5) {
+        const { [zombieId]: _escapedAlly, ...remainingZombies } = zombies;
         zombies = remainingZombies;
         continue;
       }

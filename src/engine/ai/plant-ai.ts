@@ -15,10 +15,8 @@ import {
   SCAREDY_SHROOM_COWER_COLS,
   SCAREDY_SHROOM_COWER_LANES,
   SEA_SHROOM_RANGE_COLS,
-  SUNSHROOM_SMALL_PHASE_MS,
-  SUNSHROOM_MEDIUM_PHASE_MS,
+  SUNSHROOM_GROW_MS,
   SUNSHROOM_SMALL_VALUE,
-  SUNSHROOM_MEDIUM_VALUE,
   SUNSHROOM_LARGE_VALUE,
 } from "../constants";
 
@@ -51,6 +49,7 @@ export function findNearestZombieInLane(
   for (const zombie of Object.values(zombies)) {
     if (zombie.lane !== lane) continue;
     if (zombie.isUnderground) continue;
+    if (zombie.statusEffects.some((e) => e.type === "HYPNOTIZED")) continue;
     if (zombie.isSubmerged && !opts.includeSubmerged) continue;
     if (zombie.isAerial && !opts.includeAerial) continue;
     if (zombie.x <= sourceCol) continue;
@@ -73,6 +72,7 @@ export function findNearestZombieBehindInLane(
   for (const zombie of Object.values(zombies)) {
     if (zombie.lane !== lane) continue;
     if (zombie.isUnderground) continue;
+    if (zombie.statusEffects.some((e) => e.type === "HYPNOTIZED")) continue;
     if (zombie.isSubmerged && !opts.includeSubmerged) continue;
     if (zombie.isAerial && !opts.includeAerial) continue;
     if (zombie.x >= sourceCol) continue;
@@ -361,17 +361,11 @@ export function plantProduceSun(
     return { sunDrop: null, updatedPlant: plant };
   }
   const id = `sun-plant-${++_sunDropCounter}`;
-  // Sun-shroom grows over time: small → medium → large
+  // PvZ1 Sun-shroom: 15 while small, 25 after growing (~2 minutes). No 50-sun phase.
   let sunAmount = def.sunProduceAmount;
   if (def.plantType === "SUN_SHROOM") {
     const age = gameTimeMs - plant.plantedAtMs;
-    if (age < SUNSHROOM_SMALL_PHASE_MS) {
-      sunAmount = SUNSHROOM_SMALL_VALUE;
-    } else if (age < SUNSHROOM_MEDIUM_PHASE_MS) {
-      sunAmount = SUNSHROOM_MEDIUM_VALUE;
-    } else {
-      sunAmount = SUNSHROOM_LARGE_VALUE;
-    }
+    sunAmount = age < SUNSHROOM_GROW_MS ? SUNSHROOM_SMALL_VALUE : SUNSHROOM_LARGE_VALUE;
   }
   const sunDrop = createPlantSunDrop(gameTimeMs, id, plant.col, plant.row, sunAmount ?? def.sunProduceAmount);
   return { sunDrop, updatedPlant: { ...plant, lastSunAtMs: gameTimeMs } };

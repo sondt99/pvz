@@ -473,7 +473,7 @@ describe("save/load serialization", () => {
     });
   });
 
-  it("round-trips a plant's plantedAtMs so Puff-shroom lifetime and Sun-shroom growth stay correct after reload", () => {
+  it("round-trips a plant's plantedAtMs so Sun-shroom growth stays correct after reload", () => {
     const environment: EnvironmentConfig = {
       type: "NIGHT",
       gridRows: 5,

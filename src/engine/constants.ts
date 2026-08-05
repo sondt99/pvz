@@ -27,9 +27,9 @@ export const FINAL_WAVE_DELAY_MS = 10_000;
 export const SUNFLOWER_PRODUCE_INTERVAL_MS = 24_000;
 export const SUN_PRODUCER_INITIAL_DELAY_MS = 7_000;
 export const SUNSHROOM_PRODUCE_INTERVAL_MS = 24_000;
+// PvZ1: small Sun-shroom drops 15 sun; after growing it drops normal 25 sun (never 50).
 export const SUNSHROOM_SMALL_VALUE = 15;
-export const SUNSHROOM_MEDIUM_VALUE = 25;
-export const SUNSHROOM_LARGE_VALUE = 50;
+export const SUNSHROOM_LARGE_VALUE = 25;
 
 export const PUFF_SHROOM_RANGE_COLS = 3;
 export const SEA_SHROOM_RANGE_COLS = 3;
@@ -51,13 +51,25 @@ export const GARGANTUAR_IMP_LANDING_MIN_X = 1;
 export const GARGANTUAR_IMP_LANDING_MAX_X = 3;
 export const GARGANTUAR_SMASH_RECOVERY_MS = 1_500;
 
-export const POTATO_MINE_ARM_MS = 14_000;
+// PvZ1 Potato Mine arms in ~15 seconds.
+export const POTATO_MINE_ARM_MS = 15_000;
 export const DOOM_SHROOM_RADIUS_LANES = 2;
 export const DOOM_SHROOM_RADIUS_COLS = 3.5;
 export const DOOM_SHROOM_CRATER_MS = 180_000;
 
 export const MAGNET_SHROOM_RANGE_COLS = 2.5;
 export const MAGNET_SHROOM_RANGE_LANES = 1;
+// PvZ1 Magnet-shroom recharges ~15s between pulls.
+export const MAGNET_SHROOM_COOLDOWN_MS = 15_000;
+// PvZ1 Ice-shroom freezes ~4s, then leaves residual chill (half speed).
+export const ICE_SHROOM_FREEZE_MS = 4_000;
+export const ICE_SHROOM_CHILL_MS = 6_000;
+export const GRAVE_BUSTER_DURATION_MS = 4_000;
+// Marigold coin production (coins are score in this port; not sun).
+export const MARIGOLD_COIN_INTERVAL_MS = 24_000;
+export const MARIGOLD_SILVER_COIN_SCORE = 10;
+export const MARIGOLD_GOLD_COIN_SCORE = 50;
+export const MARIGOLD_GOLD_CHANCE = 0.1;
 // Zombie types whose armor is magnetic and can be stripped by Magnet-shroom.
 // Conehead is a traffic cone (plastic) and is NOT magnetic.
 export const MAGNETIC_ZOMBIE_TYPES = new Set([
@@ -79,17 +91,12 @@ export const CATAPULT_BASKETBALL_DAMAGE = 40;
 
 export const MAX_DELTA_MS = 100; // cap delta to avoid spiral-of-death
 
-// Temporary plant lifespans
-export const PUFF_SHROOM_LIFETIME_MS = 120_000; // 2 minutes
-export const MARIGOLD_LIFETIME_MS = 120_000; // 2 minutes
+// PvZ1: Puff-shroom and Marigold do NOT expire on a timer.
+// Sun-shroom grows after ~2 minutes (or after several small productions).
+export const SUNSHROOM_GROW_MS = 120_000; // small (15) → large (25)
 
-// Sun-shroom phase thresholds (age of plant)
-export const SUNSHROOM_SMALL_PHASE_MS = 18_000;  // 0-18s → 15 sun
-export const SUNSHROOM_MEDIUM_PHASE_MS = 36_000; // 18-36s → 25 sun
-// after 36s → SUNSHROOM_LARGE_VALUE (50 sun)
-
-// Newspaper Zombie enraged speed after newspaper is destroyed
-export const NEWSPAPER_ENRAGED_SPEED_COLS_PER_SEC = 0.55;
+// Newspaper Zombie "hungry" speed after newspaper is destroyed (~2× normal)
+export const NEWSPAPER_ENRAGED_SPEED_COLS_PER_SEC = (1 / 4.7) * 2;
 
 // Dancing Zombie calls backup dancers when it crosses this x position
 export const DANCING_ZOMBIE_CALL_X = 7.0;
