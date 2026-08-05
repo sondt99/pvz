@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { Suspense } from "react";
 import { getCurrentUser } from "@/lib/game-session-client";
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -18,12 +17,13 @@ const ERROR_MESSAGES: Record<string, string> = {
 function LoginContent() {
   const searchParams = useSearchParams();
   const errorKey = searchParams.get("error");
-  const errorMsg = errorKey ? (ERROR_MESSAGES[errorKey] ?? "An error occurred. Please try again.") : null;
+  const errorMsg = errorKey
+    ? (ERROR_MESSAGES[errorKey] ?? "An error occurred. Please try again.")
+    : null;
   const [loading, setLoading] = useState(false);
 
-  // Already logged in → go home
   useEffect(() => {
-    getCurrentUser().then(user => {
+    getCurrentUser().then((user) => {
       if (user) window.location.replace("/");
     });
   }, []);
@@ -35,110 +35,61 @@ function LoginContent() {
 
   return (
     <main
-      style={{
-        minHeight: "100vh",
-        background: "radial-gradient(ellipse at 20% 0%, #0a1f0a 0%, #0d0d1a 40%, #050505 100%)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "1rem",
-      }}
+      className="pvz-page pvz-page--lawn"
+      style={{ display: "grid", placeItems: "center", padding: "1.25rem" }}
     >
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-      <div
-        style={{
-          background: "#0d1117",
-          border: "1px solid #22c55e33",
-          borderRadius: "1rem",
-          padding: "2.5rem 2rem",
-          width: "100%",
-          maxWidth: 380,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          gap: "1.5rem",
-          boxShadow: "0 0 40px #22c55e11",
-        }}
-      >
-        {/* Title */}
-        <div style={{ textAlign: "center" }}>
-          <h1
-            style={{
-              fontSize: "1.8rem",
-              fontWeight: 900,
-              letterSpacing: "0.06em",
-              textTransform: "uppercase",
-              background: "linear-gradient(135deg, #86efac 0%, #4ade80 30%, #22d3ee 70%)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              margin: "0 0 0.25rem",
-            }}
-          >
+      <div className="pvz-panel pvz-auth-card" style={{ position: "relative", zIndex: 1 }}>
+        <div
+          style={{
+            width: 72,
+            height: 72,
+            borderRadius: 20,
+            display: "grid",
+            placeItems: "center",
+            fontSize: "2rem",
+            background: "linear-gradient(145deg, #2a5c22, #1a3a18)",
+            border: "2px solid rgba(107, 207, 69, 0.45)",
+            boxShadow: "0 8px 24px rgba(40, 120, 40, 0.25)",
+          }}
+        >
+          🌱
+        </div>
+
+        <div>
+          <h1 className="pvz-title pvz-title--md" style={{ marginBottom: 6 }}>
             Plants vs. Zombies
           </h1>
-          <p style={{ color: "#4b5563", fontSize: "0.8rem", margin: 0, letterSpacing: "0.1em", textTransform: "uppercase" }}>
-            Sign in to save your progress
+          <p className="pvz-subtitle" style={{ marginBottom: 8 }}>
+            Web Adventure
+          </p>
+          <p className="pvz-muted" style={{ fontSize: "0.88rem", fontWeight: 600, maxWidth: 280, margin: "0 auto" }}>
+            Sign in to save progress, unlock plants, and continue your campaign.
           </p>
         </div>
 
-        {/* Error message */}
-        {errorMsg && (
-          <div
-            style={{
-              background: "#450a0a",
-              border: "1px solid #dc262666",
-              borderRadius: "0.5rem",
-              padding: "0.75rem 1rem",
-              color: "#fca5a5",
-              fontSize: "0.8rem",
-              textAlign: "center",
-              width: "100%",
-            }}
-          >
-            {errorMsg}
-          </div>
-        )}
+        {errorMsg && <div className="pvz-alert pvz-alert--error">{errorMsg}</div>}
 
-        {/* Google sign-in button */}
         <button
+          type="button"
+          className="pvz-btn"
           onClick={handleGoogleLogin}
           disabled={loading}
           style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "0.75rem",
             width: "100%",
-            padding: "0.85rem 1.5rem",
+            padding: "0.9rem 1.25rem",
             background: loading ? "#1f2937" : "#fff",
-            color: loading ? "#6b7280" : "#1f2937",
-            border: "none",
-            borderRadius: "0.5rem",
+            color: loading ? "#9ca3af" : "#1f2937",
+            border: "2px solid rgba(255,255,255,0.2)",
+            borderRadius: 12,
+            boxShadow: loading ? "none" : "0 4px 0 #c0c0c0, 0 8px 20px rgba(0,0,0,0.25)",
             fontSize: "0.95rem",
-            fontWeight: 600,
-            cursor: loading ? "not-allowed" : "pointer",
-            transition: "background 0.15s, transform 0.1s",
-            fontFamily: "inherit",
-          }}
-          onMouseEnter={(e) => {
-            if (!loading) (e.currentTarget as HTMLButtonElement).style.transform = "scale(1.02)";
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.transform = "scale(1)";
           }}
         >
           {loading ? (
             <>
-              <div
-                style={{
-                  width: 20,
-                  height: 20,
-                  border: "2px solid #374151",
-                  borderTop: "2px solid #9ca3af",
-                  borderRadius: "50%",
-                  animation: "spin 0.8s linear infinite",
-                  flexShrink: 0,
-                }}
+              <span
+                className="pvz-spinner"
+                style={{ width: 18, height: 18, borderWidth: 2 }}
               />
               Signing in…
             </>
@@ -150,8 +101,10 @@ function LoginContent() {
           )}
         </button>
 
-        <p style={{ color: "#374151", fontSize: "0.72rem", textAlign: "center", margin: 0 }}>
-          Your game progress is saved automatically once you sign in.
+        <p style={{ color: "#4b5563", fontSize: "0.72rem", fontWeight: 600, margin: 0, lineHeight: 1.5 }}>
+          Progress is saved automatically once you sign in.
+          <br />
+          Free play is available after login.
         </p>
       </div>
     </main>
@@ -160,7 +113,7 @@ function LoginContent() {
 
 function GoogleIcon() {
   return (
-    <svg width="20" height="20" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
+    <svg width="20" height="20" viewBox="0 0 24 24" style={{ flexShrink: 0 }} aria-hidden>
       <path
         d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
         fill="#4285F4"
@@ -183,7 +136,13 @@ function GoogleIcon() {
 
 export default function LoginPage() {
   return (
-    <Suspense>
+    <Suspense
+      fallback={
+        <main className="pvz-page pvz-page--lawn" style={{ display: "grid", placeItems: "center" }}>
+          <div className="pvz-spinner" />
+        </main>
+      }
+    >
       <LoginContent />
     </Suspense>
   );

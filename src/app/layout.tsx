@@ -10,8 +10,9 @@ const nunito = Nunito({
 });
 
 export const metadata: Metadata = {
-  title: "Plants vs. Zombies Web",
-  description: "A scalable web clone built with Next.js, Neon Postgres, and Zustand",
+  title: "Plants vs. Zombies — Web Adventure",
+  description:
+    "Defend your lawn in this Plants vs. Zombies web adventure. Unlock plants, survive waves, and progress through Day, Night, Pool, Fog, and Roof.",
 };
 
 export default function RootLayout({
@@ -21,7 +22,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={nunito.variable}>
-      <body>{children}</body>
+      <body className={nunito.className}>{children}</body>
     </html>
   );
 }

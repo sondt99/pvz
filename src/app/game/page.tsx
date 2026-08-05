@@ -592,16 +592,7 @@ export default function GamePage() {
   const showPlayUi = phase === "playing";
 
   return (
-    <main
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        minHeight: "100vh",
-        background: "radial-gradient(circle at center, #143615 0%, #071608 64%, #030b04 100%)",
-        fontFamily: "sans-serif",
-        overflow: "hidden",
-      }}
-    >
+    <main className="pvz-game-shell pvz-page--game">
       <GameHUD
         onPauseRequest={handlePauseSave}
         onResumeRequest={handleResume}
@@ -617,43 +608,23 @@ export default function GamePage() {
           flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
-          gap: 10,
-          padding: "14px 18px 16px",
+          gap: 12,
+          padding: "14px 16px 16px",
           position: "relative",
           overflow: "auto",
         }}
       >
         {activeLevelNumber === null && phase !== "loading" && (
-          <div
-            style={{
-              display: "flex",
-              gap: 6,
-              alignItems: "center",
-              justifyContent: "center",
-              flexWrap: "wrap",
-              width: "min(100%, 1080px)",
-            }}
-          >
+          <div className="pvz-env-tabs">
             {ENVIRONMENT_ORDER.map((envType) => {
               const selected = envType === activeEnvironment;
               return (
                 <button
                   key={envType}
+                  type="button"
+                  className={selected ? "pvz-env-tab pvz-env-tab--on" : "pvz-env-tab"}
                   onClick={() => switchEnvironment(envType)}
                   disabled={phase === "playing"}
-                  style={{
-                    minWidth: 84,
-                    height: 34,
-                    border: selected ? "2px solid #ffe56a" : "1px solid rgba(218, 245, 176, 0.28)",
-                    borderRadius: 7,
-                    background: selected ? "rgba(255, 213, 74, 0.22)" : "rgba(20, 48, 22, 0.72)",
-                    color: selected ? "#fff5a6" : "#cfeab8",
-                    fontWeight: 800,
-                    fontSize: 12,
-                    cursor: phase === "playing" ? "not-allowed" : "pointer",
-                    opacity: phase === "playing" ? 0.5 : 1,
-                    boxShadow: selected ? "0 0 16px rgba(255, 220, 74, 0.2)" : "none",
-                  }}
                 >
                   {ENVIRONMENT_LABELS[envType].icon} {ENVIRONMENT_LABELS[envType].label}
                 </button>
@@ -664,38 +635,54 @@ export default function GamePage() {
 
         {activeLevelNumber !== null && (
           <div
+            className="pvz-panel--glass"
             style={{
               display: "flex",
               alignItems: "center",
-              gap: 8,
-              color: "#86efac",
+              gap: 10,
+              padding: "6px 14px",
+              borderRadius: 999,
               fontSize: 13,
-              fontWeight: 700,
+              fontWeight: 800,
+              color: "#b8f090",
             }}
           >
-            <Link href="/" style={{ color: "#9ca3af", textDecoration: "none", fontSize: 12 }}>
+            <Link href="/" className="pvz-btn pvz-btn--ghost pvz-btn--sm" style={{ padding: "2px 8px" }}>
               ← Levels
             </Link>
-            <span style={{ color: "#2a5a0a" }}>|</span>
-            <span>Level {activeLevelNumber}{levelMeta?.name ? ` · ${levelMeta.name}` : ""}</span>
+            <span style={{ color: "rgba(107, 138, 100, 0.55)" }}>|</span>
+            <span>
+              Level {activeLevelNumber}
+              {levelMeta?.name ? ` · ${levelMeta.name}` : ""}
+            </span>
+            {levelMeta?.playMode && levelMeta.playMode !== "NORMAL" && (
+              <span className="pvz-badge pvz-badge--gold" style={{ fontSize: "0.65rem" }}>
+                {levelMeta.playMode.replace(/_/g, " ")}
+              </span>
+            )}
           </div>
         )}
 
         {phase === "loading" && (
-          <div style={{ color: "#adffa0", fontSize: 16, fontWeight: 700, padding: 40 }}>
-            Loading level…
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14, padding: 40 }}>
+            <div className="pvz-spinner" />
+            <span style={{ color: "#adffa0", fontSize: 16, fontWeight: 800 }}>Loading level…</span>
           </div>
         )}
 
         {loadError && phase === "choosing" && (
-          <div style={{ color: "#fca5a5", fontSize: 13, marginBottom: 4 }}>{loadError}</div>
+          <div className="pvz-alert pvz-alert--error" style={{ maxWidth: 480 }}>
+            {loadError}
+          </div>
         )}
 
         {inChooser && (
           <SeedChooser
             levelName={
               levelMeta?.name ??
-              (activeLevelNumber ? `Level ${activeLevelNumber}` : `${ENVIRONMENT_LABELS[activeEnvironment].label} Freeplay`)
+              (activeLevelNumber
+                ? `Level ${activeLevelNumber}`
+                : `${ENVIRONMENT_LABELS[activeEnvironment].label} Freeplay`)
             }
             briefingText={levelMeta?.briefingText ?? null}
             seedSlots={seedSlots}
@@ -721,21 +708,12 @@ export default function GamePage() {
 
         {showPlayUi && selectedSlot !== null && !showOverlay && (
           <div
-            style={{
-              width: "min(100%, 1080px)",
-              minHeight: 20,
-              display: "flex",
-              justifyContent: "center",
-              color: "#f5dd7a",
-              fontSize: 12,
-              fontWeight: 800,
-            }}
+            className="pvz-badge pvz-badge--gold"
+            style={{ fontSize: "0.78rem", padding: "0.4rem 0.9rem" }}
           >
-            <span>
-              {playMode === "BOWLING" ? "🎳" : "🌱"}{" "}
-              {toTitleCase(loadout[selectedSlot]?.plantType ?? "")}
-              {playMode === "BOWLING" ? " — click a lane to roll" : ""}
-            </span>
+            {playMode === "BOWLING" ? "🎳" : "🌱"}{" "}
+            {toTitleCase(loadout[selectedSlot]?.plantType ?? "")}
+            {playMode === "BOWLING" ? " — click a lane to roll" : " — click a tile to plant"}
           </div>
         )}
 
@@ -746,38 +724,16 @@ export default function GamePage() {
               display: "flex",
               justifyContent: "center",
               width: "100%",
+              borderRadius: 12,
+              boxShadow: "0 12px 40px rgba(0,0,0,0.45), 0 0 0 3px rgba(139, 90, 43, 0.35)",
+              overflow: "hidden",
             }}
           >
             <GameCanvas onCellClick={handleSunClick} shovelMode={shovelSelected} />
 
             {waveAnnouncement && !showOverlay && (
-              <div
-                style={{
-                  position: "absolute",
-                  left: 0,
-                  right: 0,
-                  top: "38%",
-                  display: "flex",
-                  justifyContent: "center",
-                  pointerEvents: "none",
-                  zIndex: 20,
-                }}
-              >
-                <div
-                  style={{
-                    padding: "14px 28px",
-                    borderRadius: 10,
-                    background: "rgba(20,0,0,0.82)",
-                    border: "3px solid #ffcc33",
-                    color: "#ffe56a",
-                    fontWeight: 900,
-                    fontSize: 22,
-                    letterSpacing: 0.5,
-                    textAlign: "center",
-                    boxShadow: "0 0 24px rgba(255,200,0,0.35)",
-                    textTransform: "uppercase",
-                  }}
-                >
+              <div className="pvz-banner-wave">
+                <div className="pvz-banner-wave__inner">
                   {waveAnnouncement === "final"
                     ? "Final wave!"
                     : "A huge wave of zombies is approaching!"}
@@ -786,40 +742,30 @@ export default function GamePage() {
             )}
 
             {showOverlay && (
-              <div
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 24,
-                  pointerEvents: "auto",
-                  background: "rgba(0,0,0,0.75)",
-                  backdropFilter: "blur(3px)",
-                }}
-              >
+              <div className="pvz-overlay">
                 <h1
-                  style={{
-                    fontSize: 56,
-                    fontWeight: "bold",
-                    color: isVictory ? "#ffd700" : "#ff4444",
-                    textShadow: "0 0 20px rgba(0,0,0,0.8)",
-                    margin: 0,
-                  }}
+                  className={
+                    isVictory
+                      ? "pvz-overlay__title pvz-overlay__title--win"
+                      : "pvz-overlay__title pvz-overlay__title--lose"
+                  }
                 >
                   {isVictory ? "YOU WIN!" : "GAME OVER"}
                 </h1>
 
                 {isVictory && rewardPlantId && (
-                  <p style={{ color: "#adffa0", fontSize: 18, margin: 0 }}>
+                  <p
+                    className="pvz-badge pvz-badge--success"
+                    style={{ fontSize: "1rem", padding: "0.55rem 1rem" }}
+                  >
                     Unlocked: {toTitleCase(rewardPlantId)}
                   </p>
                 )}
 
-                <div style={{ display: "flex", gap: 16 }}>
+                <div style={{ display: "flex", gap: 14, flexWrap: "wrap", justifyContent: "center" }}>
                   <button
+                    type="button"
+                    className="pvz-btn pvz-btn--primary pvz-btn--lg"
                     onClick={() => {
                       setCurrentSessionId(null);
                       void prepareLevel({
@@ -828,34 +774,10 @@ export default function GamePage() {
                         forceNew: true,
                       });
                     }}
-                    style={{
-                      background: "#2a7a2a",
-                      color: "#e0ffe0",
-                      border: "2px solid #4aaa4a",
-                      borderRadius: 8,
-                      padding: "12px 28px",
-                      fontSize: 18,
-                      fontWeight: "bold",
-                      cursor: "pointer",
-                    }}
                   >
                     Play Again
                   </button>
-                  <Link
-                    href="/"
-                    style={{
-                      background: "#2a2a5a",
-                      color: "#c0c0ff",
-                      border: "2px solid #4a4aaa",
-                      borderRadius: 8,
-                      padding: "12px 28px",
-                      fontSize: 18,
-                      fontWeight: "bold",
-                      textDecoration: "none",
-                      display: "inline-flex",
-                      alignItems: "center",
-                    }}
-                  >
+                  <Link href="/" className="pvz-btn pvz-btn--secondary pvz-btn--lg">
                     Main Menu
                   </Link>
                 </div>

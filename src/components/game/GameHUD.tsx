@@ -11,6 +11,7 @@ function persistenceIcon(label: string): string {
   if (label === "Local") return "💾 ";
   if (label === "Syncing") return "↻ ";
   if (label === "Save failed") return "⚠ ";
+  if (label === "Pick seeds") return "🌱 ";
   return "";
 }
 
@@ -18,9 +19,7 @@ interface GameHUDProps {
   onPauseRequest?: () => Promise<void> | void;
   onResumeRequest?: () => Promise<void> | void;
   persistenceLabel?: string;
-  /** Hide wave bar during seed chooser / pre-start */
   showWaveBar?: boolean;
-  /** Hide sun counter (bowling / conveyor). */
   hideSun?: boolean;
 }
 
@@ -47,11 +46,8 @@ export function GameHUD({
     setIsSyncing(true);
     try {
       if (isPaused) {
-        if (onResumeRequest) {
-          await onResumeRequest();
-        } else {
-          store.resumeGame();
-        }
+        if (onResumeRequest) await onResumeRequest();
+        else store.resumeGame();
       } else if (onPauseRequest) {
         await onPauseRequest();
       } else {
@@ -63,120 +59,58 @@ export function GameHUD({
   }
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 16,
-        padding: "8px 16px",
-        background: "linear-gradient(to bottom, #0d2205, #1a3a0a)",
-        borderBottom: "3px solid #2a5a0a",
-        fontFamily: "sans-serif",
-        userSelect: "none",
-      }}
-    >
-      {/* Sun counter */}
+    <header className="pvz-hud">
       {showSun && (
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 6,
-          background: "#2a5a0a",
-          borderRadius: 8,
-          padding: "4px 12px",
-          border: "2px solid #ffd700",
-          minWidth: 80,
-          flexShrink: 0,
-        }}
-      >
-        <span style={{ fontSize: 20 }}>☀️</span>
-        <span
-          style={{
-            color: "#ffd700",
-            fontWeight: "bold",
-            fontSize: 20,
-            minWidth: 40,
-            textAlign: "right",
-          }}
-        >
-          {currentSun}
-        </span>
-      </div>
-      )}
-
-      {/* Wave progress bar (PvZ-style flag strip) */}
-      {showWaveBar && (isPlaying || isPaused || status === "victory" || status === "game-over") ? (
-        <WaveProgressBar />
-      ) : (
-        <div style={{ color: "#c0e8a0", fontSize: 13, opacity: 0.7, flex: 1 }}>
-          {status === "idle" ? "Choose your seeds" : "Ready"}
+        <div className="pvz-sun-counter" title="Sun">
+          <div className="pvz-sun-counter__icon" aria-hidden>
+            ☀
+          </div>
+          <span className="pvz-sun-counter__value">{currentSun}</span>
         </div>
       )}
 
-      {/* Score */}
-      <div style={{ color: "#c0e8a0", fontSize: 14, flexShrink: 0 }}>
-        <span style={{ opacity: 0.7 }}>Score </span>
-        <span style={{ fontWeight: "bold", fontSize: 16, color: "#e0ffe0" }}>
-          {score.toLocaleString()}
-        </span>
+      {showWaveBar && (isPlaying || isPaused || status === "victory" || status === "game-over") ? (
+        <WaveProgressBar />
+      ) : (
+        <div className="pvz-wave-bar" style={{ justifyContent: "center" }}>
+          <span style={{ color: "#c8b898", fontSize: "0.8rem", fontWeight: 700, opacity: 0.85 }}>
+            {status === "idle" ? "Choose your seeds" : "Get ready…"}
+          </span>
+        </div>
+      )}
+
+      <div className="pvz-hud__score">
+        Score <strong>{score.toLocaleString()}</strong>
       </div>
 
-      {/* Status badge */}
       {persistenceLabel && (
-        <span
-          style={{
-            color: "#d7f5b6",
-            fontSize: 12,
-            fontWeight: 700,
-            opacity: 0.86,
-            flexShrink: 0,
-          }}
-        >
-          {persistenceIcon(persistenceLabel)}{persistenceLabel}
+        <span className="pvz-hud__meta">
+          {persistenceIcon(persistenceLabel)}
+          {persistenceLabel}
         </span>
       )}
 
-      {isPaused && (
-        <span
-          style={{
-            background: "#ff8c00",
-            color: "#fff",
-            borderRadius: 6,
-            padding: "2px 10px",
-            fontWeight: "bold",
-            fontSize: 13,
-            letterSpacing: 1,
-            flexShrink: 0,
-          }}
-        >
-          PAUSED
-        </span>
-      )}
+      {isPaused && <span className="pvz-badge pvz-badge--gold">Paused</span>}
 
-      {/* Pause / Resume button */}
       {(isPlaying || isPaused) && (
         <button
+          type="button"
+          className={isPaused ? "pvz-btn pvz-btn--primary pvz-btn--sm" : "pvz-btn pvz-btn--secondary pvz-btn--sm"}
           onClick={handlePauseResume}
           disabled={isSyncing}
-          style={{
-            background: isPaused ? "#2a7a2a" : "rgba(20, 20, 20, 0.5)",
-            color: "#e0ffe0",
-            border: isPaused ? "2px solid #4aaa4a" : "2px solid rgba(255,255,255,0.2)",
-            borderRadius: 8,
-            padding: "6px 16px",
-            fontWeight: "bold",
-            fontSize: 14,
-            cursor: isSyncing ? "wait" : "pointer",
-            letterSpacing: 0.5,
-            opacity: isSyncing ? 0.72 : 1,
-            flexShrink: 0,
-          }}
+          style={
+            isPaused
+              ? undefined
+              : {
+                  background: "rgba(20, 14, 8, 0.55)",
+                  borderColor: "rgba(200, 160, 100, 0.35)",
+                  color: "#e8d8b8",
+                }
+          }
         >
-          {isSyncing ? "Syncing..." : isPaused ? "▶ Resume" : "⏸ Pause"}
+          {isSyncing ? "Syncing…" : isPaused ? "▶ Resume" : "⏸ Pause"}
         </button>
       )}
-    </div>
+    </header>
   );
 }
