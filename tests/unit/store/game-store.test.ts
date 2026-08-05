@@ -13,6 +13,7 @@ import {
   GARGANTUAR_IMP_THROW_MIN_X,
   GARGANTUAR_SMASH_RECOVERY_MS,
   POGO_WITHOUT_STICK_SPEED_COLS_PER_SEC,
+  FIRST_WAVE_AT_MS,
   POTATO_MINE_ARM_MS,
   WAVE_INTERVAL_MS,
   ZOMBIE_SPAWN_X,
@@ -168,7 +169,7 @@ describe("initGame", () => {
     useGameStore.getState().initGame(DAY_ENV, LOADOUT);
     const { waveNumber, nextWaveAtMs } = useGameStore.getState();
     expect(waveNumber).toBe(0);
-    expect(nextWaveAtMs).toBe(WAVE_INTERVAL_MS);
+    expect(nextWaveAtMs).toBe(FIRST_WAVE_AT_MS);
   });
 
   it("clears any prior entities from a previous game", () => {
@@ -1246,14 +1247,14 @@ describe("tick — zombie movement", () => {
     });
     useGameStore.getState().startGame();
 
-    useGameStore.getState().tick(WAVE_INTERVAL_MS);
+    useGameStore.getState().tick(FIRST_WAVE_AT_MS);
 
     const zombies = Object.values(useGameStore.getState().zombies);
     expect(zombies).toHaveLength(1);
     expect(zombies[0]).toMatchObject({ zombieType: "BUCKETHEAD", lane: 4 });
     expect(useGameStore.getState().zombieSpawnQueue).toEqual([
-      { zombieType: "CONEHEAD", lane: 1, spawnAtMs: WAVE_INTERVAL_MS + 500 },
-      expect.objectContaining({ zombieType: "FLAG", spawnAtMs: WAVE_INTERVAL_MS + 1000 }),
+      { zombieType: "CONEHEAD", lane: 1, spawnAtMs: FIRST_WAVE_AT_MS + 500 },
+      expect.objectContaining({ zombieType: "FLAG", spawnAtMs: FIRST_WAVE_AT_MS + 1000 }),
     ]);
     expect(useGameStore.getState().waveNumber).toBe(1);
   });

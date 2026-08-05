@@ -25,15 +25,18 @@ export interface LevelConfig {
   waveConfig: object;
 }
 
-// Helper: build a pool-based wave
+// Helper: build a pool-based wave.
+// intervalMs is the gap between individual zombies (paced slower for PvZ1 feel).
 function wave(
   waveNumber: number,
   zombiePool: string[],
   count: number,
-  intervalMs = 5000,
+  intervalMs = 8_000,
   opts: { flag?: boolean; final?: boolean; startDelayMs?: number } = {}
 ) {
-  return { waveNumber, zombiePool, count, intervalMs, ...opts };
+  // Floor so even aggressive late-level configs stay playable.
+  const pacedInterval = Math.max(5_500, Math.round(intervalMs * 1.35));
+  return { waveNumber, zombiePool, count, intervalMs: pacedInterval, ...opts };
 }
 
 // Helper: named tuple [rewardPlantId, briefingText, seedSlots, waveConfig]

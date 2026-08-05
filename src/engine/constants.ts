@@ -21,8 +21,17 @@ export const LAWN_MOWER_READY_X = -0.78;
 export const LAWN_MOWER_TRIGGER_X = -0.5;
 export const LAWN_MOWER_SPEED_COLS_PER_SEC = 6;
 
-export const WAVE_INTERVAL_MS = 30_000;
-export const FINAL_WAVE_DELAY_MS = 10_000;
+// PvZ-like pacing: first wave after sun-setup, then min gap between wave *starts*.
+// Next wave also waits until the previous wave finished spawning and the lawn is mostly clear.
+export const FIRST_WAVE_AT_MS = 25_000;
+export const WAVE_INTERVAL_MS = 50_000;
+/** Extra rest after the last zombie of a wave is queued before the next wave may start. */
+export const WAVE_REST_AFTER_SPAWN_MS = 12_000;
+/** Normal waves may start when this many living zombies remain (or fewer). */
+export const WAVE_ADVANCE_MAX_REMAINING = 1;
+/** Flag / final waves wait for a full clear. */
+export const WAVE_FLAG_ADVANCE_MAX_REMAINING = 0;
+export const FINAL_WAVE_DELAY_MS = 15_000;
 
 export const SUNFLOWER_PRODUCE_INTERVAL_MS = 24_000;
 export const SUN_PRODUCER_INITIAL_DELAY_MS = 7_000;

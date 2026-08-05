@@ -63,7 +63,11 @@ import {
   SKY_SUN_INTERVAL_MS,
   SKY_SUN_FALL_SPEED_PER_MS,
   SUN_PRODUCER_INITIAL_DELAY_MS,
+  FIRST_WAVE_AT_MS,
+  WAVE_ADVANCE_MAX_REMAINING,
+  WAVE_FLAG_ADVANCE_MAX_REMAINING,
   WAVE_INTERVAL_MS,
+  WAVE_REST_AFTER_SPAWN_MS,
   ZOMBIE_SPAWN_X,
 } from "../engine/constants";
 import { resetPlantAiCounters, shouldPlantAttack, plantFire, plantProduceSun } from "../engine/ai/plant-ai";
@@ -716,7 +720,7 @@ const INITIAL_STATE: GameEngineState = {
   cumulativeSun: 0,
   gameTimeMs: 0,
   waveNumber: 0,
-  nextWaveAtMs: WAVE_INTERVAL_MS,
+  nextWaveAtMs: FIRST_WAVE_AT_MS,
   rngState: DEFAULT_RNG_SEED,
   score: 0,
   totalZombiesKilled: 0,
@@ -769,7 +773,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
       currentSun: getInitialSun(env),
       loadout,
       nextSkyDropAtMs: SKY_SUN_INTERVAL_MS,
-      nextWaveAtMs: WAVE_INTERVAL_MS,
+      nextWaveAtMs: FIRST_WAVE_AT_MS,
       waveConfig,
       rngState: createInitialRngState([
         options?.rngSeed,
@@ -1077,32 +1081,57 @@ export const useGameStore = create<GameStore>()((set, get) => ({
       return result.value;
     };
 
+    // PvZ-like wave pacing:
+    // - earliest start at nextWaveAtMs
+    // - previous wave must finish spawning (queue empty for pending entries is checked via living+queue)
+    // - lawn mostly clear (stricter for flag/final waves)
+    // - after starting, next earliest is max(min interval, end of this wave's spawn train + rest)
     if (newGameTimeMs >= nextWaveAtMs) {
       const newWaveNumber = waveNumber + 1;
-      const waveResult = generateWave(newWaveNumber, env.gridRows, rngState, state.waveConfig);
-      rngState = waveResult.rngState;
-      const entries = waveResult.entries;
-      const newEntries = entries.map((entry) => ({
-        zombieType: entry.zombieType,
-        lane: entry.lane,
-        spawnAtMs: newGameTimeMs + entry.spawnAtMs,
-        ...(entry.x !== undefined ? { x: entry.x } : {}),
-      }));
-      zombieSpawnQueue = [...zombieSpawnQueue, ...newEntries];
-      if (env.gravesEnabled && (newWaveNumber % 5 === 0 || waveResult.isFlagWave || waveResult.isFinalWave)) {
-        const graveAmbushes = state.grid
-          .flat()
-          .filter((cell) => cell.graveId !== null)
-          .map((cell, index) => ({
-            zombieType: "NORMAL",
-            lane: cell.row,
-            x: cell.col,
-            spawnAtMs: newGameTimeMs + index * 500,
-          }));
-        zombieSpawnQueue = [...zombieSpawnQueue, ...graveAmbushes];
+      const livingCount = Object.keys(state.zombies).length;
+      const pendingSpawns = zombieSpawnQueue.length;
+      const waveProbe = generateWave(newWaveNumber, env.gridRows, rngState, state.waveConfig);
+      const isBigWave = waveProbe.isFlagWave || waveProbe.isFinalWave;
+      const maxRemaining = isBigWave
+        ? WAVE_FLAG_ADVANCE_MAX_REMAINING
+        : WAVE_ADVANCE_MAX_REMAINING;
+      // First wave always starts when the timer hits (setup sun phase).
+      const boardClearEnough =
+        waveNumber === 0 || (pendingSpawns === 0 && livingCount <= maxRemaining);
+
+      if (boardClearEnough) {
+        rngState = waveProbe.rngState;
+        const entries = waveProbe.entries;
+        const newEntries = entries.map((entry) => ({
+          zombieType: entry.zombieType,
+          lane: entry.lane,
+          spawnAtMs: newGameTimeMs + entry.spawnAtMs,
+          ...(entry.x !== undefined ? { x: entry.x } : {}),
+        }));
+        zombieSpawnQueue = [...zombieSpawnQueue, ...newEntries];
+        if (env.gravesEnabled && (newWaveNumber % 5 === 0 || waveProbe.isFlagWave || waveProbe.isFinalWave)) {
+          const graveAmbushes = state.grid
+            .flat()
+            .filter((cell) => cell.graveId !== null)
+            .map((cell, index) => ({
+              zombieType: "NORMAL",
+              lane: cell.row,
+              x: cell.col,
+              spawnAtMs: newGameTimeMs + index * 500,
+            }));
+          zombieSpawnQueue = [...zombieSpawnQueue, ...graveAmbushes];
+        }
+        waveNumber = newWaveNumber;
+        const lastSpawnOffset = entries.reduce(
+          (latest, entry) => Math.max(latest, entry.spawnAtMs),
+          0
+        );
+        // Do not schedule the next wave until this wave's spawn train is done + rest.
+        nextWaveAtMs =
+          newGameTimeMs +
+          Math.max(WAVE_INTERVAL_MS, lastSpawnOffset + WAVE_REST_AFTER_SPAWN_MS);
       }
-      waveNumber = newWaveNumber;
-      nextWaveAtMs = nextWaveAtMs + WAVE_INTERVAL_MS;
+      // else: timer ready but lawn not clear yet — hold wave; keep nextWaveAtMs as-is
     }
 
     // -----------------------------------------------------------------------

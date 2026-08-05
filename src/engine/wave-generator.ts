@@ -42,7 +42,8 @@ export interface GeneratedWave {
 
 const DEFAULT_FINAL_WAVE_NUMBER = 5;
 const DEFAULT_FLAG_EVERY = 5;
-const DEFAULT_SPAWN_INTERVAL_MS = 4500;
+// Default gap between zombies within a wave (~PvZ casual pacing).
+const DEFAULT_SPAWN_INTERVAL_MS = 7_500;
 const MAX_CONFIGURED_WAVE_COUNT = 60;
 
 const PROGRESSION: string[][] = [
@@ -237,7 +238,10 @@ function fromConfiguredWave(
   } else {
     const pool = wave.zombiePool ?? wave.zombieTypes ?? waveConfig.defaultZombiePool ?? availableTypes(waveNumber);
     const count = wave.count ?? Math.min(3 + waveNumber * 2, 20);
-    const intervalMs = wave.intervalMs ?? DEFAULT_SPAWN_INTERVAL_MS;
+    // Pace spawn trains: scale legacy DB intervals and enforce a playable floor
+    // so late configs never dump zombies every 1–2s (PvZ casual feel).
+    const rawInterval = wave.intervalMs ?? DEFAULT_SPAWN_INTERVAL_MS;
+    const intervalMs = Math.max(5_500, Math.round(rawInterval * 1.35));
     const startDelayMs = wave.startDelayMs ?? 0;
 
     for (let i = 0; i < count; i++) {
