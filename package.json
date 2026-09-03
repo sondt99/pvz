@@ -42,7 +42,7 @@
     "@vitest/coverage-v8": "^4.1.8",
     "dotenv-cli": "^7.4.0",
     "ts-node": "^10.9.0",
-    "@faker-js/faker": "^9.0.0"
+    "@faker-js/faker": "^10.5.0"
   },
   "overrides": {
     "postcss": "^8.5.18",
